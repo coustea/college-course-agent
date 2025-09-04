@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ccut.common.mapper.CourseMapper">
+
+    <resultMap id="courseWithTeachersResultMap" type="com.ccut.common.entity.Course">
+        <id property="id" column="course_id"/>
+        <result property="title" column="course_title"/>
+        <result property="term" column="course_term"/>
+        <result property="status" column="course_status" typeHandler="com.ccut.common.Utils.CourseStatusTypeHandler"/>
+
+        <collection property="teachers" ofType="com.ccut.common.entity.Teacher">
+            <id property="id" column="teacher_id"/>
+            <result property="name" column="teacher_name"/>
+            <result property="phone" column="teacher_phone"/>
+        </collection>
+    </resultMap>
+
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into `course` (title, term, status)
+        values (#{title}, #{term}, #{status.code})
+    </insert>
+
+    <update id="updateById">
+        update `course`
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="term != null">term = #{term},</if>
+            <if test="status != null">status = #{status, typeHandler=com.ccut.common.Utils.CourseStatusTypeHandler},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        delete from `course` where id = #{id}
+    </delete>
+
+
+    <insert id="addTeacher">
+        insert into `course_teacher` (course_id, teacher_id)
+        values (#{courseId}, #{teacherId})
+    </insert>
+
+    <delete id="deleteCourseTeachers">
+        delete from `course_teacher` where course_id = #{courseId}
+    </delete>
+
+    <delete id="deleteTeacherCourses">
+        delete from `course_teacher` where teacher_id = #{id}
+    </delete>
+
+    <select id="findTeacherIdsByCourseId" resultType="java.lang.Integer">
+        select teacher_id from `course_teacher` where course_id = #{courseId}
+    </select>
+
+    <select id="findAllWithTeachers" resultMap="courseWithTeachersResultMap">
+        select
+        c.id as course_id,
+        c.title as course_title,
+        c.term as course_term,
+        c.status as course_status,
+        t.id as teacher_id,
+        t.name as teacher_name,
+        t.phone as teacher_phone
+        from `course` c
+        left join `course_teacher` ct on c.id = ct.course_id
+        left join `teacher` t on ct.teacher_id = t.id
+        <where>
+            <if test="title != null and title != ''">
+                and c.title like concat('%', #{title}, '%')
+            </if>
+            <if test="term != null and term != ''">
+                and c.term like concat('%', #{term}, '%')
+            </if>
+            <if test="status != null">
+                and c.status = #{status, typeHandler=com.ccut.common.Utils.CourseStatusTypeHandler}
+            </if>
+        </where>
+        order by c.id
+    </select>
+
+    <select id="selectById" resultType="com.ccut.common.entity.Course">
+        select * from `course` where id = #{id}
+    </select>
+
+</mapper>

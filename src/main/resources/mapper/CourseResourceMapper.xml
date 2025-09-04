@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ccut.common.mapper.CourseResourceMapper">
+
+    <resultMap id="csResultMap" type="com.ccut.common.entity.CourseResource">
+        <id property="id" column="id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="pptPath" column="ppt_path"/>
+        <result property="imagePath" column="image_path"/>
+        <result property="videoPath" column="video_path"/>
+        <association property="course" column="course_id"
+                     select="com.ccut.common.mapper.CourseMapper.selectById" fetchType="lazy"/>
+    </resultMap>
+
+    <insert id="insert">
+        insert into `course_resource` (course_id, ppt_path, image_path, video_path)
+        values (#{courseId}, #{pptPath}, #{imagePath}, #{videoPath})
+    </insert>
+
+    <delete id="deleteById">
+        delete from `course_resource` where id = #{id}
+    </delete>
+
+    <update id="updateById">
+        update `course_resource`
+        <set>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="pptPath != null">ppt_path = #{pptPath},</if>
+            <if test="imagePath != null">image_path = #{imagePath},</if>
+            <if test="videoPath != null">video_path = #{videoPath},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <select id="selectById" resultType="com.ccut.common.entity.CourseResource">
+        select * from `course_resource` where id = #{id}
+    </select>
+
+
+
+</mapper>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ccut.common.mapper.LearningProgressMapper">
+
+    <resultMap id="LearningResultMap" type="com.ccut.common.entity.LearningProgress">
+        <id property="id" column="id"/>
+        <result property="studentId" column="student_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="completionPercentage" column="completion_percentage"/>
+        <result property="status" column="status" typeHandler="com.ccut.common.Utils.StatusTypeHandler"
+                jdbcType="INTEGER" javaType="com.ccut.common.entity.LearningProgress$Status"/>
+
+        <association property="student" column="student_id"
+                     select="com.ccut.common.mapper.StudentMapper.selectById" fetchType="lazy"/>
+        <association property="course" column="course_id"
+                     select="com.ccut.common.mapper.CourseMapper.selectById" fetchType="lazy"/>
+    </resultMap>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into `learning_progress`
+            (student_id, course_id, completion_percentage, status)
+        values
+            (#{studentId}, #{courseId}, #{completionPercentage}, #{status, typeHandler=org.apache.ibatis.type.EnumTypeHandler})
+    </insert>
+
+    <update id="updateById">
+        update `learning_progress`
+        <set>
+            <if test="studentId != null">student_id = #{studentId},</if>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="completionPercentage != null">completion_percentage = #{completionPercentage},</if>
+            <if test="status != null">status = #{status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},</if>
+
+            <if test="studentId == null and courseId == null and completionPercentage == null and status == null">
+                status = status
+            </if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <select id="findByStudentIdAndCourseId" resultMap="LearningResultMap">
+        select lp.*
+        from `learning_progress` lp
+        where lp.student_id = #{studentId} and lp.course_id = #{courseId}
+        limit 1
+    </select>
+
+    <select id="findByStudentId" resultType="com.ccut.common.entity.LearningProgress">
+        select lp.*
+        from `learning_progress` lp
+        where lp.student_id = #{studentId}
+    </select>
+</mapper>
