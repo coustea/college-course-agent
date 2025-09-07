@@ -11,10 +11,12 @@ import java.util.Date;
 @NoArgsConstructor
 public class Course {
     private Long courseId;
+    private String courseCode;
     private String courseName;
     private String description;
     private Integer credits; // 学分
     private Teacher teacher;
+    private Long teacherId; // 授课教师ID（外键）
     private Date startDate;
     private Date endDate;
     private String semester;// 学期
