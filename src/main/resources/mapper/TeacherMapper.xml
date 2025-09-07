@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.TeacherMapper">
+
+    <insert id="insertTeacher">
+        INSERT INTO teachers (
+            <trim suffixOverrides=",">
+                <if test="id != null">id,</if>
+                <if test="employeeNumber != null">employee_number,</if>
+                <if test="name != null">name,</if>
+                <if test="email != null">email,</if>
+                <if test="phone != null">phone,</if>
+                <if test="department != null">department,</if>
+                <if test="title != null">title,</if>
+            </trim>
+        ) VALUES (
+            <trim suffixOverrides=",">
+                <if test="id != null">#{id},</if>
+                <if test="employeeNumber != null">#{employeeNumber},</if>
+                <if test="name != null">#{name},</if>
+                <if test="email != null">#{email},</if>
+                <if test="phone != null">#{phone},</if>
+                <if test="department != null">#{department},</if>
+                <if test="title != null">#{title},</if>
+            </trim>
+        )
+    </insert>
+
+    <update id="updateById">
+        UPDATE teachers
+        <set>
+            <if test="employeeNumber != null">employee_number = #{employeeNumber},</if>
+            <if test="name != null">name = #{name},</if>
+            <if test="email != null">email = #{email},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="department != null">department = #{department},</if>
+            <if test="title != null">title = #{title},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM teachers WHERE id = #{id}
+    </delete>
+
+    <resultMap id="TeacherRM" type="com.ccut.entity.Teacher">
+        <id property="id" column="id"/>
+        <result property="employeeNumber" column="employee_number"/>
+        <result property="name" column="name"/>
+        <result property="email" column="email"/>
+        <result property="phone" column="phone"/>
+        <result property="department" column="department"/>
+        <result property="title" column="title"/>
+    </resultMap>
+
+    <select id="selectAll" resultMap="TeacherRM">
+        SELECT id, employee_number, name, email, phone, department, title
+        FROM teachers
+        ORDER BY id DESC
+    </select>
+
+    <select id="selectById" resultMap="TeacherRM">
+        SELECT id, employee_number, name, email, phone, department, title
+        FROM teachers WHERE id = #{id}
+    </select>
+
+</mapper>
+
+
