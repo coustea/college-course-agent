@@ -4,12 +4,13 @@ import com.ccut.entity.Teacher;
 import com.ccut.mapper.TeacherMapper;
 import com.ccut.entity.User;
 import com.ccut.mapper.UserMapper;
+import com.ccut.service.TeacherService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class TeacherServiceImpl {
+public class TeacherServiceImpl implements TeacherService {
 
     @Autowired
     private TeacherMapper teacherMapper;
