@@ -21,5 +21,7 @@ public class Course {
     private Date endDate;
     private String semester;// 学期
     private Integer maxStudents;// 最大选课人数
+    private String resourceUrl; // 教学资源URL
+    private Integer vindex; // 展示排序/权重（来自 SQL 表）
 
 }

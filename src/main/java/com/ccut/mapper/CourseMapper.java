@@ -12,6 +12,8 @@ public interface CourseMapper {
     int deleteById(Long courseId);
     List<Course> selectAll();
     Course selectById(Long courseId);
+    Course selectByCourseCode(@org.apache.ibatis.annotations.Param("courseCode") String courseCode);
+    java.util.List<Course> searchByName(@org.apache.ibatis.annotations.Param("name") String name);
 
 }
 

@@ -10,6 +10,7 @@ public interface CourseService {
     int updateById(Course course);
     List<Course> selectAll();
     Course selectById(Long courseId);
+    List<Course> searchByName(String name);
 }
 
 

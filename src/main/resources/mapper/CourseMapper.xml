@@ -13,6 +13,8 @@
         <result property="endDate" column="end_date"/>
         <result property="semester" column="semester"/>
         <result property="maxStudents" column="max_students"/>
+        <result property="resourceUrl" column="resource_url"/>
+        <result property="vindex" column="vindex"/>
         <association property="teacher" javaType="com.ccut.entity.Teacher">
             <id property="id" column="t_id"/>
             <result property="employeeNumber" column="employee_number"/>
@@ -36,6 +38,8 @@
                 <if test="endDate != null">end_date,</if>
                 <if test="semester != null">semester,</if>
                 <if test="maxStudents != null">max_students,</if>
+                <if test="resourceUrl != null">resource_url,</if>
+                <if test="vindex != null">vindex,</if>
             </trim>
         ) VALUES (
             <trim suffixOverrides=",">
@@ -48,6 +52,8 @@
                 <if test="endDate != null">#{endDate},</if>
                 <if test="semester != null">#{semester},</if>
                 <if test="maxStudents != null">#{maxStudents},</if>
+                <if test="resourceUrl != null">#{resourceUrl},</if>
+                <if test="vindex != null">#{vindex},</if>
             </trim>
         )
     </insert>
@@ -63,6 +69,8 @@
             <if test="endDate != null">end_date = #{endDate},</if>
             <if test="semester != null">semester = #{semester},</if>
             <if test="maxStudents != null">max_students = #{maxStudents},</if>
+            <if test="resourceUrl != null">resource_url = #{resourceUrl},</if>
+            <if test="vindex != null">vindex = #{vindex},</if>
         </set>
         WHERE course_id = #{courseId}
     </update>
@@ -73,22 +81,43 @@
 
     <select id="selectAll" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
-               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url,
                t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
         LEFT JOIN teachers t ON t.id = c.teacher_id
-        ORDER BY c.course_id DESC
+        ORDER BY c.vindex DESC, c.course_id DESC
     </select>
 
     <select id="selectById" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
-               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url,
                t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
         LEFT JOIN teachers t ON t.id = c.teacher_id
         WHERE c.course_id = #{courseId}
+    </select>
+
+    <select id="searchByName" resultMap="CourseRM">
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url,
+               t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        WHERE c.course_name LIKE CONCAT('%', #{name}, '%')
+        ORDER BY c.course_name ASC, c.vindex DESC, c.course_id DESC
+    </select>
+
+    <select id="selectByCourseCode" resultMap="CourseRM">
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url,
+               t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        WHERE c.course_code = #{courseCode}
     </select>
 
 </mapper>

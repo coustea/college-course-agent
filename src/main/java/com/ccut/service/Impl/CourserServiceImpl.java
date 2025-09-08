@@ -38,4 +38,9 @@ public class CourserServiceImpl implements CourseService {
     public Course selectById(Long courseId) {
         return courseMapper.selectById(courseId);
     }
+
+    @Override
+    public List<Course> searchByName(String name) {
+        return courseMapper.searchByName(name);
+    }
 }

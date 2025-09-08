@@ -4,6 +4,9 @@ import com.ccut.entity.Result;
 import com.ccut.entity.Student;
 import com.ccut.service.Impl.StudentServiceImpl;
 import com.ccut.service.Impl.TeacherServiceImpl;
+import com.ccut.mapper.EnrollmentMapper;
+import com.ccut.mapper.StudentMapper;
+import com.ccut.mapper.CourseMapper;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -21,6 +24,12 @@ public class TeacherController {
     private StudentServiceImpl studentService;
     @Autowired
     private TeacherServiceImpl teacherService;
+    @Autowired
+    private EnrollmentMapper enrollmentMapper;
+    @Autowired
+    private StudentMapper studentMapper;
+    @Autowired
+    private CourseMapper courseMapper;
     @PostMapping("/insert/students")
     public Result<String> insertStudents(@RequestBody Student student){
         try {
@@ -112,6 +121,79 @@ public class TeacherController {
         try {
             return Result.success(teacherService.selectAll());
         } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    // 将学生加入课程（选课表 enrollments 关联）
+    @PostMapping("/enroll")
+    public Result<String> enroll(@RequestParam("studentId") Long studentId,
+                                 @RequestParam("courseId") Long courseId){
+        try {
+            int n = enrollmentMapper.upsert(studentId, courseId);
+            if (n > 0) return Result.success("选课成功");
+            return Result.error(500, "选课失败");
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    // 通过 Excel 按 “学号+课程代码” 批量选课（仅限已存在学生与课程）
+    @PostMapping("/import/enrollments")
+    public Result<String> importEnrollments(@RequestParam("file") MultipartFile file){
+        try {
+            String filename = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
+            Workbook workbook;
+            try (InputStream is = file.getInputStream()) {
+                if (filename.endsWith(".xlsx")) {
+                    workbook = new XSSFWorkbook(is);
+                } else if (filename.endsWith(".xls")) {
+                    workbook = new HSSFWorkbook(is);
+                } else {
+                    return Result.error(400, "不支持的文件类型，只支持 .xls/.xlsx");
+                }
+            }
+
+            DataFormatter formatter = new DataFormatter();
+            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            Sheet sheet = workbook.getNumberOfSheets() > 0 ? workbook.getSheetAt(0) : null;
+            if (sheet == null) { workbook.close(); return Result.error(400, "空工作簿"); }
+
+            Iterator<Row> it = sheet.iterator();
+            if (!it.hasNext()) { workbook.close(); return Result.error(400, "空表"); }
+            Row header = it.next();
+            int maxCol = header.getLastCellNum();
+            java.util.Map<String,Integer> idx = new java.util.HashMap<>();
+            for (int i=0;i<maxCol;i++){
+                String title = formatter.formatCellValue(header.getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK), evaluator);
+                if (title==null) title="";
+                title = title.replaceAll("\\s+","" ).toLowerCase();
+                idx.put(title, i);
+            }
+            Integer snCol = idx.getOrDefault("学号", idx.get("studentnumber"));
+            Integer ccCol = idx.getOrDefault("课程代码", idx.get("coursecode"));
+            if (snCol == null || ccCol == null) { workbook.close(); return Result.error(400, "缺少表头：学号 或 课程代码"); }
+
+            int success=0, skipped=0, failed=0; StringBuilder errors = new StringBuilder();
+            while (it.hasNext()){
+                Row row = it.next();
+                String sn = formatter.formatCellValue(row.getCell(snCol, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK), evaluator).trim();
+                String code = formatter.formatCellValue(row.getCell(ccCol, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK), evaluator).trim();
+                if (sn.isEmpty() && code.isEmpty()) continue;
+                try{
+                    // 找学生与课程
+                    com.ccut.entity.Student stu = studentService.getStudentByStudentNumber(sn);
+                    com.ccut.entity.Course course = courseMapper.selectByCourseCode(code);
+                    if (stu==null || course==null){ skipped++; continue; }
+                    int n = enrollmentMapper.upsert(stu.getId(), course.getCourseId());
+                    if (n>0) success++; else failed++;
+                }catch (Exception ex){ failed++; if (errors.length()<1000) errors.append("行").append(row.getRowNum()+1).append(": ").append(ex.getMessage()).append("; "); }
+            }
+            workbook.close();
+            String msg = "选课成功:"+success+" 条"+(skipped>0?", 跳过(不存在): "+skipped+" 条":"")+(failed>0?", 失败: "+failed+" 条":"");
+            if (errors.length()>0) msg += "，部分错误: "+errors;
+            return Result.success(msg);
+        } catch (Exception e){
             return Result.error(500, e.getMessage());
         }
     }

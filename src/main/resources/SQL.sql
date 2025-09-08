@@ -61,6 +61,8 @@ CREATE TABLE courses (
                          end_date DATE COMMENT '结课日期',
                          semester VARCHAR(20) COMMENT '学期',
                          max_students INT DEFAULT 100 COMMENT '最大选课人数',
+                         resource_url VARCHAR(500) COMMENT '教学资源URL',
+                         vindex INT DEFAULT 1 COMMENT '排序索引',
                          FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE RESTRICT
 ) COMMENT='课程信息表';
 
