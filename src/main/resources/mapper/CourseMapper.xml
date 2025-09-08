@@ -13,6 +13,15 @@
         <result property="endDate" column="end_date"/>
         <result property="semester" column="semester"/>
         <result property="maxStudents" column="max_students"/>
+        <association property="teacher" javaType="com.ccut.entity.Teacher">
+            <id property="id" column="t_id"/>
+            <result property="employeeNumber" column="employee_number"/>
+            <result property="name" column="t_name"/>
+            <result property="email" column="t_email"/>
+            <result property="phone" column="t_phone"/>
+            <result property="department" column="department"/>
+            <result property="title" column="title"/>
+        </association>
     </resultMap>
 
     <insert id="insert">
@@ -63,13 +72,23 @@
     </delete>
 
     <select id="selectAll" resultMap="CourseRM">
-        SELECT course_id, course_name, description, credits, start_date, end_date, semester, max_students
-        FROM courses ORDER BY course_id DESC
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students,
+               t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        ORDER BY c.course_id DESC
     </select>
 
     <select id="selectById" resultMap="CourseRM">
-        SELECT course_id, course_name, description, credits, start_date, end_date, semester, max_students
-        FROM courses WHERE course_id = #{courseId}
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students,
+               t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        WHERE c.course_id = #{courseId}
     </select>
 
 </mapper>
