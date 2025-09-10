@@ -69,9 +69,11 @@ public class CourseController {
     }
 
     @GetMapping("/search")
-    public Result<java.util.List<Course>> search(@RequestParam("name") String name){
+    public Result<java.util.List<Course>> search(
+            @RequestParam(value = "name", required = false) String name,
+            @RequestParam(value = "description", required = false) String description){
         try {
-            return Result.success(courseService.searchByName(name));
+            return Result.success(courseService.search(name, description));
         } catch (Exception e) {
             return Result.error(500, e.getMessage());
         }

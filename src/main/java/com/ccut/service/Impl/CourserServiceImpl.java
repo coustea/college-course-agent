@@ -2,6 +2,7 @@ package com.ccut.service.Impl;
 
 import com.ccut.entity.Course;
 import com.ccut.mapper.CourseMapper;
+import com.ccut.mapper.CourseVideoMapper;
 import com.ccut.service.CourseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,8 @@ public class CourserServiceImpl implements CourseService {
 
     @Autowired
     private CourseMapper courseMapper;
+    @Autowired
+    private CourseVideoMapper courseVideoMapper;
 
     @Override
     public int insert(Course course) {
@@ -31,16 +34,40 @@ public class CourserServiceImpl implements CourseService {
 
     @Override
     public List<Course> selectAll() {
-        return courseMapper.selectAll();
+        List<Course> courses = courseMapper.selectAll();
+        if (courses != null) {
+            for (Course c : courses) {
+                if (c != null && c.getCourseId() != null) {
+                    c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+                }
+            }
+        }
+        return courses;
     }
 
     @Override
     public Course selectById(Long courseId) {
-        return courseMapper.selectById(courseId);
+        Course c = courseMapper.selectById(courseId);
+        if (c != null && c.getCourseId() != null) {
+            c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+        }
+        return c;
     }
 
     @Override
     public List<Course> searchByName(String name) {
-        return courseMapper.searchByName(name);
+        return courseMapper.search(name, null);
+    }
+
+    public List<Course> search(String name, String description) {
+        List<Course> courses = courseMapper.search(name, description);
+        if (courses != null) {
+            for (Course c : courses) {
+                if (c != null && c.getCourseId() != null) {
+                    c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+                }
+            }
+        }
+        return courses;
     }
 }

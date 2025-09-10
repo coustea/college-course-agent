@@ -7,6 +7,8 @@ import com.ccut.service.Impl.TeacherServiceImpl;
 import com.ccut.mapper.EnrollmentMapper;
 import com.ccut.mapper.StudentMapper;
 import com.ccut.mapper.CourseMapper;
+import com.ccut.mapper.LearningProgressMapper;
+import com.ccut.mapper.CourseVideoMapper;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -30,6 +32,10 @@ public class TeacherController {
     private StudentMapper studentMapper;
     @Autowired
     private CourseMapper courseMapper;
+    @Autowired
+    private LearningProgressMapper learningProgressMapper;
+    @Autowired
+    private CourseVideoMapper courseVideoMapper;
     @PostMapping("/insert/students")
     public Result<String> insertStudents(@RequestBody Student student){
         try {
@@ -138,6 +144,34 @@ public class TeacherController {
         }
     }
 
+    // 按学生ID查询已加入的课程
+    @GetMapping("/enrollments/courses")
+    public Result<java.util.List<com.ccut.entity.Course>> findCoursesByStudentId(@RequestParam("studentId") Long studentId){
+        try {
+            java.util.List<com.ccut.entity.Course> courses = enrollmentMapper.findCoursesByStudentId(studentId);
+            if (courses != null) {
+                for (com.ccut.entity.Course c : courses) {
+                    if (c != null && c.getCourseId() != null) {
+                        c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+                    }
+                }
+            }
+            return Result.success(courses);
+        } catch (Exception e){
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    // 按课程ID查询参与课程的学生
+    @GetMapping("/enrollments/students")
+    public Result<java.util.List<com.ccut.entity.Student>> findStudentsByCourseId(@RequestParam("courseId") Long courseId){
+        try {
+            return Result.success(enrollmentMapper.findStudentsByCourseId(courseId));
+        } catch (Exception e){
+            return Result.error(500, e.getMessage());
+        }
+    }
+
     // 通过 Excel 按 “学号+课程代码” 批量选课（仅限已存在学生与课程）
     @PostMapping("/import/enrollments")
     public Result<String> importEnrollments(@RequestParam("file") MultipartFile file){
@@ -185,7 +219,10 @@ public class TeacherController {
                     com.ccut.entity.Student stu = studentService.getStudentByStudentNumber(sn);
                     com.ccut.entity.Course course = courseMapper.selectByCourseCode(code);
                     if (stu==null || course==null){ skipped++; continue; }
+                    // 建立选课关系
                     int n = enrollmentMapper.upsert(stu.getId(), course.getCourseId());
+                    // 初始化学习进度（0% & 未完成），方便前端直接查询
+                    learningProgressMapper.upsert(stu.getId(), course.getCourseId(), 0.0, 0, false);
                     if (n>0) success++; else failed++;
                 }catch (Exception ex){ failed++; if (errors.length()<1000) errors.append("行").append(row.getRowNum()+1).append(": ").append(ex.getMessage()).append("; "); }
             }

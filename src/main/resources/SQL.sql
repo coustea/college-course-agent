@@ -86,7 +86,19 @@ CREATE TABLE learning_progress (
                                    completed BOOLEAN DEFAULT FALSE COMMENT '是否完成',
                                    completion_percentage DECIMAL(5,2) DEFAULT 0.00 COMMENT '完成百分比',
                                    time_spent INT DEFAULT 0 COMMENT '累计学习时间（秒）',
+                                   last_study_time DATETIME DEFAULT NULL COMMENT '最后一次学习时间',
                                    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
                                    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
                                    UNIQUE KEY unique_student_course_lesson (student_id, course_id)
 ) COMMENT='学习进度跟踪表';
+CREATE TABLE course_videos (
+                               video_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '视频ID',
+                               course_id BIGINT NOT NULL COMMENT '课程ID',
+                               video_index INT NOT NULL COMMENT '视频集数（顺序编号）',
+                               video_title VARCHAR(255) COMMENT '视频标题',
+                               video_url VARCHAR(500) COMMENT '视频URL地址',
+                               duration INT DEFAULT 0 COMMENT '视频时长（秒）',
+                               upload_date DATETIME COMMENT '上传日期',
+                               FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+                               UNIQUE KEY unique_video (course_id, video_index)  -- 确保每个课程的视频集数唯一
+) COMMENT='课程视频资源表';

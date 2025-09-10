@@ -11,6 +11,7 @@ public interface CourseService {
     List<Course> selectAll();
     Course selectById(Long courseId);
     List<Course> searchByName(String name);
+    List<Course> search(String name, String description);
 }
 
 

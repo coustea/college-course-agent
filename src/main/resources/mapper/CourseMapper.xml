@@ -39,7 +39,9 @@
                 <if test="semester != null">semester,</if>
                 <if test="maxStudents != null">max_students,</if>
                 <if test="resourceUrl != null">resource_url,</if>
+                <!-- 始终写入 vindex，若未提供则使用 1 作为默认值 -->
                 <if test="vindex != null">vindex,</if>
+                <if test="vindex == null">vindex,</if>
             </trim>
         ) VALUES (
             <trim suffixOverrides=",">
@@ -53,7 +55,9 @@
                 <if test="semester != null">#{semester},</if>
                 <if test="maxStudents != null">#{maxStudents},</if>
                 <if test="resourceUrl != null">#{resourceUrl},</if>
+                <!-- vindex 未提供则用 1 -->
                 <if test="vindex != null">#{vindex},</if>
+                <if test="vindex == null">1,</if>
             </trim>
         )
     </insert>
@@ -81,7 +85,7 @@
 
     <select id="selectAll" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
-               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
                t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
@@ -91,7 +95,7 @@
 
     <select id="selectById" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
-               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
                t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
@@ -99,20 +103,28 @@
         WHERE c.course_id = #{courseId}
     </select>
 
-    <select id="searchByName" resultMap="CourseRM">
+    <select id="search" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
-               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
                t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
         LEFT JOIN teachers t ON t.id = c.teacher_id
-        WHERE c.course_name LIKE CONCAT('%', #{name}, '%')
+        <where>
+            <if test="name != null and name != ''">
+                c.course_name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="description != null and description != ''">
+                <if test="name != null and name != ''">AND</if>
+                c.description LIKE CONCAT('%', #{description}, '%')
+            </if>
+        </where>
         ORDER BY c.course_name ASC, c.vindex DESC, c.course_id DESC
     </select>
 
     <select id="selectByCourseCode" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
-               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
                t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
