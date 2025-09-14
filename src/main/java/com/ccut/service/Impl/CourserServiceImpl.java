@@ -3,6 +3,7 @@ package com.ccut.service.Impl;
 import com.ccut.entity.Course;
 import com.ccut.mapper.CourseMapper;
 import com.ccut.mapper.CourseVideoMapper;
+import com.ccut.mapper.CourseDocumentMapper;
 import com.ccut.service.CourseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,8 @@ public class CourserServiceImpl implements CourseService {
     private CourseMapper courseMapper;
     @Autowired
     private CourseVideoMapper courseVideoMapper;
+    @Autowired
+    private CourseDocumentMapper courseDocumentMapper;
 
     @Override
     public int insert(Course course) {
@@ -39,6 +42,7 @@ public class CourserServiceImpl implements CourseService {
             for (Course c : courses) {
                 if (c != null && c.getCourseId() != null) {
                     c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+                    c.setDocuments(courseDocumentMapper.findByCourseId(c.getCourseId()));
                 }
             }
         }
@@ -50,6 +54,7 @@ public class CourserServiceImpl implements CourseService {
         Course c = courseMapper.selectById(courseId);
         if (c != null && c.getCourseId() != null) {
             c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+            c.setDocuments(courseDocumentMapper.findByCourseId(c.getCourseId()));
         }
         return c;
     }
@@ -65,6 +70,7 @@ public class CourserServiceImpl implements CourseService {
             for (Course c : courses) {
                 if (c != null && c.getCourseId() != null) {
                     c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+                    c.setDocuments(courseDocumentMapper.findByCourseId(c.getCourseId()));
                 }
             }
         }

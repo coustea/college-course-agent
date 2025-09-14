@@ -55,6 +55,7 @@ public class CourseController {
         try {
             return Result.success(courseService.selectAll());
         } catch (Exception e) {
+            log.error(e.getMessage());
             return Result.error(500, e.getMessage());
         }
     }

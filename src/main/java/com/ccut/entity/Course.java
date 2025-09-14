@@ -25,5 +25,6 @@ public class Course {
     private String resourceUrl; // 教学资源URL
     private Integer vindex; // 展示排序/权重（来自 SQL 表）
     private List<CourseVideo> videos; // 课程下的视频列表
+    private List<CourseDocument> documents; // 课程下的文档列表
 
 }

@@ -102,3 +102,44 @@ CREATE TABLE course_videos (
                                FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
                                UNIQUE KEY unique_video (course_id, video_index)  -- 确保每个课程的视频集数唯一
 ) COMMENT='课程视频资源表';
+CREATE TABLE course_documents (
+                                  document_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '文档ID',
+                                  course_id BIGINT NOT NULL COMMENT '课程ID',
+                                  document_index INT NOT NULL COMMENT '文档序号（顺序编号）',
+                                  document_title VARCHAR(255) COMMENT '文档标题',
+                                  document_url VARCHAR(500) COMMENT '文档URL地址（可指向PDF、Word等）',
+                                  upload_date DATETIME COMMENT '上传日期',
+                                  FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+                                  UNIQUE KEY unique_document (course_id, document_index) -- 确保每个课程的文档序号唯一
+) COMMENT='课程文档资源表';
+
+-- 视频进度表（按视频维度）
+CREATE TABLE IF NOT EXISTS video_progress (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  student_id BIGINT NOT NULL,
+  course_id BIGINT NOT NULL,
+  video_id BIGINT NOT NULL,
+  watched_seconds INT DEFAULT 0,
+  completed BOOLEAN DEFAULT FALSE,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+  FOREIGN KEY (video_id) REFERENCES course_videos(video_id) ON DELETE CASCADE,
+  UNIQUE KEY uniq_student_video (student_id, video_id)
+) COMMENT='课程视频学习进度表';
+
+-- 文档进度表（按文档维度）
+CREATE TABLE IF NOT EXISTS document_progress (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  student_id BIGINT NOT NULL,
+  course_id BIGINT NOT NULL,
+  document_id BIGINT NOT NULL,
+  time_spent INT DEFAULT 0,
+  max_scroll_pct DECIMAL(5,2) DEFAULT 0.00,
+  completed BOOLEAN DEFAULT FALSE,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+  FOREIGN KEY (document_id) REFERENCES course_documents(document_id) ON DELETE CASCADE,
+  UNIQUE KEY uniq_student_document (student_id, document_id)
+) COMMENT='课程文档学习进度表';
