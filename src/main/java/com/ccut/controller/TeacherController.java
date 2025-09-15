@@ -8,6 +8,7 @@ import com.ccut.mapper.EnrollmentMapper;
 import com.ccut.mapper.StudentMapper;
 import com.ccut.mapper.CourseMapper;
 import com.ccut.mapper.LearningProgressMapper;
+import com.ccut.mapper.CourseDocumentMapper;
 import com.ccut.mapper.CourseVideoMapper;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
@@ -36,6 +37,8 @@ public class TeacherController {
     private LearningProgressMapper learningProgressMapper;
     @Autowired
     private CourseVideoMapper courseVideoMapper;
+    @Autowired
+    private CourseDocumentMapper courseDocumentMapper;
     @PostMapping("/insert/students")
     public Result<String> insertStudents(@RequestBody Student student){
         try {
@@ -153,6 +156,7 @@ public class TeacherController {
                 for (com.ccut.entity.Course c : courses) {
                     if (c != null && c.getCourseId() != null) {
                         c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+                        c.setDocuments(courseDocumentMapper.findByCourseId(c.getCourseId()));
                     }
                 }
             }
