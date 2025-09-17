@@ -17,5 +17,7 @@ public interface CourseMapper {
             @org.apache.ibatis.annotations.Param("name") String name,
             @org.apache.ibatis.annotations.Param("description") String description);
 
+    // 新增：按教师ID返回课程卡片字段
+    java.util.List<com.ccut.entity.TeacherCourseCard> listCourseCardsByTeacher(@org.apache.ibatis.annotations.Param("teacherId") Long teacherId);
 }
 

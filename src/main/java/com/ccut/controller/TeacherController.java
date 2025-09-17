@@ -398,4 +398,22 @@ public class TeacherController {
             return Result.error(500, e.getMessage());
         }
     }
+
+    // 新增：按教师ID返回其课程下的视频列表，拍平字段以适配前端卡片需求
+    @GetMapping("/videos")
+    public Result<java.util.Map<String, Object>> listTeacherVideos(
+            @RequestParam("teacherId") Long teacherId) {
+        try {
+            if (teacherId == null) return Result.error(400, "teacherId 不能为空");
+            java.util.List<com.ccut.entity.TeacherVideoItem> videos = courseVideoMapper.listByTeacherId(teacherId);
+            java.util.List<com.ccut.entity.TeacherCourseCard> courses = courseMapper.listCourseCardsByTeacher(teacherId);
+
+            java.util.Map<String, Object> resp = new java.util.HashMap<>();
+            resp.put("videos", videos);
+            resp.put("courses", courses);
+            return Result.success(resp);
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
 }

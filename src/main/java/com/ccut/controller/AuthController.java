@@ -62,6 +62,32 @@ public class AuthController {
             return Result.error(500, e.getMessage());
         }
     }
+
+    // 教师专用登录
+    @PostMapping("/teacher/login")
+    public Result<Object> teacherLogin(@RequestBody User login) {
+        try {
+            if (login.getUsername() == null || login.getPassword() == null) {
+                return Result.error(400, "用户名和密码不能为空");
+            }
+            User db = userMapper.getUserByUsername(login.getUsername());
+            if (db == null) return Result.error(401, "账号不存在");
+            if (!db.getPassword().equals(login.getPassword())) return Result.error(401, "密码错误");
+            if (db.getRole() != User.Role.teacher) return Result.error(403, "不是教师账号");
+
+            Teacher t = teacherMapper.selectById(db.getId());
+            if (t == null) {
+                t = new Teacher();
+                t.setId(db.getId());
+            }
+            t.setUsername(db.getUsername());
+            t.setPassword(db.getPassword());
+            t.setRole(db.getRole());
+            return Result.success(t);
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
 }
 
 

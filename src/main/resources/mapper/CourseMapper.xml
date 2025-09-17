@@ -132,4 +132,46 @@
         WHERE c.course_code = #{courseCode}
     </select>
 
+    <!-- 新增：按教师ID返回课程卡片字段汇总，适配前端 CoursesList.vue -->
+    <resultMap id="TeacherCourseCardRM" type="com.ccut.entity.TeacherCourseCard">
+        <id property="id" column="course_id"/>
+        <result property="title" column="course_name"/>
+        <result property="description" column="description"/>
+        <result property="image" column="resource_url"/>
+        <result property="resourceUrl" column="resource_url"/>
+        <result property="status" column="status"/>
+        <result property="categoryId" column="category_id"/>
+        <result property="createTime" column="start_date"/>
+        <result property="studentCount" column="student_count"/>
+        <result property="videoCount" column="video_count"/>
+        <result property="documentCount" column="document_count"/>
+        <result property="completionRate" column="completion_rate"/>
+    </resultMap>
+
+    <select id="listCourseCardsByTeacher" resultMap="TeacherCourseCardRM">
+        SELECT c.course_id,
+               c.course_name,
+               c.description,
+               REPLACE(c.resource_url, '/static', '') AS resource_url,
+               'published' AS status,
+               NULL AS category_id,
+               c.start_date,
+               (
+                   SELECT COUNT(*) FROM enrollments e
+                   WHERE e.course_id = c.course_id AND e.status = 'active'
+               ) AS student_count,
+               (SELECT COUNT(*) FROM course_videos cv WHERE cv.course_id = c.course_id) AS video_count,
+               (SELECT COUNT(*) FROM course_documents cd WHERE cd.course_id = c.course_id) AS document_count,
+               COALESCE((
+                   SELECT ROUND(AVG(COALESCE(lp.completion_percentage, 0)), 2)
+                   FROM enrollments e
+                   LEFT JOIN learning_progress lp
+                     ON lp.student_id = e.student_id AND lp.course_id = c.course_id
+                   WHERE e.course_id = c.course_id
+               ), 0) AS completion_rate
+        FROM courses c
+        WHERE c.teacher_id = #{teacherId}
+        ORDER BY c.vindex DESC, c.course_id DESC
+    </select>
+
 </mapper>

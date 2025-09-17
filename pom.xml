@@ -60,6 +60,12 @@
             <artifactId>poi</artifactId>
             <version>5.2.5</version>
         </dependency>
+        <!-- Spring AI Alibaba DashScope -->
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
+            <version>1.0.0.3</version>
+        </dependency>
     </dependencies>
 
 
