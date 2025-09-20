@@ -1,21 +1,3 @@
--- 用户表
--- 1. 删除学习进度表
-DROP TABLE IF EXISTS learning_progress;
-
--- 2. 删除选课表
-DROP TABLE IF EXISTS enrollments;
-
--- 3. 删除课程表
-DROP TABLE IF EXISTS courses;
-
--- 4. 删除学生表
-DROP TABLE IF EXISTS students;
-
--- 5. 删除教师表
-DROP TABLE IF EXISTS teachers;
-
--- 6. 删除用户表
-DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
                        id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
@@ -112,6 +94,18 @@ CREATE TABLE course_documents (
                                   FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
                                   UNIQUE KEY unique_document (course_id, document_index) -- 确保每个课程的文档序号唯一
 ) COMMENT='课程文档资源表';
+
+-- 学生分组表（按课程+学生维度，可选分组名）
+CREATE TABLE IF NOT EXISTS student_groups (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  course_id BIGINT NOT NULL,
+  student_id BIGINT NOT NULL,
+  group_name VARCHAR(100) DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  UNIQUE KEY uniq_course_student (course_id, student_id)
+) COMMENT='课程学生分组表';
 
 -- 视频进度表（按视频维度）
 CREATE TABLE IF NOT EXISTS video_progress (
