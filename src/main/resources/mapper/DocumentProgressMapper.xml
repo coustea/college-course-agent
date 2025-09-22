@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.DocumentProgressMapper">
+
+    <insert id="upsert">
+        <![CDATA[
+        INSERT INTO document_progress(student_id, course_id, document_id, time_spent, max_scroll_pct, completed, updated_at)
+        VALUES(#{studentId}, #{courseId}, #{documentId}, COALESCE(#{deltaSec},0), COALESCE(#{scrollPct},0), COALESCE(#{completed},FALSE), NOW())
+        ON DUPLICATE KEY UPDATE
+          time_spent = GREATEST(0, time_spent + COALESCE(VALUES(time_spent),0)),
+          max_scroll_pct = GREATEST(max_scroll_pct, COALESCE(VALUES(max_scroll_pct),0)),
+          completed = (
+            CASE 
+              WHEN (completed OR COALESCE(VALUES(completed), FALSE)) THEN TRUE
+              ELSE (CASE WHEN GREATEST(max_scroll_pct, COALESCE(VALUES(max_scroll_pct),0)) >= 95 THEN TRUE ELSE FALSE END)
+            END
+          ),
+          updated_at = NOW()
+        ]]>
+    </insert>
+
+    <resultMap id="DP_RM" type="com.ccut.entity.DocumentProgress">
+        <id property="id" column="id"/>
+        <result property="studentId" column="student_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="documentId" column="document_id"/>
+        <result property="timeSpent" column="time_spent"/>
+        <result property="maxScrollPct" column="max_scroll_pct"/>
+        <result property="completed" column="completed"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="percentage" column="percentage"/>
+    </resultMap>
+
+    <select id="findOne" resultMap="DP_RM">
+        SELECT id, student_id, course_id, document_id, time_spent, max_scroll_pct,
+               CASE WHEN COALESCE(max_scroll_pct,0) &gt;= 95 OR completed = TRUE THEN TRUE ELSE FALSE END AS completed,
+               updated_at,
+               ROUND(COALESCE(max_scroll_pct,0), 2) AS percentage
+        FROM document_progress
+        WHERE student_id = #{studentId} AND course_id = #{courseId} AND document_id = #{documentId}
+        LIMIT 1
+    </select>
+
+    <select id="listByCourse" resultMap="DP_RM">
+        SELECT id, student_id, course_id, document_id, time_spent, max_scroll_pct,
+               CASE WHEN COALESCE(max_scroll_pct,0) &gt;= 95 OR completed = TRUE THEN TRUE ELSE FALSE END AS completed,
+               updated_at,
+               ROUND(COALESCE(max_scroll_pct,0), 2) AS percentage
+        FROM document_progress
+        WHERE student_id = #{studentId} AND course_id = #{courseId}
+        ORDER BY updated_at DESC
+    </select>
+
+    <select id="countCompletedDocumentsByCourse" resultType="int">
+        SELECT COUNT(*)
+        FROM document_progress
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+          AND completed = TRUE
+    </select>
+
+    <select id="countDocumentsByCourse" resultType="int">
+        SELECT COUNT(*) FROM course_documents WHERE course_id = #{courseId}
+    </select>
+
+</mapper>
+
+

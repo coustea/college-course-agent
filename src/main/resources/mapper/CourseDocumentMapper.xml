@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.CourseDocumentMapper">
+
+    <resultMap id="CourseDocRM" type="com.ccut.entity.CourseDocument">
+        <id property="documentId" column="document_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="docIndex" column="document_index"/>
+        <result property="docTitle" column="document_title"/>
+        <result property="docUrl" column="document_url"/>
+        <result property="uploadDate" column="upload_date"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO course_documents (
+            <trim suffixOverrides=",">
+                <if test="courseId != null">course_id,</if>
+                <if test="docIndex != null">document_index,</if>
+                <if test="docTitle != null">document_title,</if>
+                <if test="docUrl != null">document_url,</if>
+                <if test="uploadDate != null">upload_date,</if>
+            </trim>
+        ) VALUES (
+            <trim suffixOverrides=",">
+                <if test="courseId != null">#{courseId},</if>
+                <if test="docIndex != null">#{docIndex},</if>
+                <if test="docTitle != null">#{docTitle},</if>
+                <if test="docUrl != null">#{docUrl},</if>
+                <if test="uploadDate != null">#{uploadDate},</if>
+            </trim>
+        )
+    </insert>
+
+    <update id="updateById">
+        UPDATE course_documents
+        <set>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="docIndex != null">document_index = #{docIndex},</if>
+            <if test="docTitle != null">document_title = #{docTitle},</if>
+            <if test="docUrl != null">document_url = #{docUrl},</if>
+            <if test="uploadDate != null">upload_date = #{uploadDate},</if>
+        </set>
+        WHERE document_id = #{documentId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM course_documents WHERE document_id = #{documentId}
+    </delete>
+
+    <select id="findByCourseId" resultMap="CourseDocRM">
+        SELECT document_id, course_id, document_index, document_title, document_url, upload_date
+        FROM course_documents
+        WHERE course_id = #{courseId}
+        ORDER BY document_index ASC
+    </select>
+
+</mapper>
+
+

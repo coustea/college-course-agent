@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.StudentGroupMapper">
+
+    <resultMap id="StudentGroupRM" type="com.ccut.entity.StudentGroup">
+        <id property="id" column="id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="studentId" column="student_id"/>
+        <result property="groupName" column="group_name"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO student_groups (
+            <trim suffixOverrides=",">
+                <if test="courseId != null">course_id,</if>
+                <if test="studentId != null">student_id,</if>
+                <if test="groupName != null">group_name,</if>
+                <if test="createdAt != null">created_at,</if>
+            </trim>
+        ) VALUES (
+            <trim suffixOverrides=",">
+                <if test="courseId != null">#{courseId},</if>
+                <if test="studentId != null">#{studentId},</if>
+                <if test="groupName != null">#{groupName},</if>
+                <if test="createdAt != null">#{createdAt},</if>
+            </trim>
+        )
+    </insert>
+
+    <update id="updateById">
+        UPDATE student_groups
+        <set>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="studentId != null">student_id = #{studentId},</if>
+            <if test="groupName != null">group_name = #{groupName},</if>
+            <if test="createdAt != null">created_at = #{createdAt},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM student_groups WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultMap="StudentGroupRM">
+        SELECT id, course_id, student_id, group_name, created_at
+        FROM student_groups
+        WHERE id = #{id}
+    </select>
+
+    <select id="listByCourseId" resultMap="StudentGroupRM">
+        SELECT id, course_id, student_id, group_name, created_at
+        FROM student_groups
+        WHERE course_id = #{courseId}
+        ORDER BY id DESC
+    </select>
+
+    <select id="listByStudentId" resultMap="StudentGroupRM">
+        SELECT id, course_id, student_id, group_name, created_at
+        FROM student_groups
+        WHERE student_id = #{studentId}
+        ORDER BY id DESC
+    </select>
+
+</mapper>
+
+

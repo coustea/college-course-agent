@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.AiExamAttemptMapper">
+
+    <resultMap id="AiExamAttemptRM" type="com.ccut.entity.AiExamAttempt">
+        <id property="id" column="id"/>
+        <result property="examId" column="exam_id"/>
+        <result property="studentId" column="student_id"/>
+        <result property="score" column="score"/>
+        <result property="resultJson" column="result_json"/>
+        <result property="submittedAt" column="submitted_at"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_exam_attempts (
+            <trim suffixOverrides=",">
+                <if test="examId != null">exam_id,</if>
+                <if test="studentId != null">student_id,</if>
+                <if test="score != null">score,</if>
+                <if test="resultJson != null">result_json,</if>
+                <if test="submittedAt != null">submitted_at,</if>
+            </trim>
+        ) VALUES (
+            <trim suffixOverrides=",">
+                <if test="examId != null">#{examId},</if>
+                <if test="studentId != null">#{studentId},</if>
+                <if test="score != null">#{score},</if>
+                <if test="resultJson != null">#{resultJson},</if>
+                <if test="submittedAt != null">#{submittedAt},</if>
+            </trim>
+        )
+    </insert>
+
+    <select id="selectById" resultMap="AiExamAttemptRM">
+        SELECT id, exam_id, student_id, score, result_json, submitted_at
+        FROM ai_exam_attempts
+        WHERE id = #{id}
+    </select>
+
+    <update id="updateScore">
+        UPDATE ai_exam_attempts SET score = #{score} WHERE id = #{id}
+    </update>
+
+</mapper>
+
+
+

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.AiExamMapper">
+
+    <resultMap id="AiExamRM" type="com.ccut.entity.AiExam">
+        <id property="id" column="id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="courseName" column="course_name"/>
+        <result property="studentId" column="student_id"/>
+        <result property="topic" column="topic"/>
+        <result property="questionCount" column="question_count"/>
+        <result property="totalScore" column="total_score"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_exams (
+            <trim suffixOverrides=",">
+                <if test="courseId != null">course_id,</if>
+                <if test="courseName != null">course_name,</if>
+                <if test="studentId != null">student_id,</if>
+                <if test="topic != null">topic,</if>
+                <if test="questionCount != null">question_count,</if>
+                <if test="totalScore != null">total_score,</if>
+                <if test="status != null">status,</if>
+                <if test="createdAt != null">created_at,</if>
+            </trim>
+        ) VALUES (
+            <trim suffixOverrides=",">
+                <if test="courseId != null">#{courseId},</if>
+                <if test="courseName != null">#{courseName},</if>
+                <if test="studentId != null">#{studentId},</if>
+                <if test="topic != null">#{topic},</if>
+                <if test="questionCount != null">#{questionCount},</if>
+                <if test="totalScore != null">#{totalScore},</if>
+                <if test="status != null">#{status},</if>
+                <if test="createdAt != null">#{createdAt},</if>
+            </trim>
+        )
+    </insert>
+
+    <update id="updateScoreAndStatus">
+        UPDATE ai_exams
+        <set>
+            <if test="totalScore != null">total_score = #{totalScore},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultMap="AiExamRM">
+        SELECT id, course_id, course_name, student_id, topic, question_count, total_score, status, created_at
+        FROM ai_exams
+        WHERE id = #{id}
+    </select>
+
+</mapper>
+
+

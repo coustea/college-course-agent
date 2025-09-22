@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.CourseVideoMapper">
+
+    <resultMap id="CourseVideoRM" type="com.ccut.entity.CourseVideo">
+        <id property="videoId" column="video_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="videoIndex" column="video_index"/>
+        <result property="videoTitle" column="video_title"/>
+        <result property="videoUrl" column="video_url"/>
+        <result property="duration" column="duration"/>
+        <result property="uploadDate" column="upload_date"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO course_videos (
+            <trim suffixOverrides=",">
+                <if test="courseId != null">course_id,</if>
+                <if test="videoIndex != null">video_index,</if>
+                <if test="videoTitle != null">video_title,</if>
+                <if test="videoUrl != null">video_url,</if>
+                <if test="duration != null">duration,</if>
+                <if test="uploadDate != null">upload_date,</if>
+            </trim>
+        ) VALUES (
+            <trim suffixOverrides=",">
+                <if test="courseId != null">#{courseId},</if>
+                <if test="videoIndex != null">#{videoIndex},</if>
+                <if test="videoTitle != null">#{videoTitle},</if>
+                <if test="videoUrl != null">#{videoUrl},</if>
+                <if test="duration != null">#{duration},</if>
+                <if test="uploadDate != null">#{uploadDate},</if>
+            </trim>
+        )
+    </insert>
+
+    <update id="updateById">
+        UPDATE course_videos
+        <set>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="videoIndex != null">video_index = #{videoIndex},</if>
+            <if test="videoTitle != null">video_title = #{videoTitle},</if>
+            <if test="videoUrl != null">video_url = #{videoUrl},</if>
+            <if test="duration != null">duration = #{duration},</if>
+            <if test="uploadDate != null">upload_date = #{uploadDate},</if>
+        </set>
+        WHERE video_id = #{videoId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM course_videos WHERE video_id = #{videoId}
+    </delete>
+
+    <select id="findByCourseId" resultMap="CourseVideoRM">
+        SELECT video_id, course_id, video_index, video_title, video_url, duration, upload_date
+        FROM course_videos
+        WHERE course_id = #{courseId}
+        ORDER BY video_index ASC
+    </select>
+
+    <!-- 新增：按教师ID查询其课程下的视频列表（拍平结构，满足前端卡片列表展示） -->
+    <resultMap id="TeacherVideoItemRM" type="com.ccut.entity.TeacherVideoItem">
+        <result property="id" column="video_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="courseName" column="course_name"/>
+        <result property="courseTitle" column="course_name"/>
+        <result property="videoId" column="video_id"/>
+        <result property="videoIndex" column="video_index"/>
+        <result property="videoTitle" column="video_title"/>
+        <result property="title" column="video_title"/>
+        <result property="videoUrl" column="video_url"/>
+        <result property="url" column="video_url"/>
+        <result property="duration" column="duration"/>
+        <result property="uploadDate" column="upload_date"/>
+        <result property="studentCount" column="student_count"/>
+    </resultMap>
+
+    <select id="listByTeacherId" resultMap="TeacherVideoItemRM">
+        SELECT c.course_id,
+               c.course_name,
+               cv.video_id,
+               cv.video_index,
+               cv.video_title,
+               cv.video_url,
+               cv.duration,
+               cv.upload_date,
+               (
+                   SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.course_id AND e.status = 'active'
+               ) AS student_count
+        FROM courses c
+        JOIN course_videos cv ON cv.course_id = c.course_id
+        WHERE c.teacher_id = #{teacherId}
+        ORDER BY c.vindex DESC, c.course_id DESC, cv.video_index ASC
+    </select>
+
+</mapper>
+
+

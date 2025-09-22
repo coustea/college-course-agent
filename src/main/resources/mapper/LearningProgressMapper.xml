@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.LearningProgressMapper">
+
+    <insert id="upsert">
+        <![CDATA[
+        INSERT INTO learning_progress(student_id, course_id, completed, completion_percentage, time_spent, last_study_time)
+        SELECT #{studentId}, #{courseId},
+               (
+                   CASE WHEN td.total_duration = 0 THEN FALSE
+                        ELSE ((LEAST(#{timeSpent}, td.total_duration) + 0.0) / (td.total_duration + 0.0) * 100.0) >= 95
+                   END
+               ) OR #{completed} AS completed_new,
+               CASE 
+                   WHEN (#{completed} = TRUE) THEN 100
+                   WHEN td.total_duration = 0 THEN 0
+                   WHEN ((LEAST(#{timeSpent}, td.total_duration) + 0.0) / (td.total_duration + 0.0) * 100.0) >= 95 THEN 100
+                   ELSE ROUND(((LEAST(#{timeSpent}, td.total_duration) + 0.0) / (td.total_duration + 0.0)) * 100.0, 2)
+               END AS pct,
+               #{timeSpent},
+               NOW()
+        FROM (
+            SELECT COALESCE(SUM(CASE WHEN duration IS NULL OR duration < 0 THEN 0 ELSE duration END), 0) AS total_duration
+            FROM course_videos
+            WHERE course_id = #{courseId}
+        ) td
+        ON DUPLICATE KEY UPDATE
+          time_spent = learning_progress.time_spent + VALUES(time_spent),
+          completion_percentage = (
+            SELECT 
+                CASE 
+                    WHEN ( (CASE WHEN td.total_duration = 0 THEN 0 ELSE ROUND(((LEAST(learning_progress.time_spent + VALUES(time_spent), td.total_duration) + 0.0) / (td.total_duration + 0.0)) * 100.0, 2) END) >= 95 )
+                         OR (completed OR VALUES(completed))
+                    THEN 100
+                    ELSE (CASE WHEN td.total_duration = 0 THEN 0 
+                               ELSE ROUND(((LEAST(learning_progress.time_spent + VALUES(time_spent), td.total_duration) + 0.0) / (td.total_duration + 0.0)) * 100.0, 2)
+                          END)
+                END
+            FROM (
+                SELECT COALESCE(SUM(CASE WHEN duration IS NULL OR duration < 0 THEN 0 ELSE duration END), 0) AS total_duration
+                FROM course_videos
+                WHERE course_id = learning_progress.course_id
+            ) td
+          ),
+          completed = (
+            CASE WHEN (
+                SELECT CASE WHEN td.total_duration = 0 THEN 0
+                            ELSE ROUND(((LEAST(learning_progress.time_spent + VALUES(time_spent), td.total_duration) + 0.0) / (td.total_duration + 0.0)) * 100.0, 2)
+                       END
+                FROM (
+                    SELECT COALESCE(SUM(CASE WHEN duration IS NULL OR duration < 0 THEN 0 ELSE duration END), 0) AS total_duration
+                    FROM course_videos
+                    WHERE course_id = learning_progress.course_id
+                ) td
+            ) >= 95 OR (completed OR VALUES(completed)) THEN TRUE
+            ELSE FALSE END
+          ),
+          last_study_time = NOW()
+        ]]>
+    </insert>
+
+    <resultMap id="LP_RM" type="com.ccut.entity.LearningProgress">
+        <id property="progressId" column="progress_id"/>
+        <result property="studentId" column="student_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="completed" column="completed"/>
+        <result property="completionPercentage" column="completion_percentage"/>
+        <result property="timeSpent" column="time_spent"/>
+        <result property="lastStudyTime" column="last_study_time"/>
+    </resultMap>
+
+    <select id="findOne" resultMap="LP_RM">
+        SELECT progress_id, student_id, course_id, completed, completion_percentage, time_spent, last_study_time
+        FROM learning_progress
+        WHERE student_id = #{studentId} AND course_id = #{courseId}
+        LIMIT 1
+    </select>
+
+    <!-- 基于子项完成度（视频+文档）按个数计算课程百分比 -->
+    <select id="calcCoursePercent" resultType="double">
+        SELECT CASE WHEN (tv.total_videos + td.total_docs) = 0 THEN 0
+                    ELSE ROUND( (COALESCE(vp.completed_videos,0) + COALESCE(dp.completed_docs,0))
+                                 / (tv.total_videos + td.total_docs + 0.0) * 100.0, 2)
+               END AS pct
+        FROM 
+        ( SELECT COUNT(*) AS total_videos FROM course_videos WHERE course_id = #{courseId} ) tv,
+        ( SELECT COUNT(*) AS total_docs FROM course_documents WHERE course_id = #{courseId} ) td
+        LEFT JOIN (
+            SELECT COUNT(*) AS completed_videos
+            FROM course_videos cv
+            LEFT JOIN video_progress vp ON vp.video_id = cv.video_id AND vp.student_id = #{studentId}
+            WHERE cv.course_id = #{courseId}
+              AND (
+                vp.completed = TRUE OR (
+                  cv.duration IS NOT NULL AND cv.duration > 0 AND
+                  ROUND((LEAST(COALESCE(vp.watched_seconds,0), cv.duration) + 0.0) / (cv.duration + 0.0) * 100.0, 2) >= 95
+                )
+              )
+        ) vp ON 1=1
+        LEFT JOIN (
+            SELECT COUNT(*) AS completed_docs
+            FROM course_documents cd
+            LEFT JOIN document_progress dp ON dp.document_id = cd.document_id AND dp.student_id = #{studentId}
+            WHERE cd.course_id = #{courseId}
+              AND (COALESCE(dp.max_scroll_pct,0) >= 95 OR dp.completed = TRUE)
+        ) dp ON 1=1
+    </select>
+
+    <!-- 判断课程是否完成：当该生所有视频和所有文档都完成 -->
+    <select id="isCourseCompleted" resultType="boolean">
+        SELECT CASE WHEN (
+            SELECT COUNT(*) FROM course_videos WHERE course_id = #{courseId}
+        ) = (
+            SELECT COUNT(*)
+            FROM course_videos cv
+            LEFT JOIN video_progress vp ON vp.video_id = cv.video_id AND vp.student_id = #{studentId}
+            WHERE cv.course_id = #{courseId}
+              AND (
+                vp.completed = TRUE OR (
+                  cv.duration IS NOT NULL AND cv.duration > 0 AND
+                  ROUND((LEAST(COALESCE(vp.watched_seconds,0), cv.duration) + 0.0) / (cv.duration + 0.0) * 100.0, 2) >= 95
+                )
+              )
+        ) AND (
+            SELECT COUNT(*) FROM course_documents WHERE course_id = #{courseId}
+        ) = (
+            SELECT COUNT(*)
+            FROM course_documents cd
+            LEFT JOIN document_progress dp ON dp.document_id = cd.document_id AND dp.student_id = #{studentId}
+            WHERE cd.course_id = #{courseId}
+              AND (COALESCE(dp.max_scroll_pct,0) >= 95 OR dp.completed = TRUE)
+        ) AND (
+            (SELECT COUNT(*) FROM course_videos WHERE course_id = #{courseId}) +
+            (SELECT COUNT(*) FROM course_documents WHERE course_id = #{courseId})
+        ) > 0 THEN TRUE ELSE FALSE END
+    </select>
+
+</mapper>
+
+

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.EnrollmentMapper">
+
+    <insert id="upsert">
+        INSERT INTO enrollments(student_id, course_id, status)
+        VALUES (#{studentId}, #{courseId}, 'active')
+        ON DUPLICATE KEY UPDATE status = VALUES(status), enrollment_date = CURRENT_TIMESTAMP
+    </insert>
+
+    <resultMap id="CourseRM" type="com.ccut.entity.Course">
+        <id property="courseId" column="course_id"/>
+        <result property="courseCode" column="course_code"/>
+        <result property="courseName" column="course_name"/>
+        <result property="description" column="description"/>
+        <result property="credits" column="credits"/>
+        <result property="teacherId" column="teacher_id"/>
+        <result property="startDate" column="start_date"/>
+        <result property="endDate" column="end_date"/>
+        <result property="semester" column="semester"/>
+        <result property="maxStudents" column="max_students"/>
+        <result property="resourceUrl" column="resource_url"/>
+        <result property="vindex" column="vindex"/>
+    </resultMap>
+
+    <resultMap id="StudentRM" type="com.ccut.entity.Student">
+        <id property="id" column="id"/>
+        <result property="studentNumber" column="student_number"/>
+        <result property="name" column="name"/>
+        <result property="email" column="email"/>
+        <result property="phone" column="phone"/>
+        <result property="major" column="major"/>
+        <result property="grade" column="grade"/>
+        <result property="enrollmentYear" column="enrollment_year"/>
+    </resultMap>
+
+    <select id="findCoursesByStudentId" resultMap="CourseRM">
+        SELECT c.*
+        FROM enrollments e
+        JOIN courses c ON c.course_id = e.course_id
+        WHERE e.student_id = #{studentId}
+        ORDER BY c.vindex DESC, c.course_id DESC
+    </select>
+
+    <select id="findStudentsByCourseId" resultMap="StudentRM">
+        SELECT s.*
+        FROM enrollments e
+        JOIN students s ON s.id = e.student_id
+        WHERE e.course_id = #{courseId}
+        ORDER BY s.id DESC
+    </select>
+
+</mapper>
+
+
