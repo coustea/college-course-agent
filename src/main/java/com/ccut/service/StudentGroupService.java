@@ -1,18 +1,12 @@
-package com.ccut.mapper;
+package com.ccut.service;
 
 import com.ccut.entity.StudentGroup;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
-@Mapper
-public interface StudentGroupMapper {
+public interface StudentGroupService {
 
     int insert(StudentGroup studentGroup);
     int update(StudentGroup studentGroup);
     List<StudentGroup> selectPending();
-
 }
-
-

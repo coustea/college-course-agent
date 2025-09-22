@@ -23,6 +23,9 @@ server:
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
+  # 开启驼峰命名
+  configuration:
+    map-underscore-to-camel-case: true
 logging:
   level:
     com.ccut.mapper: debug
