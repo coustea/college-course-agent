@@ -9,9 +9,7 @@ import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
 
-import jakarta.servlet.http.HttpServletResponse;
 import java.util.Map;
 
 @RestController

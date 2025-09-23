@@ -12,7 +12,6 @@ public interface StudentGroupMapper {
     int insert(StudentGroup studentGroup);
     int update(StudentGroup studentGroup);
     List<StudentGroup> selectPending();
-
 }
 
 

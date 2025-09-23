@@ -1,9 +1,13 @@
 package com.ccut.controller;
 
+import com.ccut.entity.GroupMember;
 import com.ccut.entity.Result;
+import com.ccut.entity.Student;
 import com.ccut.entity.StudentGroup;
 import com.ccut.mapper.StudentGroupMapper;
+import com.ccut.service.Impl.GroupMemberServiceImpl;
 import com.ccut.service.Impl.StudentGroupServiceImpl;
+import com.ccut.service.Impl.StudentServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -18,23 +22,43 @@ public class StudentGroupController {
     @Autowired
     private StudentGroupServiceImpl studentGroupService;
 
+    @Autowired
+    private GroupMemberServiceImpl groupMemberService;
+
+    @Autowired
+    private StudentServiceImpl studentService;
 
     @PostMapping("/insert")
-    public Result<String> insert(@RequestBody StudentGroup studentGroup) {
+    public Result<StudentGroup> insert(@RequestBody StudentGroup studentGroup) {
         try {
             if (studentGroup == null) {
                 log.error("参数错误，studentGroup is null");
                 return Result.error(400, "参数错误");
             }
-            if(studentGroup.getStatus() == null){
-                studentGroup.setStatus(StudentGroup.GroupStatus.active);
+            Student student = studentService.selectById(studentGroup.getGroupLeaderId());
+            if (student == null) {
+                log.error("参数错误，groupLeaderId is not exist");
+                return Result.error(400, "参数错误，groupLeaderId is not exist");
             }
-            if(studentGroup.getApprovalStatus() == null){
+            if (studentGroup.getApprovalStatus() == null) {
                 studentGroup.setApprovalStatus(StudentGroup.GroupApprovalStatus.pending);
+            }
+            if (studentGroup.getStatus() == null) {
+                studentGroup.setStatus(StudentGroup.GroupStatus.active);
             }
             int result = studentGroupService.insert(studentGroup);
             if (result > 0) {
-                return Result.success("插入成功");
+                log.info("插入成功，studentGroupId is {}", studentGroup.getGroupId());
+                GroupMember groupMember = new GroupMember(
+                    studentGroup.getGroupId(),
+                    studentGroup.getCourseId(),
+                    studentGroup.getGroupLeaderId(),
+                    student.getName(),
+                    GroupMember.GroupMemberRole.leader,
+                    GroupMember.Status.approved
+                );
+                int res = groupMemberService.insertMember(groupMember);
+                return Result.success(studentGroup);
             }
             log.error("插入失败，studentGroup is {}", studentGroup);
             return Result.error(500, "插入失败");
@@ -51,6 +75,7 @@ public class StudentGroupController {
                 log.error("参数错误，studentGroup is null");
                 return Result.error(400, "参数错误");
             }
+
             int result = studentGroupService.update(studentGroup);
             if (result > 0) {
                 return Result.success("更新成功");

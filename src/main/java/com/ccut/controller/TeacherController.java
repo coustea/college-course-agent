@@ -2,6 +2,7 @@ package com.ccut.controller;
 
 import com.ccut.entity.Result;
 import com.ccut.entity.Student;
+import com.ccut.entity.Teacher;
 import com.ccut.service.Impl.StudentServiceImpl;
 import com.ccut.service.Impl.TeacherServiceImpl;
 import com.ccut.mapper.EnrollmentMapper;
@@ -83,10 +84,10 @@ public class TeacherController {
 
     // ============== 教师 CRUD（简化版） ==============
     @PostMapping("/insert/teacher")
-    public Result<String> insertTeacher(@RequestBody com.ccut.entity.Teacher teacher){
+    public Result<Teacher> insertTeacher(@RequestBody Teacher teacher){
         try {
             int n = teacherService.insert(teacher);
-            if (n > 0) return Result.success("添加成功");
+            if (n > 0) return Result.success(teacher);
             return Result.error(500, "添加失败");
         } catch (Exception e) {
             return Result.error(500, e.getMessage());
