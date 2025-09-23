@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="com.ccut.mapper.StudentMapper">
-    <insert id="insertStudent">
+    <insert id="insertStudent" parameterType="com.ccut.entity.Student">
         INSERT INTO students (
         <trim prefix="" suffix="" suffixOverrides=",">
             <if test="id != null">id,</if>

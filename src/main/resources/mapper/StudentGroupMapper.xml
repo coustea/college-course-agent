@@ -51,10 +51,27 @@
         <result property="updatedAt" column="updated_at" />
         <result property="status" column="status" />
         <result property="approvalStatus" column="approval_status" />
+        <collection property="groupMemberList" ofType="com.ccut.entity.GroupMember">
+            <id property="id" column="id" />
+            <result property="courseId" column="course_id" />
+            <result property="groupId" column="group_id" />
+            <result property="studentId" column="student_id" />
+            <result property="studentName" column="student_name" />
+            <result property="joinTime" column="join_time" />
+            <result property="role" column="role" />
+            <result property="joinStatus" column="join_status" />
+        </collection>
     </resultMap>
 
     <select id="selectPending" resultMap="studentGroupRM">
-        SELECT * FROM student_groups WHERE approval_status = 'pending'
+        SELECT
+            sg.group_id, sg.course_id, sg.group_name, sg.group_leader_id, sg.teacher_id,
+            sg.group_description, sg.created_at, sg.updated_at, sg.status, sg.approval_status,
+            gm.id, gm.group_id, gm.course_id, gm.student_id, gm.student_name,
+            gm.join_time, gm.role, gm.join_status
+        FROM student_groups as sg
+                 JOIN group_members as gm on sg.group_id = gm.group_id
+        WHERE sg.approval_status = 'pending'
     </select>
 
 </mapper>

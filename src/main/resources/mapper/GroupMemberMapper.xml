@@ -7,9 +7,10 @@
         VALUES
         (#{groupId},#{courseId},#{studentId},#{studentName},CURRENT_TIMESTAMP,#{role},#{joinStatus})
     </insert>
-    <update id="deleteMember">
-        UPDATE group_members
-        SET join_status = 'pending'
-        WHERE id = #{id}
-    </update>
+    <delete id="deleteMember">
+        DELETE FROM group_members
+        WHERE student_id = #{studentId}
+        AND group_id = #{groupId}
+    </delete>
+
 </mapper>

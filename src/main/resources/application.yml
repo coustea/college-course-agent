@@ -14,9 +14,7 @@ spring:
     dashscope:
       api-key: sk-b79bfc6284eb467da714a7957eee7605
       base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      chat:
-        options:
-          model: qwen-plus
+
 server:
   port: 9999
 
