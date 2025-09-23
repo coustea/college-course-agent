@@ -65,4 +65,9 @@ public class StudentServiceImpl implements StudentService {
     public java.util.List<Student> selectAll() {
         return studentMapper.selectAll();
     }
+
+    @Override
+    public Student selectById(Long id) {
+        return studentMapper.selectById(id);
+    }
 }

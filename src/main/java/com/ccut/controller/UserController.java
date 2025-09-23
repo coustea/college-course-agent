@@ -14,11 +14,11 @@ public class UserController {
     private UserServiceImpl userService;
 
     @PostMapping("/insert")
-    public Result<String> insert(@RequestBody User user){
+    public Result<User> insert(@RequestBody User user){
         int result = userService.insert(user);
         System.out.println(result);
         if (result > 0) {
-            return Result.success("添加成功");
+            return Result.success(user);
         }
         return Result.error(500, "添加失败");
     }

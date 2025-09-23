@@ -16,10 +16,10 @@ public class CourseController {
     private CourseService courseService;
 
     @PostMapping("/insert")
-    public Result<String> insert(@RequestBody Course course){
+    public Result<Course> insert(@RequestBody Course course){
         try {
             int n = courseService.insert(course);
-            if (n > 0) return Result.success("添加成功");
+            if (n > 0) return Result.success(course);
             return Result.error(500, "添加失败");
         } catch (Exception e) {
             log.error(e.getMessage());

@@ -1,3 +1,18 @@
+-- 删除表（按正确顺序，避免外键约束问题）
+DROP TABLE IF EXISTS document_progress;
+DROP TABLE IF EXISTS video_progress;
+DROP TABLE IF EXISTS course_documents;
+DROP TABLE IF EXISTS course_videos;
+DROP TABLE IF EXISTS learning_progress;
+DROP TABLE IF EXISTS enrollments;
+DROP TABLE IF EXISTS group_members;
+DROP TABLE IF EXISTS student_groups;
+DROP TABLE IF EXISTS courses;
+DROP TABLE IF EXISTS teachers;
+DROP TABLE IF EXISTS students;
+DROP TABLE IF EXISTS users;
+
+
 CREATE TABLE users (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
     username VARCHAR(50) UNIQUE NOT NULL COMMENT '用户名（学号或工号）',
@@ -9,7 +24,7 @@ CREATE TABLE users (
 -- 学生表（扩展用户信息）
 -- ===============================
 CREATE TABLE students (
-  id BIGINT PRIMARY KEY COMMENT '学生ID（对应 users.id）',
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '学生ID（对应 users.id）',
   student_number VARCHAR(20) UNIQUE NOT NULL COMMENT '学号',
   name VARCHAR(100) NOT NULL COMMENT '学生姓名',
   email VARCHAR(100) COMMENT '邮箱地址',
@@ -43,7 +58,7 @@ CREATE TABLE courses (
  course_name VARCHAR(200) NOT NULL COMMENT '课程名称',
  description TEXT COMMENT '课程描述',
  credits INT DEFAULT 0 COMMENT '学分',
- teacher_id BIGINT NOT NULL COMMENT '授课教师ID',
+ teacher_id BIGINT NULL COMMENT '授课教师ID',
  start_date DATE COMMENT '开课日期',
  end_date DATE COMMENT '结课日期',
  semester VARCHAR(20) COMMENT '学期',
@@ -156,7 +171,7 @@ CREATE TABLE student_groups (
         group_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '分组ID',
         course_id BIGINT NOT NULL COMMENT '课程ID',
         group_name VARCHAR(100) NOT NULL COMMENT '小组名称',
-        group_leader_id BIGINT NOT NULL COMMENT '组长ID',
+        group_leader_id BIGINT  NULL COMMENT '组长ID',
         teacher_id BIGINT COMMENT '审核教师ID',
         group_description TEXT COMMENT '小组描述',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -177,6 +192,7 @@ CREATE TABLE group_members (
        group_id BIGINT NOT NULL COMMENT '小组ID',
        course_id BIGINT NOT NULL COMMENT '课程ID',
        student_id BIGINT NOT NULL COMMENT '学生ID',
+       student_name VARCHAR(100) COMMENT '学生姓名',
        join_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
        role ENUM('leader','member') DEFAULT 'member' COMMENT '角色',
        join_status ENUM('pending','approved','rejected') DEFAULT 'pending' COMMENT '入组状态',

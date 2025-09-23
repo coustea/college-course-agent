@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.Date;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -32,4 +33,7 @@ public class StudentGroup {
     private Date updatedAt;          // 更新时间
     private GroupStatus status;           // 小组状态：active / disbanded
     private GroupApprovalStatus approvalStatus;
+
+
+    private List<GroupMember> groupMemberList;
 }

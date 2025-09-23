@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.GroupMemberMapper">
+    <insert id="insertMember">
+        INSERT INTO group_members
+        (group_id, course_id, student_id,student_name,join_time,role,join_status)
+        VALUES
+        (#{groupId},#{courseId},#{studentId},#{studentName},CURRENT_TIMESTAMP,#{role},#{joinStatus})
+    </insert>
+    <update id="deleteMember">
+        UPDATE group_members
+        SET join_status = 'pending'
+        WHERE id = #{id}
+    </update>
+</mapper>
