@@ -63,7 +63,8 @@
         </collection>
     </resultMap>
 
-    <select id="selectPending" resultMap="studentGroupRM">
+   
+    <select id="selectByApprovalStatus" resultMap="studentGroupRM">
         SELECT
             sg.group_id, sg.course_id, sg.group_name, sg.group_leader_id, sg.teacher_id,
             sg.group_description, sg.created_at, sg.updated_at, sg.status, sg.approval_status,
@@ -71,9 +72,36 @@
             gm.join_time, gm.role, gm.join_status
         FROM student_groups as sg
                  JOIN group_members as gm on sg.group_id = gm.group_id
-        WHERE sg.approval_status = 'pending'
+        <where>
+            <if test="approvalStatus != null">
+                sg.approval_status = #{approvalStatus}
+            </if>
+        </where>
     </select>
 
+    <select id="selectAll" resultMap="studentGroupRM">
+        SELECT
+            sg.group_id, sg.course_id, sg.group_name, sg.group_leader_id, sg.teacher_id,
+            sg.group_description, sg.created_at, sg.updated_at, sg.status, sg.approval_status,
+            gm.id, gm.group_id, gm.course_id, gm.student_id, gm.student_name,
+            gm.join_time, gm.role, gm.join_status
+        FROM student_groups as sg
+                 JOIN group_members as gm on sg.group_id = gm.group_id
+    </select>
+
+    <select id="selectByGroupId" resultMap="studentGroupRM">
+        SELECT
+            sg.group_id, sg.course_id, sg.group_name, sg.group_leader_id, sg.teacher_id,
+            sg.group_description, sg.created_at, sg.updated_at, sg.status, sg.approval_status,
+            gm.id, gm.group_id, gm.course_id, gm.student_id, gm.student_name,
+            gm.join_time, gm.role, gm.join_status
+        FROM student_groups as sg
+                 JOIN group_members as gm on sg.group_id = gm.group_id
+        WHERE sg.group_id = #{groupId}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM student_groups WHERE group_id = #{id}
+    </delete>
+
 </mapper>
-
-

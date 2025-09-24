@@ -8,5 +8,9 @@ public interface StudentGroupService {
 
     int insert(StudentGroup studentGroup);
     int update(StudentGroup studentGroup);
-    List<StudentGroup> selectPending();
+    List<StudentGroup> selectByApprovalStatus(StudentGroup.GroupApprovalStatus approvalStatus);
+    
+    List<StudentGroup> selectAll();
+    StudentGroup selectByGroupId(Long groupId);
+    int deleteById(Long id);
 }

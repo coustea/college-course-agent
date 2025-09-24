@@ -25,7 +25,22 @@ public class StudentGroupServiceImpl implements StudentGroupService {
     }
 
     @Override
-    public List<StudentGroup> selectPending() {
-        return studentGroupMapper.selectPending();
+    public List<StudentGroup> selectByApprovalStatus(StudentGroup.GroupApprovalStatus approvalStatus) {
+        return studentGroupMapper.selectByApprovalStatus(approvalStatus);
+    }
+
+    @Override
+    public List<StudentGroup> selectAll() {
+        return studentGroupMapper.selectAll();
+    }
+
+    @Override
+    public StudentGroup selectByGroupId(Long groupId) {
+        return studentGroupMapper.selectByGroupId(groupId);
+    }
+
+    @Override
+    public int deleteById(Long id) {
+        return studentGroupMapper.deleteById(id);
     }
 }

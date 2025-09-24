@@ -28,8 +28,8 @@ public class StudentGroupController {
     @Autowired
     private StudentServiceImpl studentService;
 
-    @PostMapping("/insert")
-    public Result<StudentGroup> insert(@RequestBody StudentGroup studentGroup) {
+    @PostMapping
+    public Result<StudentGroup> create(@RequestBody StudentGroup studentGroup) {
         try {
             if (studentGroup == null) {
                 log.error("参数错误，studentGroup is null");
@@ -68,17 +68,22 @@ public class StudentGroupController {
         }
     }
 
-    @PostMapping("/update")
-    public Result<String> update(@RequestBody StudentGroup studentGroup) {
+    @PutMapping("/{groupId}")
+    public Result<StudentGroup> update(@PathVariable("groupId") Long groupId, @RequestBody StudentGroup studentGroup) {
         try{
             if (studentGroup == null) {
                 log.error("参数错误，studentGroup is null");
                 return Result.error(400, "参数错误");
             }
-
+            StudentGroup group = studentGroupService.selectByGroupId(groupId);
+            if (group == null) {
+                log.error("用户分组不存在!");
+                return Result.error(404, "用户分组不存在!");
+            }
+            studentGroup.setGroupId(groupId);
             int result = studentGroupService.update(studentGroup);
             if (result > 0) {
-                return Result.success("更新成功");
+                return Result.success(studentGroupService.selectByGroupId(groupId));
             }
             log.error("更新失败，studentGroup is {}", studentGroup);
             return Result.error(500, "更新失败");
@@ -88,16 +93,31 @@ public class StudentGroupController {
         }
     }
 
-    @GetMapping("/pending")
-    public Result<List<StudentGroup>> selectPending() {
+    @GetMapping("/approvalStatus/{approvalStatus}")
+    public Result<List<StudentGroup>> selectByApprovalStatus(@PathVariable(value = "approvalStatus",required = false) StudentGroup.GroupApprovalStatus approvalStatus) {
         try {
-            List<StudentGroup> studentGroups = studentGroupService.selectPending();
+            if (approvalStatus == null) {
+                return Result.success(studentGroupService.selectAll());
+            }
+            List<StudentGroup> studentGroups = studentGroupService.selectByApprovalStatus(approvalStatus);
             return Result.success(studentGroups);
         } catch (Exception e) {
-            log.error("查询待审核学生分组信息时发生异常: ", e);
+            log.error("查询学生分组信息时发生异常: ", e);
+            return Result.error(500, "系统异常，请稍后重试");
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public Result<String> delete(@PathVariable("id") Long id) {
+        try {
+            int result = studentGroupService.deleteById(id);
+            if (result > 0) {
+                return Result.success("删除成功");
+            }
+            return Result.error(404, "未找到指定的学生分组");
+        } catch (Exception e) {
+            log.error("删除学生分组信息时发生异常: ", e);
             return Result.error(500, "系统异常，请稍后重试");
         }
     }
 }
-
-

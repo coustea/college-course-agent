@@ -19,7 +19,7 @@ public class GroupMemberController {
     @Autowired
     private StudentServiceImpl studentService;
 
-    @PostMapping("/insert")
+    @PostMapping
     public Result<GroupMember> insert(@RequestBody GroupMember groupMember) {
         if(groupMember == null){
             log.error("参数错误，groupMember is null");
