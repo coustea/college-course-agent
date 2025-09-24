@@ -202,3 +202,55 @@ CREATE TABLE group_members (
        UNIQUE KEY uniq_group_student (group_id, student_id),
        UNIQUE KEY uniq_course_student (course_id, student_id) COMMENT '同一课程学生只能加入一个队伍'
 ) COMMENT='小组成员表';
+
+
+DROP TABLE IF EXISTS teacher_assignments;
+DROP TABLE IF EXISTS student_submissions;
+
+-- ===============================
+-- 老师发布作业表（支持附件 JSON）
+-- ===============================
+CREATE TABLE teacher_assignments (
+     assignment_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '作业ID',
+     teacher_id BIGINT NOT NULL COMMENT '发布教师ID',
+     course_id BIGINT NOT NULL COMMENT '课程ID',
+     assignment_name VARCHAR(200) NOT NULL COMMENT '作业名称',
+     description TEXT COMMENT '作业描述',
+     requirements TEXT COMMENT '作业要求',
+     due_date DATETIME COMMENT '截止日期',
+     allow_late_submission BOOLEAN DEFAULT FALSE COMMENT '是否允许延迟提交',
+     attachment_files JSON COMMENT '作业附件（老师上传的文件，JSON存储路径/文件名/类型/大小）',
+     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+     FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
+     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+) COMMENT='老师发布作业表';
+
+-- ===============================
+-- 学生提交作业表
+-- ===============================
+CREATE TABLE student_submissions (
+     submission_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '提交ID',
+     assignment_id BIGINT NOT NULL COMMENT '作业ID',
+     group_id BIGINT NOT NULL COMMENT '分组ID',
+     student_id BIGINT NOT NULL COMMENT '组长ID',
+     submission_content TEXT COMMENT '提交说明/描述',
+     submission_files JSON COMMENT '学生上传的作品文件（JSON存储路径/文件名/类型/大小）',
+     submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',
+     late_submission BOOLEAN DEFAULT FALSE COMMENT '是否延迟提交',
+     score INT DEFAULT 0 COMMENT '得分',
+     feedback TEXT COMMENT '教师反馈',
+     graded_at DATETIME COMMENT '评分时间',
+     graded_by BIGINT COMMENT '评分教师ID',
+     status ENUM('submitted','graded','returned','resubmitted') DEFAULT 'submitted' COMMENT '提交状态',
+     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+     FOREIGN KEY (assignment_id) REFERENCES teacher_assignments(assignment_id) ON DELETE CASCADE,
+     FOREIGN KEY (group_id) REFERENCES student_groups(group_id) ON DELETE CASCADE,
+     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+     FOREIGN KEY (graded_by) REFERENCES teachers(id) ON DELETE SET NULL,
+
+     INDEX idx_assignment_student (assignment_id, student_id),
+     UNIQUE KEY uniq_group_assignment (group_id, assignment_id) COMMENT '同一分组作业只能提交一次',
+     INDEX idx_status (status)
+) COMMENT='学生提交作业表';

@@ -27,3 +27,4 @@ mybatis:
 logging:
   level:
     com.ccut.mapper: debug
+
