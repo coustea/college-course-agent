@@ -66,6 +66,12 @@
             <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
             <version>1.0.0.3</version>
         </dependency>
+        <!-- MP4 时长解析（轻量）：mp4parser isoparser -->
+        <dependency>
+            <groupId>org.mp4parser</groupId>
+            <artifactId>isoparser</artifactId>
+            <version>1.9.41</version>
+        </dependency>
     </dependencies>
 
 
