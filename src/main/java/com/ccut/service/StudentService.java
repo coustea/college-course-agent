@@ -12,4 +12,5 @@ public interface StudentService {
     int deleteById(Long id);
     List<Student> selectAll();
     Student selectById(Long id);
+    List<Student> selectByGrade(String grade);
 }

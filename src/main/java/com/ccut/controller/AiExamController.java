@@ -16,7 +16,7 @@ import java.util.*;
 public class AiExamController {
 
     private final ChatClient chatClient;
-    private final BeanOutputConverter<com.ccut.entity.Exam> converter;
+    private final BeanOutputConverter<Exam> converter;
     private final String format;
     private final CourseMapper courseMapper;
     private final AiExamMapper aiExamMapper;
@@ -37,12 +37,12 @@ public class AiExamController {
             """;
 
     public AiExamController(ChatClient.Builder builder,
-                             CourseMapper courseMapper,
-                             AiExamMapper aiExamMapper,
-                             AiExamQuestionMapper questionMapper,
-                             AiExamAttemptMapper attemptMapper,
-                             AiExamAnswerMapper answerMapper) {
-        this.converter = new BeanOutputConverter<>(new ParameterizedTypeReference<com.ccut.entity.Exam>() {});
+                            CourseMapper courseMapper,
+                            AiExamMapper aiExamMapper,
+                            AiExamQuestionMapper questionMapper,
+                            AiExamAttemptMapper attemptMapper,
+                            AiExamAnswerMapper answerMapper) {
+        this.converter = new BeanOutputConverter<>(new ParameterizedTypeReference<Exam>() {});
         this.format = converter.getFormat();
         this.chatClient = builder.build();
         this.courseMapper = courseMapper;
@@ -53,7 +53,7 @@ public class AiExamController {
     }
 
     public record GenerateReq(Long courseId, Long studentId, Integer choiceCount, Integer judgeCount) {}
-    public record SubmitReq(Long examId, Long studentId, java.util.List<SubmitAnswer> answers) {}
+    public record SubmitReq(Long examId, Long studentId, List<SubmitAnswer> answers) {}
     public record SubmitAnswer(Long questionId, String answer) {}
 
     @PostMapping("/generate")
@@ -74,7 +74,7 @@ public class AiExamController {
                     "choiceCount", choiceCount,
                     "judgeCount", judgeCount
             ));
-            com.ccut.entity.Exam ai = chatClient.prompt(prompt).call().entity(com.ccut.entity.Exam.class);
+            Exam ai = chatClient.prompt(prompt).call().entity(Exam.class);
 
             AiExam exam = new AiExam();
             exam.setCourseId(req.courseId);
@@ -87,7 +87,7 @@ public class AiExamController {
             aiExamMapper.insert(exam);
 
             if (ai.getQuestions() != null) {
-                for (com.ccut.entity.Question q : ai.getQuestions()) {
+                for (Question q : ai.getQuestions()) {
                     AiExamQuestion dbq = new AiExamQuestion();
                     dbq.setExamId(exam.getId());
                     dbq.setType(q.getType() == null ? null : q.getType().name());
@@ -112,8 +112,8 @@ public class AiExamController {
     public Result<Map<String,Object>> submit(@RequestBody SubmitReq req){
         try {
             if (req == null || req.examId == null || req.studentId == null) return Result.error(400, "参数不完整");
-            java.util.List<AiExamQuestion> qs = questionMapper.listByExamId(req.examId);
-            java.util.Map<Long, AiExamQuestion> id2q = new java.util.HashMap<>();
+            List<AiExamQuestion> qs = questionMapper.listByExamId(req.examId);
+            Map<Long, AiExamQuestion> id2q = new HashMap<>();
             for (AiExamQuestion q : qs) id2q.put(q.getId(), q);
 
             int score = 0; int per = 100 / Math.max(1, qs.size());

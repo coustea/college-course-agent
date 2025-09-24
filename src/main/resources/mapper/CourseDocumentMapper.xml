@@ -54,6 +54,10 @@
         ORDER BY document_index ASC
     </select>
 
+    <select id="findMaxIndexByCourseId" resultType="java.lang.Integer">
+        SELECT COALESCE(MAX(document_index), 0) FROM course_documents WHERE course_id = #{courseId}
+    </select>
+
 </mapper>
 
 

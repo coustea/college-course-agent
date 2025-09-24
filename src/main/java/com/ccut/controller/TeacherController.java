@@ -95,7 +95,7 @@ public class TeacherController {
     }
 
     @PutMapping("/update/teacher")
-    public Result<String> updateTeacher(@RequestParam("id") Long id, @RequestBody com.ccut.entity.Teacher teacher){
+    public Result<String> updateTeacher(@RequestParam("id") Long id, @RequestBody Teacher teacher){
         try {
             teacher.setId(id);
             int n = teacherService.update(teacher);
@@ -118,7 +118,7 @@ public class TeacherController {
     }
 
     @GetMapping("/list/students")
-    public Result<java.util.List<Student>> listStudents(){
+    public Result<List<Student>> listStudents(){
         try {
             return Result.success(studentService.selectAll());
         } catch (Exception e) {
@@ -127,7 +127,7 @@ public class TeacherController {
     }
 
     @GetMapping("/list/teachers")
-    public Result<java.util.List<com.ccut.entity.Teacher>> listTeachers(){
+    public Result<List<Teacher>> listTeachers(){
         try {
             return Result.success(teacherService.selectAll());
         } catch (Exception e) {
@@ -150,9 +150,9 @@ public class TeacherController {
 
     // 按学生ID查询已加入的课程
     @GetMapping("/enrollments/courses")
-    public Result<java.util.List<com.ccut.entity.Course>> findCoursesByStudentId(@RequestParam("studentId") Long studentId){
+    public Result<List<com.ccut.entity.Course>> findCoursesByStudentId(@RequestParam("studentId") Long studentId){
         try {
-            java.util.List<com.ccut.entity.Course> courses = enrollmentMapper.findCoursesByStudentId(studentId);
+            List<com.ccut.entity.Course> courses = enrollmentMapper.findCoursesByStudentId(studentId);
             if (courses != null) {
                 for (com.ccut.entity.Course c : courses) {
                     if (c != null && c.getCourseId() != null) {
@@ -169,7 +169,7 @@ public class TeacherController {
 
     // 按课程ID查询参与课程的学生
     @GetMapping("/enrollments/students")
-    public Result<java.util.List<com.ccut.entity.Student>> findStudentsByCourseId(@RequestParam("courseId") Long courseId){
+    public Result<List<Student>> findStudentsByCourseId(@RequestParam("courseId") Long courseId){
         try {
             return Result.success(enrollmentMapper.findStudentsByCourseId(courseId));
         } catch (Exception e){
@@ -202,7 +202,7 @@ public class TeacherController {
             if (!it.hasNext()) { workbook.close(); return Result.error(400, "空表"); }
             Row header = it.next();
             int maxCol = header.getLastCellNum();
-            java.util.Map<String,Integer> idx = new java.util.HashMap<>();
+            Map<String,Integer> idx = new HashMap<>();
             for (int i=0;i<maxCol;i++){
                 String title = formatter.formatCellValue(header.getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK), evaluator);
                 if (title==null) title="";
@@ -221,7 +221,7 @@ public class TeacherController {
                 if (sn.isEmpty() && code.isEmpty()) continue;
                 try{
                     // 找学生与课程
-                    com.ccut.entity.Student stu = studentService.getStudentByStudentNumber(sn);
+                    Student stu = studentService.getStudentByStudentNumber(sn);
                     com.ccut.entity.Course course = courseMapper.selectByCourseCode(code);
                     if (stu==null || course==null){ skipped++; continue; }
                     // 建立选课关系
@@ -402,14 +402,14 @@ public class TeacherController {
 
     // 新增：按教师ID返回其课程下的视频列表，拍平字段以适配前端卡片需求
     @GetMapping("/videos")
-    public Result<java.util.Map<String, Object>> listTeacherVideos(
+    public Result<Map<String, Object>> listTeacherVideos(
             @RequestParam("teacherId") Long teacherId) {
         try {
             if (teacherId == null) return Result.error(400, "teacherId 不能为空");
-            java.util.List<com.ccut.entity.TeacherVideoItem> videos = courseVideoMapper.listByTeacherId(teacherId);
-            java.util.List<com.ccut.entity.TeacherCourseCard> courses = courseMapper.listCourseCardsByTeacher(teacherId);
+            List<com.ccut.entity.TeacherVideoItem> videos = courseVideoMapper.listByTeacherId(teacherId);
+            List<com.ccut.entity.TeacherCourseCard> courses = courseMapper.listCourseCardsByTeacher(teacherId);
 
-            java.util.Map<String, Object> resp = new java.util.HashMap<>();
+            Map<String, Object> resp = new HashMap<>();
             resp.put("videos", videos);
             resp.put("courses", courses);
             return Result.success(resp);

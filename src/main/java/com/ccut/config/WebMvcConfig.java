@@ -25,13 +25,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:4173", "http://127.0.0.1:4173")
+                .allowedOrigins("http://localhost:4173", "http://127.0.0.1:4173","http://localhost:5173", "http://127.0.0.1:5173")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)
                 .maxAge(3600);
         registry.addMapping("/uploads/**")
-                .allowedOrigins("http://localhost:4173", "http://127.0.0.1:4173")
+                .allowedOrigins("http://localhost:4173", "http://127.0.0.1:4173","http://localhost:5173", "http://127.0.0.1:5173")
                 .allowedMethods("GET")
                 .allowedHeaders("*")
                 .maxAge(3600);

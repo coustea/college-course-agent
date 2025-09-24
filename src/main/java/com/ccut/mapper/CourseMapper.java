@@ -13,11 +13,11 @@ public interface CourseMapper {
     List<Course> selectAll();
     Course selectById(Long courseId);
     Course selectByCourseCode(@org.apache.ibatis.annotations.Param("courseCode") String courseCode);
-    java.util.List<Course> search(
+    List<Course> search(
             @org.apache.ibatis.annotations.Param("name") String name,
             @org.apache.ibatis.annotations.Param("description") String description);
 
     // 新增：按教师ID返回课程卡片字段
-    java.util.List<com.ccut.entity.TeacherCourseCard> listCourseCardsByTeacher(@org.apache.ibatis.annotations.Param("teacherId") Long teacherId);
+    List<com.ccut.entity.TeacherCourseCard> listCourseCardsByTeacher(@org.apache.ibatis.annotations.Param("teacherId") Long teacherId);
 }
 
