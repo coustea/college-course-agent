@@ -37,11 +37,11 @@ public class AiExamController {
             """;
 
     public AiExamController(ChatClient.Builder builder,
-                             CourseMapper courseMapper,
-                             AiExamMapper aiExamMapper,
-                             AiExamQuestionMapper questionMapper,
-                             AiExamAttemptMapper attemptMapper,
-                             AiExamAnswerMapper answerMapper) {
+                            CourseMapper courseMapper,
+                            AiExamMapper aiExamMapper,
+                            AiExamQuestionMapper questionMapper,
+                            AiExamAttemptMapper attemptMapper,
+                            AiExamAnswerMapper answerMapper) {
         this.converter = new BeanOutputConverter<>(new ParameterizedTypeReference<Exam>() {});
         this.format = converter.getFormat();
         this.chatClient = builder.build();
