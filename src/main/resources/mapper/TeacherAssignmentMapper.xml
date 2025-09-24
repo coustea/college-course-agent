@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.TeacherAssignmentMapper">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="assignmentId">
+        INSERT INTO teacher_assignments
+        (teacher_id, course_id, assignment_name, description,
+         requirements, due_date, allow_late_submission, attachment_files, created_at)
+        VALUES
+        (#{teacherId}, #{courseId}, #{assignmentName}, #{description},
+         #{requirements}, #{dueDate}, #{allowLateSubmission}, #{attachmentFiles},CURRENT_TIMESTAMP)
+    </insert>
+    <update id="update">
+        UPDATE teacher_assignments
+        <set>
+            <if test="teacherId != null">teacher_id = #{teacherId},</if>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="assignmentName != null">assignment_name = #{assignmentName},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="requirements != null">requirements = #{requirements},</if>
+            <if test="dueDate != null">due_date = #{dueDate},</if>
+            <if test="allowLateSubmission != null">allow_late_submission = #{allowLateSubmission},</if>
+            <if test="attachmentFiles != null">attachment_files = #{attachmentFiles},</if>
+            updated_at = CURRENT_TIMESTAMP
+        </set>
+        WHERE assignment_id = #{assignmentId}
+    </update>
+    <delete id="delete">
+        DELETE FROM teacher_assignments WHERE assignment_id = #{assignmentId}
+    </delete>
+
+    <resultMap id="teacherAssignmentsRM" type="com.ccut.entity.TeacherAssignment">
+        <id column="assignment_id" property="assignmentId" />
+        <result column="teacher_id" property="teacherId" />
+        <result column="course_id" property="courseId" />
+        <result column="assignment_name" property="assignmentName" />
+        <result column="description" property="description" />
+        <result column="requirements" property="requirements" />
+        <result column="due_date" property="dueDate" />
+        <result column="allow_late_submission" property="allowLateSubmission" />
+        <result column="attachment_files" property="attachmentFiles" />
+        <result column="created_at" property="createdAt" />
+        <result column="updated_at" property="updatedAt" />
+    </resultMap>
+
+    <select id="selectByTeacherId" resultMap="teacherAssignmentsRM">
+        SELECT * FROM teacher_assignments WHERE teacher_id = #{teacherId}
+    </select>
+</mapper>
