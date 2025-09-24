@@ -70,4 +70,9 @@ public class StudentServiceImpl implements StudentService {
     public Student selectById(Long id) {
         return studentMapper.selectById(id);
     }
+
+    @Override
+    public java.util.List<Student> selectByGrade(String grade) {
+        return studentMapper.selectByGrade(grade);
+    }
 }

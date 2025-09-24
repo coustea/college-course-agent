@@ -12,4 +12,5 @@ public interface StudentMapper {
     int deleteById(Long id);
     java.util.List<Student> selectAll();
     Student selectById(Long id);
+    java.util.List<Student> selectByGrade(String grade);
 }

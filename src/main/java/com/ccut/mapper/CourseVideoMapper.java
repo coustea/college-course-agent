@@ -12,9 +12,10 @@ public interface CourseVideoMapper {
     int updateById(CourseVideo video);
     int deleteById(@Param("videoId") Long videoId);
     List<CourseVideo> findByCourseId(@Param("courseId") Long courseId);
+    Integer findMaxIndexByCourseId(@Param("courseId") Long courseId);
 
     // 新增：按教师ID查询其课程下的视频列表
-    java.util.List<com.ccut.entity.TeacherVideoItem> listByTeacherId(@Param("teacherId") Long teacherId);
+    List<com.ccut.entity.TeacherVideoItem> listByTeacherId(@Param("teacherId") Long teacherId);
 }
 
 

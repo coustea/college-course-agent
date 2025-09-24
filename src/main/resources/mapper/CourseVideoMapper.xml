@@ -58,6 +58,10 @@
         ORDER BY video_index ASC
     </select>
 
+    <select id="findMaxIndexByCourseId" resultType="java.lang.Integer">
+        SELECT COALESCE(MAX(video_index), 0) FROM course_videos WHERE course_id = #{courseId}
+    </select>
+
     <!-- 新增：按教师ID查询其课程下的视频列表（拍平结构，满足前端卡片列表展示） -->
     <resultMap id="TeacherVideoItemRM" type="com.ccut.entity.TeacherVideoItem">
         <result property="id" column="video_id"/>
