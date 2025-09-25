@@ -1,8 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-
-
-
 // 学生端路由
 const studentRoutes = [
   {
