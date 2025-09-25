@@ -6,6 +6,18 @@ import java.time.LocalDateTime;
 
 @Data
 public class StudentSubmission {
+
+    public enum Status{
+        // 已提交
+        submitted,
+        // 已评分
+        graded,
+        // 已返回
+        returned,
+        // 已重提交
+        resubmitted
+    }
+
     // 提交ID
     private Long submissionId;
     // 作业ID

@@ -99,6 +99,9 @@
                  JOIN group_members as gm on sg.group_id = gm.group_id
         WHERE sg.group_id = #{groupId}
     </select>
+    <select id="selectByCourseIdAndTeacherId" resultType="com.ccut.entity.StudentGroup" >
+        SELECT * FROM student_groups WHERE course_id = #{courseId} AND teacher_id = #{teacherId}
+    </select>
 
     <delete id="deleteById">
         DELETE FROM student_groups WHERE group_id = #{id}

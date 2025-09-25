@@ -93,13 +93,24 @@ public class StudentGroupController {
         }
     }
 
-    @GetMapping("/approvalStatus/{approvalStatus}")
-    public Result<List<StudentGroup>> selectByApprovalStatus(@PathVariable(value = "approvalStatus",required = false) StudentGroup.GroupApprovalStatus approvalStatus) {
+    @PostMapping("/approvalStatus")
+    public Result<List<StudentGroup>> selectByApprovalStatus(@RequestParam(value = "approvalStatus",defaultValue = "") StudentGroup.GroupApprovalStatus approvalStatus) {
         try {
             if (approvalStatus == null) {
                 return Result.success(studentGroupService.selectAll());
             }
             List<StudentGroup> studentGroups = studentGroupService.selectByApprovalStatus(approvalStatus);
+            return Result.success(studentGroups);
+        } catch (Exception e) {
+            log.error("查询学生分组信息时发生异常: ", e);
+            return Result.error(500, "系统异常，请稍后重试");
+        }
+    }
+
+    @GetMapping("/course/{courseId}/teacher/{teacherId}")
+    public Result<List<StudentGroup>> selectByCourseIdAndTeacherId(@PathVariable("courseId") Long courseId, @PathVariable("teacherId") Long teacherId) {
+        try {
+            List<StudentGroup> studentGroups = studentGroupService.selectByCourseIdAndTeacherId(courseId, teacherId);
             return Result.success(studentGroups);
         } catch (Exception e) {
             log.error("查询学生分组信息时发生异常: ", e);

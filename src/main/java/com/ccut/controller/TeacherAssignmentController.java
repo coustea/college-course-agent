@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -46,7 +47,7 @@ public class TeacherAssignmentController {
             @RequestParam(required = false) String requirements,
             @RequestParam(required = false) Boolean allowLateSubmission,
             @RequestParam(required = false) MultipartFile[] files,
-            @RequestParam(required = false) String dueDate // yyyy-MM-dd
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm") String dueDate
     ) throws Exception {
         List<FileInfo> fileInfos = new ArrayList<>();
 
@@ -54,13 +55,14 @@ public class TeacherAssignmentController {
             // 获取项目运行目录
             Path projectRoot = Paths.get("").toAbsolutePath();
             log.info("projectRoot: {}", projectRoot);
+
             for (MultipartFile file : files) {
                 if (file == null || file.isEmpty()) continue;
 
                 // 按日期生成目录：uploads/homework/teacher/yyyy-MM-dd
                 String dateDir = LocalDate.now().toString();
                 Path uploadDir = projectRoot.resolve(Paths.get("uploads", "homework", "teacher", dateDir));
-                Files.createDirectories(uploadDir); // 自动创建目录
+                Files.createDirectories(uploadDir);
 
                 // 安全文件名：UUID + 原扩展名
                 String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
@@ -92,12 +94,13 @@ public class TeacherAssignmentController {
         teacherAssignment.setAttachmentFiles(attachmentJson);
 
         if (dueDate != null && !dueDate.isEmpty()) {
-            LocalDate date = LocalDate.parse(dueDate, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-            teacherAssignment.setDueDate(date.atTime(23, 59, 59));
+            // 解析到分钟，秒固定为 0
+            LocalDateTime dateTime = LocalDateTime.parse(dueDate, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+            teacherAssignment.setDueDate(dateTime.withSecond(0));
         }
 
-        teacherAssignment.setCreatedAt(LocalDateTime.now());
-        teacherAssignment.setUpdatedAt(LocalDateTime.now());
+        teacherAssignment.setCreatedAt(LocalDateTime.now().withSecond(0));
+        teacherAssignment.setUpdatedAt(LocalDateTime.now().withSecond(0));
 
         teacherAssignmentService.insert(teacherAssignment);
 

@@ -6,6 +6,10 @@ spring:
     url: jdbc:mysql://39.96.172.21:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
     username: ccut
     password: Aa123456
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
   servlet:
     multipart:
       max-file-size: 1024MB

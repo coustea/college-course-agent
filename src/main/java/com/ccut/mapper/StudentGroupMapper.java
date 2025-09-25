@@ -13,8 +13,11 @@ public interface StudentGroupMapper {
     int update(StudentGroup studentGroup);
     
     List<StudentGroup> selectByApprovalStatus(@Param("approvalStatus") StudentGroup.GroupApprovalStatus status);
+    List<StudentGroup> selectByCourseIdAndTeacherId(@Param("courseId") Long courseId, @Param("teacherId") Long teacherId);
     
     List<StudentGroup> selectAll();
     StudentGroup selectByGroupId(@Param("groupId") Long groupId);
     int deleteById(@Param("id") Long id);
+
+
 }
