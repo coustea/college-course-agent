@@ -23,7 +23,6 @@
           <el-option label="全部班级" value="all"></el-option>
           <el-option v-for="classItem in classes" :key="classItem.id" :label="classItem.name" :value="classItem.id"></el-option>
         </el-select>
-        <el-button type="primary" :icon="Download" @click="exportData">导出数据</el-button>
       </div>
     </div>
 
@@ -32,7 +31,7 @@
       <el-card class="metric-card">
         <div class="metric-content">
           <div class="metric-icon students">
-            <i class="el-icon-user-solid"></i>
+            <el-icon><UserFilled /></el-icon>
           </div>
           <div class="metric-info">
             <h3>{{ metrics.totalStudents }}</h3>
@@ -47,7 +46,7 @@
       <el-card class="metric-card">
         <div class="metric-content">
           <div class="metric-icon courses">
-            <i class="el-icon-notebook-2"></i>
+            <el-icon><Document /></el-icon>
           </div>
           <div class="metric-info">
             <h3>{{ metrics.totalCourses }}</h3>
@@ -62,7 +61,7 @@
       <el-card class="metric-card">
         <div class="metric-content">
           <div class="metric-icon assignments">
-            <i class="el-icon-finished"></i>
+            <el-icon><Finished /></el-icon>
           </div>
           <div class="metric-info">
             <h3>{{ metrics.avgCompletion }}%</h3>
@@ -77,7 +76,7 @@
       <el-card class="metric-card">
         <div class="metric-content">
           <div class="metric-icon rating">
-            <i class="el-icon-star-on"></i>
+            <el-icon><Star /></el-icon>
           </div>
           <div class="metric-info">
             <h3>{{ metrics.avgScore }}</h3>
@@ -127,6 +126,16 @@
             </el-select>
           </div>
         </template>
+        <div class="chart-legend" v-if="assignmentChartInstance">
+          <div class="legend-item">
+            <div class="legend-color" style="background-color: rgba(58,77,233,0.3);"></div>
+            <span>完整观看人数</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background-color: rgba(255,86,86,0.3);"></div>
+            <span>未完整观看人数</span>
+          </div>
+        </div>
         <div class="chart-container">
           <div ref="assignmentChartRef" style="width: 100%; height: 300px;"></div>
         </div>
@@ -159,6 +168,20 @@
             </el-select>
           </div>
         </template>
+        <div class="chart-legend" v-if="activityChartInstance">
+          <div class="legend-item">
+            <div class="legend-color" style="background-color: #5470c6;"></div>
+            <span>高活跃度</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background-color: #91cc75;"></div>
+            <span>中等活跃度</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background-color: grey;"></div>
+            <span>低活跃度</span>
+          </div>
+        </div>
         <div class="chart-container">
           <div ref="activityChartRef" style="width: 100%; height: 300px;"></div>
         </div>
@@ -170,6 +193,7 @@
       <template #header>
         <div class="table-header">
           <h3>各班课程详细数据</h3>
+          <el-button type="primary" :icon="Download" @click="exportData">导出数据</el-button>
         </div>
       </template>
       <el-table :data="courseData" v-loading="tableLoading" style="width: 100%">
@@ -234,7 +258,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElLoading } from 'element-plus'
-import { Download } from '@element-plus/icons-vue'
+import { Download, UserFilled, Document, Finished, Star } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 
 // 模拟axios - 实际使用时替换为真实axios
@@ -571,7 +595,8 @@ const updateAssignmentChart = () => {
       trigger: 'axis'
     },
     legend: {
-      data: ['完整观看人数', '未完整观看人数']
+      data: ['完整观看人数', '未完整观看人数'],
+      show: false // 隐藏默认图例
     },
     grid: {
       left: '3%',
@@ -692,7 +717,8 @@ const updateActivityChart = () => {
       }
     },
     legend: {
-      data: ['高活跃度', '中等活跃度', '低活跃度']
+      data: ['高活跃度', '中等活跃度', '低活跃度'],
+      show: false // 隐藏默认图例
     },
     grid: {
       left: '3%',
@@ -965,6 +991,25 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 10px 0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-color {
+  width: 20px;
+  height: 10px;
+  border-radius: 2px;
 }
 
 .chart-container {

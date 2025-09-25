@@ -10,16 +10,15 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import StudentLayout from './components/layout/StudentLayout.vue'
 import TeacherLayout from './components/layout/TeacherLayout.vue'
-import { useSettingsStore } from './stores/settings'
 
 const route = useRoute()
-const settingsStore = useSettingsStore()
 
-// 判断哪些页面不需要布局
-const noLayoutPaths = ['/login', '/404', '/not-found']
+// 判断哪些页面不需要布局 - 只包含登录和404页面
+const noLayoutPaths = ['/', '/login', '/404', '/not-found']
 
 const hasLayout = computed(() => {
-  return !noLayoutPaths.some(path => route.path.startsWith(path))
+  // 精确匹配，而不是使用 startsWith
+  return !noLayoutPaths.includes(route.path)
 })
 
 const layoutComponent = computed(() => {
@@ -29,9 +28,9 @@ const layoutComponent = computed(() => {
   return route.path.startsWith('/teacher') ? TeacherLayout : StudentLayout
 })
 
-// 初始化设置
+// 监听路由变化，确保正确应用布局
 onMounted(() => {
-  settingsStore.initializeSettings()
+  console.log('当前路由:', route.path, '需要布局:', hasLayout.value)
 })
 </script>
 
@@ -50,7 +49,7 @@ onMounted(() => {
 
 /* 应用全局字体大小 */
 html {
-  font-size: 14px; /* 默认值，会被JavaScript覆盖 */
+  font-size: 14px;
 }
 
 body {
@@ -64,117 +63,5 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-#app {
-  min-height: 100vh;
-  background-color: var(--bg-color);
-}
-
-/* 确保所有元素使用CSS变量 */
-.el-button {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
-  color: white;
-}
-
-.el-button:hover {
-  background-color: var(--primary-light);
-  border-color: var(--primary-light);
-}
-
-.el-button:focus {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
-}
-
-.el-card {
-  background-color: var(--card-bg);
-  border-color: var(--border-color);
-  color: var(--text-color);
-}
-
-.el-input__inner {
-  background-color: var(--card-bg);
-  border-color: var(--border-color);
-  color: var(--text-color);
-}
-
-.el-input__inner:focus {
-  border-color: var(--primary-color);
-}
-
-.el-select-dropdown {
-  background-color: var(--card-bg);
-  border-color: var(--border-color);
-}
-
-.el-select-dropdown__item {
-  color: var(--text-color);
-}
-
-.el-select-dropdown__item.hover {
-  background-color: var(--hover-bg);
-}
-
-.el-dialog {
-  background-color: var(--card-bg);
-  border-color: var(--border-color);
-}
-
-.el-dialog__title {
-  color: var(--text-color);
-}
-
-.el-form-item__label {
-  color: var(--text-color);
-}
-
-.el-switch__label {
-  color: var(--text-color);
-}
-
-.el-checkbox__label {
-  color: var(--text-color);
-}
-
-.el-slider__button {
-  border-color: var(--primary-color);
-}
-
-.el-slider__bar {
-  background-color: var(--primary-color);
-}
-
-.el-slider__button-wrapper {
-  background-color: var(--primary-color);
-}
-
-/* 紧凑模式样式 */
-.compact-mode .el-card {
-  margin-bottom: 16px;
-}
-
-.compact-mode .el-card__body {
-  padding: 16px;
-}
-
-.compact-mode .el-form-item {
-  margin-bottom: 16px;
-}
-
-.compact-mode .el-button {
-  padding: 8px 12px;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .compact-mode .el-card__body {
-    padding: 12px;
-  }
-
-  .compact-mode .el-form-item {
-    margin-bottom: 12px;
-  }
 }
 </style>

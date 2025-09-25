@@ -29,7 +29,7 @@
       <el-form-item label="检查标题" prop="title">
         <el-input v-model="assignmentForm.title" placeholder="请输入检查标题"/>
       </el-form-item>
-      
+
 
       <el-form-item label="截止日期" prop="deadline">
         <el-date-picker

@@ -218,7 +218,7 @@ const logout = () => {
   // 清除用户信息
   localStorage.removeItem('userToken')
   localStorage.removeItem('userRole')
-  navigateTo('/login')
+  navigateTo('/')
 }
 
 const navigateToProfile = () => {
@@ -226,10 +226,6 @@ const navigateToProfile = () => {
   navigateTo('/teacher/profile')
 }
 
-const navigateToHelp = () => {
-  showUserMenu.value = false
-  navigateTo('/teacher/help')
-}
 
 const navigateTo = (path) => {
   showUserMenu.value = false

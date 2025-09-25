@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div class="student-layout">
     <div class="sidebar">
       <div class="sidebar-content">
         <div class="sidebar-header">
@@ -8,8 +8,8 @@
 
         <ul class="menu">
           <li class="menu-item">
-            <div class="menu-title" :class="{active: $route.path === '/'}"
-                 @click="navigateTo('/')">
+            <div class="menu-title" :class="{active: $route.path === '/home'}"
+                 @click="navigateTo('/home')">
               <div>
                 <i class="fas fa-home"></i>
                 <span>首页</span>
@@ -56,7 +56,6 @@
               </div>
             </div>
           </li>
-
         </ul>
       </div>
       <div class="user-panel">
@@ -98,7 +97,6 @@ const avatar = computed(() => {
   return name ? name[name.length - 1] : '访'
 })
 
-
 const workStatus = ref('none')
 const workStatusLabel = computed(() => workStatus.value === 'submitted' ? '作业已提交' : '有新的作业')
 const workStatusClass = computed(() => workStatus.value === 'submitted' ? 'chip-ok' : 'chip-none')
@@ -125,15 +123,18 @@ onMounted(() => {
   try { window.addEventListener('storage', refreshWorkStatus) } catch {}
   try { window.addEventListener('work-status-updated', refreshWorkStatus) } catch {}
 })
+
 const toggleUserMenu = () => {
   showUserMenu.value = !showUserMenu.value
 }
+
 const logout = () => {
   showUserMenu.value = false
   localStorage.removeItem('userRole')
   localStorage.removeItem('currentUser')
-  navigateTo('/login')
+  router.push('/')
 }
+
 const navigateTo = (path) => {
   showUserMenu.value = false
   router.push(path)
@@ -150,24 +151,8 @@ watch(() => route.path, (newPath) => {
 }, { immediate: true })
 </script>
 
-<style>
-body {
-  overflow-x: hidden;
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Microsoft YaHei', sans-serif;
-}
-
-body {
-  background-color: #f5f7fa;
-  color: #333;
-}
-
-#app {
+<style scoped>
+.student-layout {
   display: flex;
   width: 100%;
   min-height: 100vh;
@@ -237,19 +222,6 @@ body {
   font-size: 18px;
   display: inline-flex;
   align-items: center;
-}
-
-.menu-title  {
-  transition: transform 0.3s ease;
-}
-
-.menu-title .active {
-  transform: rotate(90deg);
-}
-
-.submenu-item i {
-  margin-right: 8px;
-  font-size: 14px;
 }
 
 .user-panel {
@@ -375,8 +347,7 @@ body {
 
   .sidebar-header h1,
   .user-info span,
-  .menu-title span,
-  .submenu-item span {
+  .menu-title span {
     display: none;
   }
 
@@ -392,16 +363,6 @@ body {
   .menu-title i {
     margin-right: 0;
     font-size: 20px;
-  }
-
-  .submenu-item {
-    padding-left: 25px;
-    text-align: center;
-    justify-content: center;
-  }
-
-  .submenu-item i {
-    margin-right: 0;
   }
 }
 

@@ -12,18 +12,18 @@
 
     <div class="filter-bar">
       <el-input
-        v-model="searchQuery"
-        placeholder="搜索课程名称..."
-        :prefix-icon="Search"
-        style="width: 300px; margin-right: 16px;"
-        clearable
+          v-model="searchQuery"
+          placeholder="搜索课程名称..."
+          :prefix-icon="Search"
+          style="width: 300px; margin-right: 16px;"
+          clearable
       />
       <el-select v-model="categoryFilter" placeholder="按分类筛选" clearable>
         <el-option
-          v-for="category in categories"
-          :key="category.id"
-          :label="category.name"
-          :value="category.id"
+            v-for="category in categories"
+            :key="category.id"
+            :label="category.name"
+            :value="category.id"
         />
       </el-select>
       <el-select v-model="statusFilter" placeholder="按状态筛选" clearable
@@ -75,21 +75,15 @@
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item @click="editCourse(course)">
+                    <el-dropdown-item @click="previewCourse(course)">
                       <el-icon>
-                        <Edit/>
+                        <View/>
                       </el-icon>
-                      编辑课程
-                    </el-dropdown-item>
-                    <el-dropdown-item @click="manageMaterials(course)">
-                      <el-icon>
-                        <Setting/>
-                      </el-icon>
-                      管理内容
+                      预览课程
                     </el-dropdown-item>
                     <el-dropdown-item
-                      v-if="course.status === 'draft'"
-                      @click="publishCourse(course)"
+                        v-if="course.status === 'draft'"
+                        @click="publishCourse(course)"
                     >
                       <el-icon>
                         <Upload/>
@@ -97,8 +91,8 @@
                       发布课程
                     </el-dropdown-item>
                     <el-dropdown-item
-                      v-else
-                      @click="unpublishCourse(course)"
+                        v-else
+                        @click="unpublishCourse(course)"
                     >
                       <el-icon>
                         <Download/>
@@ -139,9 +133,9 @@
               <span>平均完成率: {{ course.completionRate || 0 }}%</span>
             </div>
             <el-progress
-              :percentage="course.completionRate || 0"
-              :color="progressColor(course.completionRate || 0)"
-              :show-text="false"
+                :percentage="course.completionRate || 0"
+                :color="progressColor(course.completionRate || 0)"
+                :show-text="false"
             />
           </div>
 
@@ -157,6 +151,12 @@
                 <User/>
               </el-icon>
               学生管理
+            </el-button>
+            <el-button size="small" @click="previewCourse(course)">
+              <el-icon>
+                <View/>
+              </el-icon>
+              预览
             </el-button>
           </div>
         </div>
@@ -183,16 +183,37 @@
     <!-- 分页组件 -->
     <div class="pagination" v-if="filteredCourses.length > 0">
       <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[12, 24, 36, 48]"
-        :total="filteredCourses.length"
-        layout="total, sizes, prev, pager, next, jumper"
-        background
-        @update:current-page="handleCurrentPageChange"
-        @update:page-size="handlePageSizeChange"
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[12, 24, 36, 48]"
+          :total="filteredCourses.length"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @update:current-page="handleCurrentPageChange"
+          @update:page-size="handlePageSizeChange"
       />
     </div>
+
+    <!-- 课程播放器 -->
+    <CoursePlayer
+        v-model="playerVisible"
+        :course-id="currentCourse?.id"
+        :title="currentCourse?.title"
+        :chapters="currentCourse?.chapters || []"
+        :fallback-src="currentCourse?.videoUrl"
+        :episode-total="currentCourse?.videoCount"
+        :video-count="currentCourse?.videoCount"
+        :doc-count="currentCourse?.documentCount"
+    />
+
+    <!-- 文档查看器 -->
+    <DocumentViewer
+        v-model="documentViewerVisible"
+        :title="currentDocument?.title"
+        :file-url="currentDocument?.fileUrl"
+        :html-content="currentDocument?.htmlContent"
+        :chapters="currentDocument?.chapters || []"
+    />
   </div>
 </template>
 
@@ -216,9 +237,168 @@ import {
   Calendar,
   DataAnalysis,
   Notebook,
-  Loading
+  Loading,
+  View
 } from '@element-plus/icons-vue'
 import axios from 'axios'
+import CoursePlayer from '@/components/CoursePlayer.vue'
+import DocumentViewer from '@/components/DocumentViewer.vue'
+
+// 模拟课程数据
+const mockCourses = [
+  {
+    id: 1,
+    title: "Web前端开发入门",
+    description: "本课程将带你从零开始学习Web前端开发，掌握HTML、CSS、JavaScript基础知识。",
+    image: "https://via.placeholder.com/300x180/4CAF50/white?text=Web前端开发",
+    status: "published",
+    categoryId: 1,
+    createTime: "2024-01-15T10:00:00Z",
+    studentCount: 128,
+    videoCount: 12,
+    documentCount: 8,
+    completionRate: 75,
+    chapters: [
+      {
+        id: 1,
+        title: "HTML基础",
+        type: "chapter",
+        children: [
+          {
+            id: 101,
+            title: "HTML简介与基本结构",
+            type: "video",
+            videoUrl: "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
+            duration: "12:30"
+          },
+          {
+            id: 102,
+            title: "常用HTML标签",
+            type: "document",
+            docUrl: "",
+            html: "<h2>常用HTML标签</h2><p>在本节中，我们将学习常用的HTML标签：</p><ul><li><code>&lt;h1&gt;</code>到<code>&lt;h6&gt;</code>标题标签</li><li><code>&lt;p&gt;</code>段落标签</li><li><code>&lt;a&gt;</code>链接标签</li><li><code>&lt;img&gt;</code>图片标签</li></ul>"
+          }
+        ]
+      },
+      {
+        id: 2,
+        title: "CSS样式设计",
+        type: "chapter",
+        children: [
+          {
+            id: 201,
+            title: "CSS选择器与基本语法",
+            type: "video",
+            videoUrl: "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
+            duration: "15:45"
+          },
+          {
+            id: 202,
+            title: "盒模型与布局",
+            type: "document",
+            docUrl: "",
+            html: "<h2>CSS盒模型</h2><p>CSS盒模型是网页布局的基础，包括：</p><ol><li>内容区域（content）</li><li>内边距（padding）</li><li>边框（border）</li><li>外边距（margin）</li></ol><p>理解盒模型对于精确控制元素尺寸和间距非常重要。</p>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 2,
+    title: "Python数据分析",
+    description: "学习使用Python进行数据分析，掌握pandas、numpy等核心库的使用方法。",
+    image: "https://via.placeholder.com/300x180/2196F3/white?text=Python数据分析",
+    status: "published",
+    categoryId: 2,
+    createTime: "2024-01-20T14:30:00Z",
+    studentCount: 96,
+    videoCount: 8,
+    documentCount: 6,
+    completionRate: 68,
+    chapters: [
+      {
+        id: 1,
+        title: "Python基础回顾",
+        type: "chapter",
+        children: [
+          {
+            id: 101,
+            title: "数据类型与控制结构",
+            type: "video",
+            videoUrl: "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
+            duration: "18:20"
+          }
+        ]
+      },
+      {
+        id: 2,
+        title: "NumPy数组操作",
+        type: "chapter",
+        children: [
+          {
+            id: 201,
+            title: "NumPy基础",
+            type: "document",
+            docUrl: "",
+            html: "<h2>NumPy简介</h2><p>NumPy是Python科学计算的基础包，提供了多维数组对象和各种派生对象。</p><pre><code>import numpy as np\n# 创建数组\narr = np.array([1, 2, 3, 4, 5])\nprint(arr)\n</code></pre>"
+          },
+          {
+            id: 202,
+            title: "数组索引与切片",
+            type: "video",
+            videoUrl: "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
+            duration: "14:15"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 3,
+    title: "机器学习基础",
+    description: "介绍机器学习的基本概念和常用算法，包括监督学习和无监督学习。",
+    image: "https://via.placeholder.com/300x180/FF9800/white?text=机器学习基础",
+    status: "draft",
+    categoryId: 3,
+    createTime: "2024-02-01T09:15:00Z",
+    studentCount: 0,
+    videoCount: 10,
+    documentCount: 5,
+    completionRate: 0,
+    chapters: [
+      {
+        id: 1,
+        title: "机器学习概述",
+        type: "chapter",
+        children: [
+          {
+            id: 101,
+            title: "什么是机器学习",
+            type: "video",
+            videoUrl: "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
+            duration: "22:10"
+          },
+          {
+            id: 102,
+            title: "机器学习分类",
+            type: "document",
+            docUrl: "",
+            html: "<h2>机器学习分类</h2><p>机器学习主要分为以下几类：</p><ul><li><strong>监督学习</strong>：从标记的训练数据中学习</li><li><strong>无监督学习</strong>：从未标记的数据中发现模式</li><li><strong>强化学习</strong>：通过与环境交互学习最优行为</li></ul>"
+          }
+        ]
+      }
+    ]
+  }
+]
+
+// 模拟分类数据
+const mockCategories = [
+  { id: 1, name: "前端开发" },
+  { id: 2, name: "后端开发" },
+  { id: 3, name: "数据科学" },
+  { id: 4, name: "人工智能" },
+  { id: 5, name: "移动开发" }
+]
 
 export default {
   name: 'CoursesList',
@@ -238,7 +418,10 @@ export default {
     Calendar,
     DataAnalysis,
     Notebook,
-    Loading
+    Loading,
+    View,
+    CoursePlayer,
+    DocumentViewer
   },
   setup() {
     const router = useRouter()
@@ -255,6 +438,12 @@ export default {
     const currentPage = ref(1)
     const pageSize = ref(12)
 
+    // 播放器相关
+    const playerVisible = ref(false)
+    const documentViewerVisible = ref(false)
+    const currentCourse = ref(null)
+    const currentDocument = ref(null)
+
     // 加载课程数据
     const loadCourses = async () => {
       loading.value = true
@@ -266,7 +455,10 @@ export default {
         if (response.data.success) {
           courses.value = response.data.data
         } else {
-          ElMessage.error(response.data.message || '加载课程失败')
+          // 接口调用成功但返回错误，使用模拟数据
+          console.warn('课程接口返回错误，使用模拟数据')
+          courses.value = mockCourses
+          ElMessage.warning('课程接口数据异常，显示模拟数据')
         }
       } catch (error) {
         console.error('加载课程失败:', error)
@@ -274,7 +466,10 @@ export default {
           ElMessage.error('登录已过期，请重新登录')
           router.push('/login')
         } else {
-          ElMessage.error('加载课程失败，请稍后重试')
+          // 接口调用失败，使用模拟数据
+          console.warn('课程接口调用失败，使用模拟数据')
+          courses.value = mockCourses
+          ElMessage.warning('课程接口连接失败，显示模拟数据')
         }
       } finally {
         loading.value = false
@@ -291,13 +486,21 @@ export default {
         if (response.data.success) {
           categories.value = response.data.data
         } else {
-          ElMessage.error(response.data.message || '加载分类失败')
+          // 接口调用成功但返回错误，使用模拟数据
+          console.warn('分类接口返回错误，使用模拟数据')
+          categories.value = mockCategories
+          ElMessage.warning('分类接口数据异常，显示模拟数据')
         }
       } catch (error) {
         console.error('加载分类失败:', error)
         if (error.response?.status === 401) {
           ElMessage.error('登录已过期，请重新登录')
           router.push('/login')
+        } else {
+          // 接口调用失败，使用模拟数据
+          console.warn('分类接口调用失败，使用模拟数据')
+          categories.value = mockCategories
+          ElMessage.warning('分类接口连接失败，显示模拟数据')
         }
       }
     }
@@ -322,8 +525,8 @@ export default {
       if (searchQuery.value) {
         const query = searchQuery.value.toLowerCase()
         result = result.filter(course =>
-          course.title.toLowerCase().includes(query) ||
-          course.description.toLowerCase().includes(query)
+            course.title.toLowerCase().includes(query) ||
+            course.description.toLowerCase().includes(query)
         )
       }
 
@@ -368,17 +571,42 @@ export default {
       router.push(`/teacher/courses/${course.id}/materials`)
     }
 
+    // 预览课程
+    const previewCourse = async (course) => {
+      try {
+        // 获取课程详细信息
+        const response = await axios.get(`/api/courses/${course.id}`, {
+          headers: {Authorization: `Bearer ${token.value}`}
+        })
+
+        if (response.data.success) {
+          currentCourse.value = response.data.data
+          playerVisible.value = true
+        } else {
+          // 使用模拟课程数据
+          currentCourse.value = course
+          playerVisible.value = true
+        }
+      } catch (error) {
+        console.error('获取课程详情失败:', error)
+        // 使用模拟课程数据
+        currentCourse.value = course
+        playerVisible.value = true
+        ElMessage.info('使用模拟课程数据进行预览')
+      }
+    }
+
     // 发布课程
     const publishCourse = async (course) => {
       try {
         ElMessageBox.confirm(
-          `确定要发布课程 "${course.title}" 吗？发布后学生将可以看到此课程。`,
-          '发布确认',
-          {
-            confirmButtonText: '发布',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
+            `确定要发布课程 "${course.title}" 吗？发布后学生将可以看到此课程。`,
+            '发布确认',
+            {
+              confirmButtonText: '发布',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }
         ).then(async () => {
           const response = await axios.put(`/api/courses/${course.id}/status`, {
             status: 'published'
@@ -405,13 +633,13 @@ export default {
     const unpublishCourse = async (course) => {
       try {
         ElMessageBox.confirm(
-          `确定要下架课程 "${course.title}" 吗？下架后学生将无法看到此课程。`,
-          '下架确认',
-          {
-            confirmButtonText: '下架',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
+            `确定要下架课程 "${course.title}" 吗？下架后学生将无法看到此课程。`,
+            '下架确认',
+            {
+              confirmButtonText: '下架',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }
         ).then(async () => {
           const response = await axios.put(`/api/courses/${course.id}/status`, {
             status: 'draft'
@@ -438,14 +666,14 @@ export default {
     const deleteCourse = async (course) => {
       try {
         ElMessageBox.confirm(
-          `确定要删除课程 "${course.title}" 吗？此操作不可恢复。`,
-          '删除确认',
-          {
-            confirmButtonText: '删除',
-            cancelButtonText: '取消',
-            type: 'error',
-            confirmButtonClass: 'el-button--danger'
-          }
+            `确定要删除课程 "${course.title}" 吗？此操作不可恢复。`,
+            '删除确认',
+            {
+              confirmButtonText: '删除',
+              cancelButtonText: '取消',
+              type: 'error',
+              confirmButtonClass: 'el-button--danger'
+            }
         ).then(async () => {
           const response = await axios.delete(`/api/courses/${course.id}`, {
             headers: {Authorization: `Bearer ${token.value}`}
@@ -468,12 +696,12 @@ export default {
 
     // 查看数据分析
     const viewAnalytics = (course) => {
-      router.push(`/teacher/courses/${course.id}/analytics`)
+      router.push(`/teacher/analytics?courseId=${course.id}`)
     }
 
     // 查看学生管理
     const viewStudents = (course) => {
-      router.push(`/teacher/courses/${course.id}/students`)
+      router.push(`/teacher/students/list?courseId=${course.id}`)
     }
 
     // 分页变化处理
@@ -513,6 +741,7 @@ export default {
       navigateToCreate,
       editCourse,
       manageMaterials,
+      previewCourse,
       publishCourse,
       unpublishCourse,
       deleteCourse,
@@ -521,11 +750,17 @@ export default {
       handleCurrentPageChange,
       handlePageSizeChange,
       getCategoryName,
-      formatDate
+      formatDate,
+      // 播放器相关
+      playerVisible,
+      documentViewerVisible,
+      currentCourse,
+      currentDocument
     }
   }
 }
 </script>
+
 
 <style scoped>
 .teacher-courses {
