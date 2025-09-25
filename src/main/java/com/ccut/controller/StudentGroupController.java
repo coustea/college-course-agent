@@ -118,7 +118,7 @@ public class StudentGroupController {
         }
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id}")                                                                                                                         
     public Result<String> delete(@PathVariable("id") Long id) {
         try {
             int result = studentGroupService.deleteById(id);
