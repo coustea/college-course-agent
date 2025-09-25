@@ -1,10 +1,10 @@
 <template>
-  <div v-if="visible" class="modal" @click.self="close">
+  <div v-if="visible" class="modal" @click.self="close" @wheel="forwardBackgroundScroll">
     <div class="modal-content">
       <div class="modal-header">
         <div class="modal-title">{{ title }}</div>
         <button class="modal-close"
-        @click="close"><i class="fas fa-times"></i></button>
+                @click="close"><i class="fas fa-times"></i></button>
       </div>
       <div class="modal-body">
         <aside class="course-sidebar">
@@ -14,101 +14,25 @@
               {{ Math.round(overallProgress * 100) }}%
             </span>
           </div>
-          <div v-if="!hasChapters" class="no-chapters-tip">暂无目录 · 单视频课程</div>
-          <div v-else class="directory-container">
+          <div class="directory-summary">
+            <span v-if="episodeCount > 0">共 {{ episodeCount }} 节</span>
+            <span v-else>暂无目录 · 单视频课程</span>
+          </div>
+          <div v-if="episodeCount > 0" class="directory-container">
             <div
-              v-for="(item, index) in chapters"
-              :key="index"
-              class="directory-item"
+                v-for="n in episodeCount"
+                :key="n"
+                class="directory-item"
             >
               <div
-                class="item-content"
-                :class="{
-                  'active': isItemActive(item),
-                  'is-folder': !isItemVideo(item),
-                  'is-video': isItemVideo(item)
-                }"
-                :style="{ paddingLeft: '12px' }"
-                @click="handleItemClick(item, 0)"
+                  class="item-content"
+                  :class="{ 'active': (n - 1) === currentIndex }"
+                  :style="{ paddingLeft: '12px' }"
+                  @click="selectEpisode(n - 1)"
               >
                 <div class="item-inner">
-                  <i
-                    v-if="hasItemChildren(item)"
-                    class="fas expand-icon fa-chevron-down"
-                  ></i>
-                  <i
-                    v-else-if="isItemVideo(item)"
-                    class="fas fa-play-circle video-icon"
-                  ></i>
-                  <i
-                    v-else
-                    class="fas fa-folder folder-icon"
-                  ></i>
-                  <span class="item-title">{{ item.title }}</span>
-                  <span v-if="isItemVideo(item) && item.duration" class="item-duration">{{ item.duration }}</span>
-                </div>
-              </div>
-
-              <div v-if="hasItemChildren(item)" class="item-children">
-                <div
-                  v-for="(child, childIndex) in item.children"
-                  :key="childIndex"
-                  class="directory-item"
-                >
-                  <div
-                    class="item-content"
-                    :class="{
-                      'active': isItemActive(child),
-                      'is-folder': !isItemVideo(child),
-                      'is-video': isItemVideo(child)
-                    }"
-                    :style="{ paddingLeft: '32px' }"
-                    @click="handleItemClick(child, 1)"
-                  >
-                    <div class="item-inner">
-                      <i
-                        v-if="hasItemChildren(child)"
-                        class="fas expand-icon fa-chevron-down"
-                      ></i>
-                      <i
-                        v-else-if="isItemVideo(child)"
-                        class="fas fa-play-circle video-icon"
-                      ></i>
-                      <i
-                        v-else
-                        class="fas fa-folder folder-icon"
-                      ></i>
-                      <span class="item-title">{{ child.title }}</span>
-                      <span v-if="isItemVideo(child) && child.duration" class="item-duration">{{ child.duration }}</span>
-                    </div>
-                  </div>
-
-                  <div v-if="hasItemChildren(child)" class="item-children">
-                    <div
-                      v-for="(grandChild, grandChildIndex) in child.children"
-                      :key="grandChildIndex"
-                      class="directory-item"
-                    >
-                      <div
-                        class="item-content"
-                        :class="{
-                          'active': isItemActive(grandChild),
-                          'is-video': isItemVideo(grandChild)
-                        }"
-                        :style="{ paddingLeft: '52px' }"
-                        @click="handleItemClick(grandChild, 2)"
-                      >
-                        <div class="item-inner">
-                          <i
-                            v-if="isItemVideo(grandChild)"
-                            class="fas fa-play-circle video-icon"
-                          ></i>
-                          <span class="item-title">{{ grandChild.title }}</span>
-                          <span v-if="isItemVideo(grandChild) && grandChild.duration" class="item-duration">{{ grandChild.duration }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <i class="fas fa-play-circle video-icon"></i>
+                  <span class="item-title">第{{ n }}节</span>
                 </div>
               </div>
             </div>
@@ -116,88 +40,111 @@
         </aside>
         <section class="course-main">
           <div class="video-container" ref="videoContainer" :class="{ theatre: isTheatre }">
-            <video ref="player" class="video-player" playsinline
-            @click="togglePlay" @timeupdate="onTimeUpdate; syncPlayState"
-            @loadedmetadata="onLoaded" @play="syncPlayState" @pause="syncPlayState">
-              <source :src="currentSrc" type="video/mp4" />
+            <video ref="player" class="video-player" playsinline :src="currentSrc" crossorigin="anonymous"
+                   @click="togglePlay" @timeupdate="onTimeUpdate(); syncPlayState()"
+                   @loadedmetadata="onLoaded" @play="syncPlayState" @pause="syncPlayState" @ended="onEnded" @seeked="onSeeked"
+                   @error="onVideoError">
               您的浏览器不支持HTML5视频播放
             </video>
+            <div class="time-hud">{{ hudCurrentLabel }} / {{ hudDurationLabel }}</div>
+            <div class="mini-progress">
+              <div class="mini-progress-fill" :style="{ width: Math.round(currentProgress * 100) + '%' }"></div>
+            </div>
             <div v-show="enterTipVisible" class="enter-tip">{{ enterTipText }}</div>
             <div v-show="isTheatre && overlayVisible" class="overlay-controls">
               <div class="left-actions">
                 <button class="icon-btn" :disabled="currentIndex === 0"
-                  :title="'上一节'" @click="prev" aria-label="prev">
+                        :title="'上一节'" @click="prev" aria-label="prev">
                   <i class="fas fa-chevron-left"></i>
                 </button>
                 <button class="icon-btn" :title="isPlaying ? '暂停' : '播放'"
-                @click="togglePlay" aria-label="play-pause">
+                        @click="togglePlay" aria-label="play-pause">
                   <i class="fas" :class="isPlaying ? 'fa-pause' : 'fa-play'"></i>
                 </button>
-                <button class="icon-btn" :disabled="currentIndex >= flatChapters.length - 1"
-                  :title="'下一节'" @click="next" aria-label="next">
+                <button class="icon-btn" :disabled="currentIndex >= totalCount - 1"
+                        :title="'下一节'" @click="next" aria-label="next">
                   <i class="fas fa-chevron-right"></i>
                 </button>
               </div>
               <div class="overlay-progress" aria-label="progress">
-                <div class="overlay-progress-track">
+                <div class="overlay-progress-track" ref="overlayTrack"
+                     @mousedown="onTrackDown($event, 'overlay')" @click="onTrackClick($event, 'overlay')">
                   <div class="overlay-progress-fill"
-                    :style="{ width: Math.round(currentProgress * 100) + '%' }"></div>
+                       :style="{ width: Math.round(currentProgress * 100) + '%' }"></div>
+                  <div class="overlay-track-dot"
+                       :style="[progressDotStyle, { left: bubbleLeft + '%' }]"
+                       :title="Math.round(currentProgress * 100) + '%'
+                       " @mousedown.stop="onTrackDown($event, 'overlay')"></div>
                 </div>
               </div>
               <div class="right-actions">
+                <div class="volume">
+                  <i class="fas fa-volume-up" title="音量"></i>
+                  <input type="range" min="0" max="100" step="1" v-model.number="volumePercent" @input="applyVolume" />
+                </div>
                 <button class="icon-btn" :title="'退出全屏(Esc)'"
-                  @click="toggleTheatre" aria-label="immersive-exit">
+                        @click="toggleTheatre" aria-label="immersive-exit">
                   <i class="fas fa-compress"></i>
                 </button>
               </div>
             </div>
             <button class="corner-exit left" v-show="isTheatre && overlayVisible"
-              :title="'退出全屏(Esc)'"
-              @click="toggleTheatre" aria-label="corner-exit-left">
+                    :title="'退出全屏(Esc)'"
+                    @click="toggleTheatre" aria-label="corner-exit-left">
               <i class="fas fa-arrow-left"></i></button>
             <button class="corner-exit top-right"
-              v-show="isTheatre && overlayVisible"
-              :title="'退出全屏(Esc)'"
-              @click="toggleTheatre" aria-label="corner-exit-right">
+                    v-show="isTheatre && overlayVisible"
+                    :title="'退出全屏(Esc)'"
+                    @click="toggleTheatre" aria-label="corner-exit-right">
               <i class="fas fa-times"></i></button>
+
           </div>
           <div class="controls" v-if="!isTheatre">
             <div class="left-actions">
               <button class="icon-btn" :disabled="currentIndex === 0"
-                :title="'上一节'" @click="prev" aria-label="prev">
+                      :title="'上一节'" @click="prev" aria-label="prev">
                 <i class="fas fa-chevron-left"></i>
               </button>
               <button class="icon-btn" :title="isPlaying ? '暂停' : '播放'"
-                @click="togglePlay" aria-label="play-pause">
+                      @click="togglePlay" aria-label="play-pause">
                 <i class="fas" :class="isPlaying ? 'fa-pause' : 'fa-play'"></i>
               </button>
-              <button class="icon-btn" :disabled="currentIndex >= flatChapters.length - 1"
-                :title="'下一节'" @click="next" aria-label="next">
+              <button class="icon-btn" :disabled="currentIndex >= totalCount - 1"
+                      :title="'下一节'" @click="next" aria-label="next">
                 <i class="fas fa-chevron-right"></i>
               </button>
             </div>
             <div class="controls-progress" aria-label="progress">
               <div
-                class="controls-progress-track"
-                ref="progressTrack"
-                @mousemove="onTrackMove"
-                @mouseenter="onTrackEnter"
-                @mouseleave="onTrackLeave"
+                  class="controls-progress-track"
+                  ref="progressTrack"
+                  @mousemove="onTrackMove"
+                  @mouseenter="onTrackEnter"
+                  @mouseleave="onTrackLeave"
+                  @mousedown="onTrackDown($event, 'controls')"
+                  @click="onTrackClick($event, 'controls')"
               >
                 <div class="controls-progress-fill"
-                  :style="{ width: Math.round(currentProgress * 100) + '%' }">
+                     :style="{ width: Math.round(currentProgress * 100) + '%' }">
                 </div>
+                <div class="controls-track-dot"
+                     :style="{ left: bubbleLeft + '%' }"
+                     @mousedown.stop="onTrackDown($event, 'controls')"></div>
                 <div class="controls-progress-time"
-                  :style="{ left: bubbleLeft + '%' }">{{ currentTimeLabel }} / {{ durationLabel }}
+                     :style="{ left: bubbleLeft + '%' }">{{ currentTimeLabel }} / {{ durationLabel }}
                 </div>
                 <div v-show="hoverTimeVisible" class="hover-time"
-                  :style="{ left: hoverLeft + '%' }">{{ hoverTimeLabel }}
+                     :style="{ left: hoverLeft + '%' }">{{ hoverTimeLabel }}
                 </div>
               </div>
             </div>
             <div class="right-actions">
+              <div class="volume">
+                <i class="fas fa-volume-up" title="音量"></i>
+                <input type="range" min="0" max="100" step="1" v-model.number="volumePercent" @input="applyVolume" />
+              </div>
               <button class="icon-btn" :title="isTheatre ? '退出全屏(Esc)' : '全屏模式'"
-                @click="toggleTheatre" aria-label="immersive">
+                      @click="toggleTheatre" aria-label="immersive">
                 <i class="fas" :class="isTheatre ? 'fa-compress' : 'fa-expand'"></i>
               </button>
             </div>
@@ -206,12 +153,21 @@
       </div>
     </div>
   </div>
+  <Question
+      v-model="questionVisible"
+      :questions="questionList"
+      title="知识检查"
+      :closable="false"
+      :requireAll="true"
+      @submit="onQuestionSubmit"
+  />
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { getVideoProgress, setVideoProgress, getOverallProgress } from '../services/student/learningProgress.js'
-import { addOrUpdateRecord, updateProgress, addTime } from '../services/student/historyService.js'
+import { getVideoProgress, setVideoProgress, getOverallProgress, reportLearningHeartbeat } from '../services/progressApi'
+import { fetchQuestions, submitExamAnswers, hasQuestionShown, markQuestionShown } from '@/services/questionApi'
+import Question from '@/components/Question.vue'
 
 
 const props = defineProps({
@@ -220,7 +176,10 @@ const props = defineProps({
   title: { type: String, required: true },
   chapters: { type: Array, default: () => [] },
   fallbackSrc: { type: String, default: '' },
-  startIndex: { type: Number, default: 0 }
+  startIndex: { type: Number, default: 0 },
+  episodeTotal: { type: Number, default: 0 },
+  videoCount: { type: Number, default: 0 },
+  docCount: { type: Number, default: 0 }
 })
 const emit = defineEmits(['update:modelValue', 'progress'])
 
@@ -229,24 +188,21 @@ watch(() => props.modelValue, v => { visible.value = v })
 function close() {
   if (isTheatre.value) {
     isTheatre.value = false
-    lockScroll(false)
   }
+  lockScroll(false)
   emit('update:modelValue', false)
 }
 
 const player = ref(null)
 const videoContainer = ref(null)
 const currentIndex = ref(0)
-// 扁平化目录结构，支持多级目录
 const flatChapters = computed(() => {
   const result = []
   const process = (items) => {
     items.forEach(item => {
       if (item.videoUrl || item.type === 'video' || item.type === 'chapter') {
-        // 这是一个视频章节
         result.push(item)
       } else if (item.children && Array.isArray(item.children)) {
-        // 这是一个目录分组，递归处理子项
         process(item.children)
       }
     })
@@ -255,47 +211,59 @@ const flatChapters = computed(() => {
   return result
 })
 
+// 计算总集数
+const episodeCount = computed(() => {
+  if (props.episodeTotal && props.episodeTotal > 0) return props.episodeTotal
+  const sum = (props.videoCount || 0) + (props.docCount || 0)
+  if (sum > 0) return sum
+  return flatChapters.value.length
+})
+
 const currentSrc = computed(() => {
   const currentChapter = flatChapters.value[currentIndex.value]
   return currentChapter?.videoUrl || props.fallbackSrc
 })
 
+function onVideoError(e) {
+  console.warn('视频加载失败，回退到 fallbackSrc', e)
+  const el = player.value
+  if (!el) return
+  if (props.fallbackSrc && el.src !== props.fallbackSrc) {
+    el.src = props.fallbackSrc
+    el.load()
+    el.play?.()
+  }
+}
+
 const hasChapters = computed(() => flatChapters.value.length > 0)
 
-// 辅助函数
-const isItemVideo = (item) => {
-  return item.videoUrl || item.type === 'video' || item.type === 'chapter'
-}
+// 统一计数：有真实目录则用目录数，否则用后端总集数
+const totalCount = computed(() => {
+  return hasChapters.value ? flatChapters.value.length : episodeCount.value
+})
 
-const hasItemChildren = (item) => {
-  return item.children && Array.isArray(item.children) && item.children.length > 0
-}
-
-const isItemActive = (item) => {
-  if (!isItemVideo(item)) return false
-  const flatIndex = flatChapters.value.findIndex(ch => ch === item)
-  return flatIndex === currentIndex.value
-}
-
-const handleItemClick = (item, level) => {
-  if (isItemVideo(item)) {
-    const flatIndex = flatChapters.value.findIndex(ch => ch === item)
-    if (flatIndex >= 0) {
-      playChapter(flatIndex)
-    }
+function selectEpisode(i) {
+  if (hasChapters.value) {
+    playChapter(i)
+  } else {
+    currentIndex.value = Math.max(0, Math.min(i, Math.max(0, totalCount.value - 1)))
+    const t = `第${currentIndex.value + 1}集`
+    showEnterTip(t)
+    nextTickSeekSaved()
   }
-  // 对于文件夹，可以在这里添加展开/收起逻辑
 }
 
 const currentProgress = ref(0)
-const overallProgress = computed(() => getOverallProgress(props.courseId) || 0)
+const overallProgress = computed(() => {
+  const v = Number(getOverallProgress(props.courseId))
+  if (!Number.isFinite(v)) return 0
+  return Math.max(0, Math.min(1, v))
+})
 
 
 const isTheatre = ref(false)
 const isPlaying = ref(false)
 const overlayVisible = ref(true)
-let overlayTimer = null
-
 const enterTipVisible = ref(false)
 const enterTipText = ref('')
 let enterTipTimer = null
@@ -317,8 +285,8 @@ function lockScroll(enable) {
         window.addEventListener('wheel', wheelHandler, { passive: false })
       }
     } else {
-      document.documentElement.style.overflow = ''
-      document.body.style.overflow = ''
+      document.documentElement.style.overflow = 'auto'
+      document.body.style.overflow = 'auto'
       if (wheelHandler) {
         window.removeEventListener('wheel', wheelHandler)
         wheelHandler = null
@@ -326,66 +294,161 @@ function lockScroll(enable) {
     }
   } catch {}
 }
-
-function onMouseMove() {
-  if (!isTheatre.value) return
-  overlayVisible.value = true
-  if (overlayTimer) clearTimeout(overlayTimer)
-  overlayTimer = setTimeout(() => { overlayVisible.value = false }, 2000)
-}
-
 function toggleTheatre() {
   isTheatre.value = !isTheatre.value
   lockScroll(isTheatre.value)
 }
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && isTheatre.value) {
-    isTheatre.value = false
-    lockScroll(false)
-  }
-})
+function forwardBackgroundScroll(e) {
+  try {
+    if (!visible.value || isTheatre.value) return
+    const sc = document.querySelector('.main-content') || document.scrollingElement || document.documentElement
+    if (sc) {
+      e.preventDefault()
+      sc.scrollTop += e.deltaY
+    }
+  } catch {}
+}
+
+function handleKeydown(e) {
+  try {
+    const tag = (e.target && e.target.tagName) ? String(e.target.tagName).toLowerCase() : ''
+    if (tag === 'input' || tag === 'textarea' || (e.target && e.target.isContentEditable)) return
+    const el = player.value
+    if (!visible.value || !el) return
+    if (e.key === 'Escape' && isTheatre.value) {
+      isTheatre.value = false
+      lockScroll(false)
+      return
+    }
+    if (e.key === ' ' || e.code === 'Space') {
+      e.preventDefault()
+      togglePlay()
+      return
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      seekBy(-5)
+      return
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      seekBy(5) // 受限：不允许超过当前进度
+      return
+    }
+  } catch {}
+}
+
+function seekBy(deltaSec) {
+  const el = player.value
+  if (!el || !el.duration) return
+  const now = el.currentTime || 0
+  const target = now + deltaSec
+  el.currentTime = Math.max(0, Math.min(el.duration, target))
+}
 
 let timeTicker = null
 let lastTick = 0
+let accumulatedHeartbeatSec = 0
+const questionVisible = ref(false)
+const questionList = ref([])
+const questionNodeKey = ref('')
+const wasPlayingBeforeQuestion = ref(false)
+
+function pauseForQuestion() {
+  const el = player.value
+  if (!el) return
+  wasPlayingBeforeQuestion.value = !el.paused
+  if (!el.paused) {
+    el.pause()
+    isPlaying.value = false
+  }
+}
+
+function resumeAfterQuestion() {
+  const el = player.value
+  if (!el) return
+  if (wasPlayingBeforeQuestion.value) {
+    el.play()
+    isPlaying.value = true
+  }
+}
 function togglePlay() {
   const el = player.value
   if (!el) return
   if (el.paused) {
     el.play()
     isPlaying.value = true
-    lastTick = Date.now()
-    if (!timeTicker) {
-      timeTicker = setInterval(() => {
-        const now = Date.now()
-        const delta = Math.floor((now - lastTick) / 1000)
-        if (delta > 0) { addTime(props.courseId, delta); lastTick = now }
-      }, 1000)
-    }
   } else {
     el.pause()
     isPlaying.value = false
-    if (timeTicker) {
-      const now = Date.now(); const delta = Math.floor((now - lastTick) / 1000)
-      if (delta > 0) addTime(props.courseId, delta)
-      clearInterval(timeTicker); timeTicker = null
-    }
   }
 
-  addOrUpdateRecord({
-    id: props.courseId,
-    type: (props.chapters?.length || 0) > 0 ? 'video' : 'video',
-    title: props.title, image: '', duration: '',
-    progress: Math.round(currentProgress.value * 100) })
+}
+
+function startHeartbeatTicker() {
+  lastTick = Date.now()
+  if (!timeTicker) {
+    timeTicker = setInterval(() => {
+      const now = Date.now()
+      const delta = Math.floor((now - lastTick) / 1000)
+      if (delta > 0) {
+        accumulatedHeartbeatSec += delta
+        lastTick = now
+        if (accumulatedHeartbeatSec >= 5) {
+          try { reportLearningHeartbeat({ courseId: props.courseId, deltaSec: accumulatedHeartbeatSec, eventType: 'heartbeat', videoIndex: currentIndex.value, currentTimeSec: player.value?.currentTime, durationSec: player.value?.duration }) } catch {}
+          accumulatedHeartbeatSec = 0
+        }
+      }
+    }, 1000)
+  }
+}
+
+function flushHeartbeat(eventType) {
+  const now = Date.now()
+  const delta = Math.floor((now - lastTick) / 1000)
+  if (delta > 0) {
+    accumulatedHeartbeatSec += delta
+    lastTick = now
+  }
+  if (accumulatedHeartbeatSec > 0) {
+    try {
+      reportLearningHeartbeat({
+        courseId: props.courseId,
+        deltaSec: accumulatedHeartbeatSec,
+        eventType: eventType || 'pause',
+        videoIndex: currentIndex.value,
+        currentTimeSec: player.value?.currentTime,
+        durationSec: player.value?.duration
+      }) } catch {}
+    accumulatedHeartbeatSec = 0
+  }
+}
+
+function stopTickerAndFlush(eventType) {
+  if (timeTicker) {
+    clearInterval(timeTicker)
+    timeTicker = null
+  }
+  flushHeartbeat(eventType)
 }
 
 function syncPlayState() {
   const el = player.value
   if (!el) return
-  isPlaying.value = !el.paused
+  const nowPlaying = !el.paused
+  if (nowPlaying && !timeTicker) {
+    startHeartbeatTicker()
+  } else if (!nowPlaying && timeTicker) {
+    stopTickerAndFlush('pause')
+  }
+  isPlaying.value = nowPlaying
 }
 
+const hudNow = ref(0) // 触发计算属性刷新
+let hudTicker = null
 const currentTimeLabel = computed(() => {
+  hudNow.value
   const el = player.value
   if (!el) return '0:00'
   const t = Math.floor(el.currentTime || 0)
@@ -402,21 +465,113 @@ const durationLabel = computed(() => {
   return `${m}:${s}`
 })
 
+// 解析后端时长为“秒”：支持 '1050' / '1050秒' / '17:29' / { durationSec } / { length }
+function parseDurationSec(obj) {
+  if (!obj) return 0
+  const keys = ['durationSec', 'length', 'seconds', 'duration']
+  for (const k of keys) {
+    if (obj[k] != null) {
+      const v = String(obj[k])
+      // mm:ss -> 转秒
+      if (/^\d{1,3}:\d{2}$/.test(v)) {
+        const [m, s] = v.split(':').map(n => Number(n))
+        if (Number.isFinite(m) && Number.isFinite(s)) return m * 60 + s
+      }
+      // 纯数字或带“秒”
+      const n = Number(v.replace(/[^\d]/g, ''))
+      if (Number.isFinite(n)) return n
+    }
+  }
+  return 0
+}
+
+// 每个视频单独判断展示
+const backendDurationSec = computed(() => {
+  const currentChapter = flatChapters.value[currentIndex.value]
+  return parseDurationSec(currentChapter)
+})
+const hudDurationLabel = computed(() => {
+  const el = player.value
+  const run = Math.floor(el?.duration || 0)
+  const base = Math.max(run, backendDurationSec.value)
+  const m = Math.floor(base / 60)
+  const s = String(base % 60).padStart(2, '0')
+  return `${m}:${s}`
+})
+const hudCurrentLabel = computed(() => {
+  hudNow.value
+  const el = player.value
+  const cur = Math.floor(el?.currentTime || 0)
+  const m = Math.floor(cur / 60)
+  const s = String(cur % 60).padStart(2, '0')
+  return `${m}:${s}`
+})
+
 const bubbleLeft = computed(() => {
   const pct = Math.round((currentProgress.value || 0) * 100)
   return Math.min(98, Math.max(2, pct))
 })
 
+const progressDotStyle = computed(() => {
+  const pct = Math.max(0, Math.min(1, currentProgress.value || 0))
+  const deg = Math.round(pct * 360)
+  return {
+    background: `conic-gradient(#10b981 ${deg}deg, rgba(255,255,255,0.18) 0)`
+  }
+})
+
 const progressTrack = ref(null)
+const overlayTrack = ref(null)
 const hoverTimeVisible = ref(false)
 const hoverLeft = ref(0)
 const hoverTimeLabel = ref('0:00')
+const volumePercent = ref(100)
+const isDragging = ref(false)
+const draggingWhich = ref('')
+
+function startDragging(which) {
+  isDragging.value = true
+  draggingWhich.value = which
+  try {
+    document.addEventListener('mousemove', onDragMove)
+    document.addEventListener('mouseup', stopDragging)
+  } catch {}
+}
+
+function onDragMove(e) {
+  if (!isDragging.value) return
+  const video = player.value
+  const el = draggingWhich.value === 'overlay' ? overlayTrack.value : progressTrack.value
+  if (!el || !video || !video.duration) return
+  const rect = el.getBoundingClientRect()
+  const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width)
+  const ratio = x / rect.width
+  video.currentTime = ratio * video.duration
+  currentProgress.value = ratio
+}
+
+function stopDragging() {
+  isDragging.value = false
+  draggingWhich.value = ''
+  try {
+    document.removeEventListener('mousemove', onDragMove)
+    document.removeEventListener('mouseup', stopDragging)
+  } catch {}
+}
 
 function formatTime(sec) {
   const t = Math.max(0, Math.floor(sec))
   const m = Math.floor(t / 60)
   const s = String(t % 60).padStart(2, '0')
   return `${m}:${s}`
+}
+
+function applyVolume() {
+  const el = player.value
+  if (!el) return
+  const v = Math.max(0, Math.min(100, Number(volumePercent.value) || 0))
+  el.muted = v === 0
+  el.volume = v / 100
 }
 
 function onTrackEnter() {
@@ -438,29 +593,110 @@ function onTrackMove(e) {
   hoverTimeLabel.value = formatTime(video.duration * ratio)
 }
 
+function onTrackClick(e, which) {
+  const el = which === 'overlay' ? overlayTrack.value : progressTrack.value
+  const video = player.value
+  if (!el || !video || !video.duration) return
+  const rect = el.getBoundingClientRect()
+  const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width)
+  const ratio = x / rect.width
+  video.currentTime = ratio * video.duration
+}
+
+function onTrackDown(e, which) {
+  onTrackClick(e, which)
+  startDragging(which)
+}
+
 function onLoaded() {
   const p = getVideoProgress(props.courseId, currentIndex.value)
   if (p > 0 && player.value?.duration) {
     player.value.currentTime = p * player.value.duration
+  } else {
+    try {
+      const key = `video_resume_${props.courseId}_${currentIndex.value}`
+      const raw = localStorage.getItem(key)
+      if (raw) {
+        const saved = JSON.parse(raw)
+        const pct = Number(saved?.p)
+        if (Number.isFinite(pct) && pct > 0 && pct < 1 && player.value?.duration) {
+          player.value.currentTime = pct * player.value.duration
+        }
+      }
+    } catch {}
   }
+  try {
+    if (!hudTicker) {
+      hudTicker = setInterval(() => { hudNow.value = Date.now() }, 100)
+    }
+  } catch {}
 }
 
-function onTimeUpdate() {
+function onEnded() {
+  isPlaying.value = false
+  stopTickerAndFlush('ended')
+}
+
+function onSeeked() {
+  stopTickerAndFlush('seek')
+  startHeartbeatTicker()
+}
+
+async function onTimeUpdate() {
   if (!player.value?.duration) return
   const progress = player.value.currentTime / player.value.duration
   currentProgress.value = progress
   setVideoProgress(props.courseId, currentIndex.value, progress)
-  emit('progress', getOverallProgress(props.courseId))
+  // 本地持久化，保证退出回来继续播放
+  try {
+    const key = `video_resume_${props.courseId}_${currentIndex.value}`
+    localStorage.setItem(key, JSON.stringify({ p: progress, t: Date.now() }))
+  } catch {}
+  emit('progress', overallProgress.value)
   try { window.dispatchEvent(new CustomEvent('learning-progress-updated', { detail: { courseId: props.courseId } })) } catch {}
-  updateProgress(props.courseId, Math.round(progress * 100))
+  // 题目触发：视频在 40% 与 80% 位置各触发一次；避免同时弹多个
+  try {
+    if (questionVisible.value) return
+    const isSingle = !hasChapters.value || flatChapters.value.length === 0
+    const baseKey = isSingle ? 'single' : `idx-${currentIndex.value}`
+    const key40 = `${baseKey}-p40`
+    const key80 = `${baseKey}-p80`
 
+    let targetKey = ''
+    if (progress >= 0.4 && !hasQuestionShown(props.courseId, key40)) {
+      targetKey = key40
+    } else if (progress >= 0.8 && !hasQuestionShown(props.courseId, key80)) {
+      targetKey = key80
+    }
+    if (targetKey) {
+      markQuestionShown(props.courseId, targetKey)
+      const qs = await fetchQuestions(props.courseId, targetKey)
+      if (Array.isArray(qs) && qs.length) {
+        questionNodeKey.value = targetKey
+        questionList.value = qs
+        pauseForQuestion()
+        questionVisible.value = true
+      }
+    }
+  } catch {}
+}
+
+async function onQuestionSubmit(payload) {
+  try {
+    const answers = payload?.answers || {}
+    const nodeKey = questionNodeKey.value
+    const questions = questionList.value || []
+    await submitExamAnswers(props.courseId, nodeKey, questions, answers)
+  } catch {}
+  questionVisible.value = false
+  resumeAfterQuestion()
 }
 
 
 function playChapter(i) {
   currentIndex.value = i
   nextTickSeekSaved()
-  const t = flatChapters.value[i]?.title || `第${i + 1}节`
+  const t = flatChapters.value[i]?.title || `第${i + 1}集`
   showEnterTip(t)
 }
 
@@ -469,7 +705,13 @@ function prev() {
 }
 
 function next() {
-  if (currentIndex.value < flatChapters.value.length - 1) playChapter(currentIndex.value + 1)
+  if (currentIndex.value < totalCount.value - 1) {
+    if (hasChapters.value) {
+      playChapter(currentIndex.value + 1)
+    } else {
+      selectEpisode(currentIndex.value + 1)
+    }
+  }
 }
 
 function nextTickSeekSaved() {
@@ -477,6 +719,18 @@ function nextTickSeekSaved() {
     const p = getVideoProgress(props.courseId, currentIndex.value)
     if (player.value?.duration && p > 0) {
       player.value.currentTime = p * player.value.duration
+    } else {
+      try {
+        const key = `video_resume_${props.courseId}_${currentIndex.value}`
+        const raw = localStorage.getItem(key)
+        if (raw) {
+          const saved = JSON.parse(raw)
+          const pct = Number(saved?.p)
+          if (Number.isFinite(pct) && pct > 0 && pct < 1 && player.value?.duration) {
+            player.value.currentTime = pct * player.value.duration
+          }
+        }
+      } catch {}
     }
   })
 }
@@ -486,26 +740,37 @@ onMounted(() => {
   if (!hasChapters.value) {
     showEnterTip(props.title)
   }
+  try { window.addEventListener('keydown', handleKeydown) } catch {}
 })
 watch(currentIndex, (v) => {
-  if (v != null && flatChapters.value.length > 0) {
-    const t = flatChapters.value[v]?.title || `第${v + 1}节`
+  if (v != null && totalCount.value > 0) {
+    const t = hasChapters.value ? (flatChapters.value[v]?.title || `第${v + 1}集`) : `第${v + 1}集`
     showEnterTip(t)
   }
 }, { immediate: true })
 
-onBeforeUnmount(() => {
-  lockScroll(false)
-  if (timeTicker) {
-    clearInterval(timeTicker)
-    timeTicker = null
+watch(visible, (v) => {
+  if (!v) {
+    lockScroll(false)
   }
 })
 
+onBeforeUnmount(() => {
+  lockScroll(false)
+  stopTickerAndFlush('ended')
+  try { window.removeEventListener('keydown', handleKeydown) } catch {}
+  stopDragging()
+  try { if (hudTicker) { clearInterval(hudTicker); hudTicker = null } } catch {}
+})
+
 watch(() => props.startIndex, (v) => {
-  if (typeof v === 'number' && v >= 0 && v < flatChapters.value.length) {
-    currentIndex.value = v
-    nextTickSeekSaved()
+  if (typeof v === 'number' && v >= 0 && v < totalCount.value) {
+    if (hasChapters.value) {
+      currentIndex.value = v
+      nextTickSeekSaved()
+    } else {
+      selectEpisode(v)
+    }
   }
 }, { immediate: true })
 </script>
@@ -616,15 +881,6 @@ watch(() => props.startIndex, (v) => {
   font-weight: 600;
 }
 
-.item-content.is-folder {
-  font-weight: 500;
-  color: #374151;
-}
-
-.item-content.is-video {
-  color: #1f2937;
-}
-
 .item-inner {
   display: flex;
   align-items: center;
@@ -633,21 +889,8 @@ watch(() => props.startIndex, (v) => {
   min-width: 0;
 }
 
-.expand-icon {
-  width: 12px;
-  height: 12px;
-  font-size: 10px;
-  color: #666;
-  transition: transform 0.2s ease;
-}
-
 .video-icon {
   color: #10b981;
-  font-size: 14px;
-}
-
-.folder-icon {
-  color: #f59e0b;
   font-size: 14px;
 }
 
@@ -657,26 +900,6 @@ watch(() => props.startIndex, (v) => {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 14px;
-}
-
-.item-duration {
-  color: #666;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.item-children {
-  margin-left: 0;
-}
-
-.no-chapters-tip {
-  background: #fff7ed;
-  color: #d97706;
-  border: 1px solid #fde68a;
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  font-size: 12px;
 }
 
 .course-main {
@@ -699,6 +922,32 @@ watch(() => props.startIndex, (v) => {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.time-hud {
+  position: absolute;
+  left: 8px;
+  bottom: 42px;
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.35);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.mini-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgba(255,255,255,0.25);
+}
+.mini-progress-fill {
+  height: 100%;
+  background: #10b981;
+  transition: width 0.2s ease;
 }
 
 .controls {
@@ -735,6 +984,30 @@ watch(() => props.startIndex, (v) => {
   transition: width 0.2s;
 }
 
+.controls-track-dot {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.overlay-track-dot {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
 .controls-progress-time {
   position: absolute;
   top: -28px;
@@ -758,18 +1031,22 @@ watch(() => props.startIndex, (v) => {
   white-space: nowrap;
 }
 
-.btn {
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid #e1e8ef;
-  background: #fff;
-  cursor: pointer;
-}
-
 .right-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.85);
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.volume input[type='range'] {
+  width: 120px;
 }
 
 .icon-btn {
@@ -786,12 +1063,6 @@ watch(() => props.startIndex, (v) => {
 }
 .icon-btn:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.24); }
 
-
-.btn.btn-primary {
-  border: none;
-  background: linear-gradient(135deg, #1a56db 0%, #0d3b9e 100%);
-  color: #fff;
-}
 
 .video-container.theatre {
   position: fixed;
@@ -869,14 +1140,5 @@ watch(() => props.startIndex, (v) => {
 }
 .corner-exit { z-index: 2010; }
 
-.no-chapters-tip {
-  font-size: 14px;
-  color: #666;
-  text-align: center;
-  padding: 10px 0;
-  background: #f0f0f0;
-  border-radius: 6px;
-  margin-bottom: 12px;
-}
 </style>
 

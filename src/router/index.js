@@ -2,66 +2,32 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 // 学生端路由
 const studentRoutes = [
-  {
-    path: '/',
-    name: 'StudentHome',
-    component: () => import('../views/student/Home.vue'),
-    meta: { title: '首页', requiresAuth: true, role: 'student' }
-  },
-  {
-    path: '/courses',
-    name: 'Courses',
-    component: () => import('../views/student/Courses.vue'),
-    meta: { requiresAuth: true, role: 'student' },
-    children: [
-      {
-        path: '',
-        redirect: 'all'
-      },
-      {
-        path: 'all',
-        name: 'AllCourses',
-        component: () => import('../views/student/MyCourses/AllCourses.vue'),
-        meta: { title: '全部课程' }
-      },
-      {
-        path: 'video',
-        name: 'CoursesVideo',
-        component: () => import('../views/student/MyCourses/CoursesVideo.vue'),
-        meta: { title: '视频课程' }
-      },
-      {
-        path: 'file',
-        name: 'CoursesFile',
-        component: () => import('../views/student/MyCourses/CoursesFile.vue'),
-        meta: { title: '文档课程' }
-      }
-    ]
-  },
-  {
-    path: '/survey',
-    name: 'Survey',
-    component: () => import('../views/student/Survey.vue'),
-    meta: { requiresAuth: true, role: 'student', title: '问卷调查' }
-  },
-  {
-    path: '/contact',
-    name: 'Contact',
-    component: () => import('../views/student/Contact.vue'),
-    meta: { requiresAuth: true, role: 'student', title: '联系我们' }
-  },
-  {
-    path: '/history',
-    name: 'LearningHistory',
-    component: () => import('../views/student/LearningHistory.vue'),
-    meta: { requiresAuth: true, role: 'student', title: '历史记录' }
-  },
-  {
-    path: '/profile',
-    name: 'Profile',
-    component: () => import('../views/student/Profile.vue'),
-    meta: { requiresAuth: true, role: 'student', title: '个人中心' }
-  }
+    {
+        path: '/',
+        name: 'Home',
+        component: () => import('../views/student/Home.vue')
+    },
+    {
+        path: '/data',
+        name: 'LearningData',
+        component: () => import('../views/student/LearningData.vue')
+    },
+    {
+        path: '/group',
+        name: 'LearningGroup',
+        component: () => import('../views/student/Groups.vue')
+    },
+    {
+        path: '/work',
+        name: 'Work',
+        component: () => import('../views/student/work.vue')
+    },
+    {
+        path: '/profile',
+        name: 'Profile',
+        component: () => import('../views/student/Profile.vue')
+    },
+
 ]
 
 // 教师端路由
@@ -201,56 +167,56 @@ const router = createRouter({
   ]
 })
 
-// 路由守卫
-router.beforeEach(async (to, from, next) => {
-  // 设置页面标题
-  document.title = to.meta.title ? `${to.meta.title} - 课程思政平台` : '课程思政平台'
-
-  // 检查是否需要认证
-  if (to.meta.requiresAuth) {
-    const isAuthenticated = checkAuth()
-
-    if (!isAuthenticated) {
-      next('/login')
-      return
-    }
-
-    // 检查角色权限
-    const userRole = getUserRole()
-    if (to.meta.role && to.meta.role !== userRole) {
-      // 根据用户角色重定向到对应首页
-      if (userRole === 'teacher') {
-        next('/teacher')
-      } else {
-        next('/')
-      }
-      return
-    }
-  }
-
-  // 如果已登录且访问登录/注册页，重定向到首页
-  if ((to.name === 'Login' || to.name === 'Register') && checkAuth()) {
-    const userRole = getUserRole()
-    if (userRole === 'teacher') {
-      next('/teacher')
-    } else {
-      next('/')
-    }
-    return
-  }
-
-  next()
-})
-
-// 辅助函数 - 实际应用中需要替换为真实的认证检查
-function checkAuth() {
-  const token = localStorage.getItem('userToken')
-  return !!token
-}
-
-// 辅助函数 - 实际应用中需要替换为真实的角色获取
-function getUserRole() {
-  return localStorage.getItem('userRole') || 'student'
-}
+// // 路由守卫
+// router.beforeEach(async (to, from, next) => {
+//   // 设置页面标题
+//   document.title = to.meta.title ? `${to.meta.title} - 课程思政平台` : '课程思政平台'
+//
+//   // 检查是否需要认证
+//   if (to.meta.requiresAuth) {
+//     const isAuthenticated = checkAuth()
+//
+//     if (!isAuthenticated) {
+//       next('/login')
+//       return
+//     }
+//
+//     // 检查角色权限
+//     const userRole = getUserRole()
+//     if (to.meta.role && to.meta.role !== userRole) {
+//       // 根据用户角色重定向到对应首页
+//       if (userRole === 'teacher') {
+//         next('/teacher')
+//       } else {
+//         next('/')
+//       }
+//       return
+//     }
+//   }
+//
+//   // 如果已登录且访问登录/注册页，重定向到首页
+//   if ((to.name === 'Login' || to.name === 'Register') && checkAuth()) {
+//     const userRole = getUserRole()
+//     if (userRole === 'teacher') {
+//       next('/teacher')
+//     } else {
+//       next('/')
+//     }
+//     return
+//   }
+//
+//   next()
+// })
+//
+// // 辅助函数 - 实际应用中需要替换为真实的认证检查
+// function checkAuth() {
+//   const token = localStorage.getItem('userToken')
+//   return !!token
+// }
+//
+// // 辅助函数 - 实际应用中需要替换为真实的角色获取
+// function getUserRole() {
+//   return localStorage.getItem('userRole') || 'student'
+// }
 
 export default router

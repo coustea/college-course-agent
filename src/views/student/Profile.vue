@@ -1,17 +1,17 @@
 <template>
+  <div class="header">
+    <h1 class="page-title">个人中心</h1>
+    <div class="welcome">欢迎回来，{{ student.name || '同学' }}！</div>
+  </div>
   <div class="profile-page">
-    <div class="header">
-      <h1 class="page-title">个人中心</h1>
-      <div class="welcome">欢迎回来，王小虎！</div>
-    </div>
-
     <div class="profile-container">
       <div class="profile-left">
         <div class="profile-card">
           <div class="profile-header">
-            <div class="profile-avatar">虎</div>
-            <h2 class="profile-name">王小虎</h2>
-            <div class="profile-role">计算机科学与技术 · 研究生</div>
+            <div class="profile-avatar">{{ avatarText }}</div>
+            <h2 class="profile-name">{{ student.name || '未命名' }}</h2>
+            <div class="profile-role">{{ student.major || '未填写专业' }} ·
+              {{ student.grade || student.enrollmentYear || '年级未填' }}</div>
           </div>
 
           <div class="profile-stats">
@@ -24,23 +24,22 @@
               <div class="stat-label">平均进度</div>
             </div>
           </div>
-
           <div class="profile-info">
             <div class="info-item">
               <span class="info-label">学号</span>
-              <span class="info-value">20250001</span>
+              <span class="info-value">{{ student.studentNumber || '-' }}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">学院</span>
-              <span class="info-value">计算机科学与工程学院</span>
+              <span class="info-label">专业</span>
+              <span class="info-value">{{ student.major || '-' }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">年级</span>
-              <span class="info-value">2025级</span>
+              <span class="info-value">{{ (student.grade || student.enrollmentYear) ? `${student.grade || student.enrollmentYear}级` : '-' }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">手机</span>
-              <span class="info-value">138****1234</span>
+              <span class="info-value">{{ student.phone || '-' }}</span>
             </div>
           </div>
         </div>
@@ -52,9 +51,9 @@
             <h3 class="stat-card-title">学习进度</h3>
             <div class="header-actions">
               <button
-                v-if="canToggle"
-                class="expand-btn"
-                @click="toggleExpanded"
+                  v-if="canToggle"
+                  class="expand-btn"
+                  @click="toggleExpanded"
               >{{ toggleText }}</button>
               <div class="stat-card-icon">
                 <i class="fas fa-chart-line"></i>
@@ -66,9 +65,9 @@
             <div class="empty-text">暂无任何学习进度</div>
           </div>
           <div
-            v-for="course in displayedCourses"
-            :key="course.id"
-            class="progress-container"
+              v-for="course in displayedCourses"
+              :key="course.id"
+              class="progress-container"
           >
             <div class="progress-header">
               <span class="progress-label">{{ course.title }}</span>
@@ -82,20 +81,20 @@
 
         <div class="stat-card bottom-card">
           <div class="stat-card-header">
-            <h3 class="stat-card-title">最近学习</h3>
+            <h3 class="stat-card-title">最近作品提交</h3>
             <div class="header-actions">
-
               <div class="stat-card-icon">
-                <i class="fas fa-history"></i>
+                <i class="fas fa-upload"></i>
               </div>
             </div>
           </div>
 
           <ul class="course-list">
-            <li class="course-item" v-for="(rec, index) in recentHistory"
-              :key="`${rec.id}-${index}`">
+            <li class="course-item" v-for="(rec, index) in recentSubmissions" :key="rec.id || index">
               <span class="course-name">{{ rec.title }}</span>
-              <span class="course-progress">{{ relativeTime(rec.watchedAt) }}</span>
+            </li>
+            <li v-if="recentSubmissions.length === 0" class="course-item">
+              <span class="course-name">暂无作品提交</span>
             </li>
           </ul>
         </div>
@@ -145,8 +144,8 @@
 
           <div class="progress-container">
             <div class="progress-header">
-              <span class="progress-label">累计学习（视频+文档）</span>
-              <span class="progress-value">{{ totalHours }}</span>
+              <span class="progress-label">作品提交截至时间</span>
+              <span class="progress-value">{{ workDeadline }}</span>
             </div>
           </div>
           <div class="progress-container">
@@ -170,11 +169,12 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { getOverallProgress, getAllCoursesSummary } from '../../services/student/learningProgress.js'
-import { fetchUserCourses } from '../../services/student/coursesApi.js'
-import { getHistory, onHistoryChanged, clearHistory as clearHistoryService } from '../../services/student/historyService.js'
+import { getOverallProgress } from '@/services/progressApi.js'
+import { fetchHomeCourses } from '@/services/homeCoursesApi.js'
 
 const isExpanded = ref(false)
+const student = ref({})
+const avatarText = computed(() => (student.value.name ? student.value.name[0] : '学'))
 const myCourses = ref([])
 
 function refreshProgress() {
@@ -220,11 +220,11 @@ onMounted(() => {
   refreshProgress()
   window.addEventListener('learning-progress-updated', onProgressEvent)
   loadCoursesFromApi()
-  recentHistory.value = getUniqueHistory().slice(0, 3)
-  unlisten = onHistoryChanged(() => {
-    recentHistory.value = getUniqueHistory().slice(0, 3)
-    calcTotalTime()
-  })
+  loadStudent()
+  recentSubmissions.value = getRecentWorks()
+  try { window.addEventListener('work-submitted', () => { recentSubmissions.value = getRecentWorks() }) } catch {}
+  try { window.addEventListener('work-deadline-updated', loadDeadline) } catch {}
+  loadDeadline()
   calcTotalTime()
 })
 
@@ -235,50 +235,46 @@ onBeforeUnmount(() => {
 
 async function loadCoursesFromApi() {
   try {
-    const data = await fetchUserCourses('20250001')
-    // 期望结构：[{ id, title, description, category, materials: [{ id, type: 'video'|'document'|'static', progress }] }]
-    const mapped = (data || []).map(c => {
-      const hasVideo = (c.materials || []).some(m => m.type === 'video')
+    const data = await fetchHomeCourses()
+    myCourses.value = (data || []).map(c => {
       const localOverall = getOverallProgress(c.id)
-      let progress = 0
-      if (typeof c.progress === 'number') progress = Math.round(c.progress)
-      else if (typeof localOverall === 'number' && localOverall > 0) progress = Math.round(localOverall * 100)
-      else if ((c.materials || []).length) {
-        const vals = (c.materials || []).map(m => Math.max(0, Math.min(100, m.progress || 0)))
-        progress = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
-      }
-      return { id: c.id, title: c.title, type: hasVideo ? 'video' : 'static', progress }
+      const progress = typeof c.progress === 'number'
+          ? Math.round(c.progress)
+          : (typeof localOverall === 'number' && localOverall > 0
+              ? Math.round(localOverall * 100)
+              : 0)
+      return { ...c, progress }
     })
-    // 合并本地所有课程记录（即使接口未返回，也能显示最近学习记录）
-    const local = getAllCoursesSummary()
-    const localOnlyIds = local.filter(l => !mapped.some(m => m.id === l.courseId)).map(l => l.courseId)
-    const localAsCourses = localOnlyIds.map(id => ({ id, title: `课程 ${id}`, type: 'video', progress: Math.round(getOverallProgress(id) * 100) }))
-    myCourses.value = [...mapped, ...localAsCourses]
   } catch (e) {
   }
 }
 
-const recentHistory = ref([])
-let unlisten = null
-
-function getUniqueHistory() {
-  return getHistory()
+function loadStudent() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
+    student.value = saved && Object.keys(saved).length ? saved : {}
+  } catch {
+    student.value = {}
+  }
 }
 
-function relativeTime(dateStr) {
+const recentSubmissions = ref([])
+let unlisten = null
+
+function getRecentWorks() {
+  try {
+    const raw = localStorage.getItem('work_submissions_v1') || '[]'
+    const arr = JSON.parse(raw)
+    if (Array.isArray(arr)) return arr.slice(0, 3)
+  } catch {}
+  return []
+}
+
+function formatTime(dateStr) {
   const d = new Date(dateStr)
-  const diff = Math.floor((Date.now() - d.getTime()) / 1000)
-  if (diff < 60) return '刚刚'
-  const mins = Math.floor(diff / 60)
-  if (mins < 60) return `${mins}分钟前`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}小时前`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}天前`
-  const months = Math.floor(days / 30)
-  if (months < 12) return `${months}个月前`
-  // const years = Math.floor(months / 12)
-  // return `${years}年前`      目前想法是只记录展示一个学期的历史
+  const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const da = String(d.getDate()).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0'); const mm = String(d.getMinutes()).padStart(2,'0')
+  return `${y}-${m}-${da} ${hh}:${mm}`
 }
 
 const totalHours = computed(() => {
@@ -288,16 +284,25 @@ const totalHours = computed(() => {
 })
 const totalSeconds = ref(0)
 function calcTotalTime() {
-  const list = getHistory()
-  totalSeconds.value = list.reduce((acc, r) => acc + (r.timeSpent || 0), 0)
-  videoSeconds.value = list.filter(r => r.type === 'video').reduce((a, b) => a + (b.timeSpent || 0), 0)
-  docSeconds.value = list.filter(r => r.type !== 'video').reduce((a, b) => a + (b.timeSpent || 0), 0)
+  // 历史记录模块已移除，避免无效调用导致卡顿与报错
+  totalSeconds.value = 0
+  videoSeconds.value = 0
+  docSeconds.value = 0
 }
 
 const videoSeconds = ref(0)
 const docSeconds = ref(0)
 const videoHours = computed(() => `${(videoSeconds.value / 3600).toFixed(1)}小时`)
 const docHours = computed(() => `${(docSeconds.value / 3600).toFixed(1)}小时`)
+
+// 作品截止时间
+const workDeadline = ref('未设置')
+function loadDeadline() {
+  try {
+    const v = localStorage.getItem('work_deadline_v1') || ''
+    workDeadline.value = v ? v.replace('T', ' ') : '未设置'
+  } catch { workDeadline.value = '未设置' }
+}
 </script>
 
 <style scoped>
@@ -427,39 +432,9 @@ const docHours = computed(() => `${(docSeconds.value / 3600).toFixed(1)}小时`)
   font-weight: 500;
 }
 
-.profile-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.action-btn {
-  padding: 12px;
-  background: #f1f5f9;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-align: left;
-}
-
-.action-btn:hover {
-  background: #e2e8f0;
-}
-
 .action-btn i {
   width: 20px;
   color: #64748b;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  margin-bottom: 20px;
 }
 
 .stat-card {
@@ -519,21 +494,6 @@ const docHours = computed(() => `${(docSeconds.value / 3600).toFixed(1)}小时`)
 
 .expand-btn:hover {
   background-color: #1d4ed8;
-}
-
-.clear-btn {
-  background: #ff4757;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.3s ease;
-}
-
-.clear-btn:hover {
-  background: #ff3742;
 }
 
 .top-card {
@@ -617,9 +577,6 @@ const docHours = computed(() => `${(docSeconds.value / 3600).toFixed(1)}小时`)
 
 @media (max-width: 992px) {
   .profile-container {
-    grid-template-columns: 1fr;
-  }
-  .stats-grid {
     grid-template-columns: 1fr;
   }
 }

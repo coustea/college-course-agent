@@ -1,58 +1,55 @@
 <template>
+  <div class="header">
+    <h1 class="page-title">首页</h1>
+    <div class="welcome-text">欢迎回来，{{ userName }}！</div>
+  </div>
   <div class="content">
-    <div class="header">
-      <h1 class="page-title">首页</h1>
-      <div class="welcome-text">欢迎回来，王小虎！</div>
-    </div>
-
     <div class="search-container">
       <div class="search-box">
         <i class="fas fa-search"></i>
         <input
-          type="text"
-          placeholder="搜索课程名称、关键词..."
-          v-model="searchQuery"
-          @input="filterCourses"
+            type="text"
+            placeholder="搜索课程名称、关键词..."
+            v-model="searchQuery"
+            @input="filterCourses"
         />
       </div>
 
       <div class="search-filters">
         <button
-          class="filter-btn"
-          :class="{active: activeFilter === 'all'}"
-          @click="setFilter('all')"
+            class="filter-btn"
+            :class="{active: activeFilter === 'all'}"
+            @click="setFilter('all')"
         >
           全部课程
         </button>
         <button
-          class="filter-btn"
-          :class="{active: activeFilter === 'document'}"
-          @click="setFilter('document')"
+            class="filter-btn"
+            :class="{active: activeFilter === 'document'}"
+            @click="setFilter('document')"
         >
           文档课程
         </button>
         <button
-          class="filter-btn"
-          :class="{active: activeFilter === 'video'}"
-          @click="setFilter('video')"
+            class="filter-btn"
+            :class="{active: activeFilter === 'video'}"
+            @click="setFilter('video')"
         >
           视频课程
         </button>
       </div>
     </div>
     <div class="courses-container">
-      <!-- 加载状态 -->
       <div v-if="loading" class="loading-container">
         <div class="loading-spinner"></div>
         <p>正在加载课程数据...</p>
       </div>
 
-      <!-- 课程卡片 -->
       <div
-        v-for="course in filteredCourses"
-        :key="course.id"
-        class="course-card"
-        @click="onCardClick(course)"
+          v-for="course in filteredCourses"
+          :key="course.id"
+          class="course-card"
+          @click="onCardClick(course)"
       >
         <div class="course-image">
           <img :src="course.image" :alt="course.title" />
@@ -63,19 +60,18 @@
         </div>
         <div class="course-content">
           <h3 class="course-title">{{ course.title }}</h3>
-          <p class="course-description">{{ course.description }}</p>
           <div class="course-category">
             <i class="fas fa-tag"></i>
-            <span>{{ course.category }}</span>
+            <span>{{ course.description }}</span>
           </div>
           <div class="course-meta">
-            <span>{{ course.date }}</span>
-            <span>{{ course.duration }}</span>
+            <span>{{ formatDate(course.startDate) }} ~ {{ formatDate(course.endDate) }}</span>
+            <span>{{ course.teacher || '教师待定' }}</span>
           </div>
         </div>
       </div>
 
-      <div v-if="filteredCourses.length === 0" class="no-results">
+      <div v-if="!loading && filteredCourses.length === 0" class="no-results">
         <i class="fas fa-search"></i>
         <h3>没有找到相关课程</h3>
         <p>请尝试其他搜索关键词或筛选条件</p>
@@ -83,64 +79,94 @@
     </div>
 
     <CoursePlayer
-      v-if="activeCourse"
-      v-model="playerVisible"
-      :course-id="activeCourse.id"
-      :title="activeCourse.title"
-      :chapters="activeCourse.chapters || []"
-      :fallback-src="activeCourse.videoUrl || ''"
-      @progress="onOverallProgress"
+        v-if="activeCourse"
+        v-model="playerVisible"
+        :course-id="activeCourse.id"
+        :title="activeCourse.title"
+        :chapters="activeCourse.chapters || []"
+        :fallback-src="activeCourse.videoUrl || ''"
+        @progress="onOverallProgress"
     />
 
     <DocumentViewer
-      v-model="docVisible"
-      :id="activeDoc?.id"
-      :title="activeDoc?.title || '文档课程'"
-      :file-url="activeDoc?.url || ''"
-      :html-content="activeDoc?.html || ''"
-      :progress="0"
-      :image="activeDoc?.image || ''"
-      :duration="activeDoc?.duration || ''"
+        v-model="docVisible"
+        :id="activeDoc?.id"
+        :title="activeDoc?.title || '文档课程'"
+        :file-url="activeDoc?.fileUrl || activeDoc?.url || ''"
+        :html-content="activeDoc?.html || ''"
+        :chapters="activeDoc?.chapters || []"
+        :course-title="activeDoc?.title || ''"
+        :chapter-index="1"
+        :progress="0"
+        :image="activeDoc?.image || ''"
+        :duration="activeDoc?.duration || ''"
     />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import CoursePlayer from '../../components/CoursePlayer.vue'
-import DocumentViewer from '../../components/DocumentViewer.vue'
-import { addOrUpdateRecord } from '../../services/student/historyService.js'
-import { fetchHomeCourses, filterCoursesByType } from '../../services/student/homeCoursesApi.js'
+import CoursePlayer from '/src/components/CoursePlayer.vue'
+import DocumentViewer from '/src/components/DocumentViewer.vue'
+import { fetchHomeCourses } from '/src/services/homeCoursesApi'
 
 const searchQuery = ref('')
 const activeFilter = ref('all')
 const courses = ref([])
 const loading = ref(false)
+const userName = ref('同学')
+
+// 日期的格式化，将后端传递的只时间展示前端所需
+const formatDate = (input) => {
+  if (!input) return '-'
+  const s = String(input)
+  const m = s.match(/^\d{4}-\d{2}-\d{2}/)
+  if (m) return m[0]
+  const d = new Date(s)
+  if (!Number.isNaN(d.getTime())) {
+    const y = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${y}-${mm}-${dd}`
+  }
+  return s.slice(0, 10)
+}
 
 const filteredCourses = computed(() => {
-  // 只根据课程类型筛选（视频或文档）
-  return filterCoursesByType(courses.value, activeFilter.value)
+  const list = courses.value || []
+  const text = (searchQuery.value || '').trim().toLowerCase()
+  const byFilter = activeFilter.value === 'all' ? list : list.filter((c) => c.type === activeFilter.value)
+  if (!text) return byFilter
+  return byFilter.filter((c) =>
+      [c.title, c.description, c.category]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(text))
+  )
 })
 
 const setFilter = (filter) => {
   activeFilter.value = filter
 }
 
-// 加载课程数据
 const loadCourses = async () => {
+  if (loading.value) return
   loading.value = true
   try {
-    courses.value = await fetchHomeCourses()
+    const list = await fetchHomeCourses()
+    courses.value = Array.isArray(list) ? list : []
   } catch (error) {
-    console.error('加载课程数据失败:', error)
+    courses.value = []
   } finally {
     loading.value = false
   }
 }
 
-// 组件挂载时加载数据
 onMounted(() => {
   loadCourses()
+  try {
+    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
+    userName.value = saved?.name || '同学'
+  } catch { userName.value = '同学' }
 })
 
 const playerVisible = ref(false)
@@ -156,18 +182,40 @@ const onOverallProgress = (overall) => {}
 const docVisible = ref(false)
 const activeDoc = ref(null)
 const openDoc = (course) => {
-  activeDoc.value = course
+  activeDoc.value = ensureDocChapters(course)
   docVisible.value = true
 }
 
 const onCardClick = (course) => {
   if (course.type === 'video') {
-    addOrUpdateRecord({ id: course.id, type: 'video', title: course.title, image: course.image, duration: course.duration, progress: 0 })
     openCourse(course)
   } else {
-    addOrUpdateRecord({ id: course.id, type: 'document', title: course.title, image: course.image, duration: course.duration, progress: 0 })
     openDoc(course)
   }
+}
+
+const filterCourses = () => {}
+
+// 如果后端没有给文档课程章节，但提供了多个 url 字段，自动构造章节
+function ensureDocChapters(course) {
+  if (!course) return course
+  if (course.type !== 'document') return course
+  const hasChapters = Array.isArray(course.chapters) && course.chapters.length > 0
+  if (hasChapters) return course
+  const urls = []
+  if (Array.isArray(course.documents)) {
+    for (const d of course.documents) {
+      const u = d?.fileUrl || d?.url || d?.docUrl || ''
+      const t = d?.title || d?.name || d?.docTitle || `第${urls.length + 1}章`
+      if (u) urls.push({ title: t, fileUrl: u })
+    }
+  }
+  if (urls.length === 0) {
+    const u = course.fileUrl || course.url || course.docUrl || ''
+    const item = { title: course.title || '文档', fileUrl: u, html: course.html || '' }
+    return { ...course, chapters: [item] }
+  }
+  return { ...course, chapters: urls }
 }
 </script>
 

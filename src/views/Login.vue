@@ -2,24 +2,24 @@
   <div class="login-container" :style="{ backgroundImage: `url(${currentBackground})` }">
     <div class="overlay"></div>
     <div class="login-box">
-      <h2 class="title">课程思政示范课程平台</h2>
+      <h2 class="title">课程思政学习平台</h2>
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
           <input
-            type="text"
-            v-model="username"
-            placeholder="请输入账号"
-            required
-            class="form-input"
+              type="text"
+              v-model="username"
+              placeholder="请输入账号"
+              required
+              class="form-input"
           />
         </div>
         <div class="form-group">
           <input
-            type="password"
-            v-model="password"
-            placeholder="请输入密码"
-            required
-            class="form-input"
+              type="password"
+              v-model="password"
+              placeholder="请输入密码"
+              required
+              class="form-input"
           />
         </div>
         <div class="form-group">
@@ -68,44 +68,31 @@ onBeforeUnmount(() => {
   if (intervalId) clearInterval(intervalId)
 })
 
-// 登录方法
+// 登录方法：必须账号/密码/角色与后端一致才跳转；不再依赖 token
 const handleLogin = async () => {
   try {
-    /**
-     * 模拟登录逻辑
-     * 账号：admin  密码：123456 角色：teacher
-     * 账号：student 密码：123456 角色：student
-     */
-    if (
-      (username.value === "admin" && password.value === "123456" && role.value === "teacher") ||
-      (username.value === "student" && password.value === "123456" && role.value === "student")
-    ) {
-      localStorage.setItem('userToken', 'mock-token-123456')
-      localStorage.setItem('userRole', role.value)
-      router.push(role.value === "student" ? "/" : "/teacher")
+    console.log(1)
+    const res = await axios.post('http://192.168.52.75:9999/api/auth/login', {
+      username: username.value,
+      password: password.value,
+      role: role.value
+    })
+    console.log('登录信息', res?.data)
+    const ok = (res?.data && (res.data.code === 200 || res.data.success === true)) || res.status === 200
+    if (ok) {
+      // 保存后端返回的个人信息，供个人中心展示
+      try {
+        const user = res?.data?.data || {}
+        localStorage.setItem('currentUser', JSON.stringify(user))
+      } catch {}
+      // 可选：记录角色用于 UI 展示（非鉴权）
+      try { localStorage.setItem('userRole', role.value) } catch {}
+      router.push(role.value === 'student' ? '/' : '/teacher')
       return
     }
-    /**
-     * 真实后端请求逻辑
-     *
-     * const response = await axios.post('http://localhost:8000/api/login', {
-     *   username: username.value,
-     *   password: password.value,
-     *   role: role.value
-     * })
-     *
-     * if (response.data && response.data.token) {
-     *   localStorage.setItem('token', response.data.token)
-     *   localStorage.setItem('role', role.value)
-     *   router.push(role.value === "student" ? "/student/home" : "/teacher/home")
-     * } else {
-     *   alert('登录失败，请检查账号或密码')
-     * }
-     */
-    alert("登录失败，账号或密码错误")
+    alert('登录失败，请检查账号/密码/角色')
   } catch (error) {
-    console.error(error)
-    alert('登录请求出错，请稍后重试')
+    alert('登录失败，请检查账号/密码/角色')
   }
 }
 </script>
@@ -164,7 +151,6 @@ const handleLogin = async () => {
   margin-bottom: 20px;
 }
 
-/* 统一表单元素样式和宽度 */
 .form-input {
   width: 100%;
   padding: 12px;
@@ -199,7 +185,7 @@ option {
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s ease;
-  width: 100%; /* 使按钮宽度与输入框一致 */
+  width: 100%;
 }
 
 .login-btn:hover {

@@ -3,7 +3,7 @@
     <div class="sidebar">
       <div class="sidebar-content">
         <div class="sidebar-header">
-          <h1>课程思政示范课程平台</h1>
+          <h1>课程思政学习平台</h1>
         </div>
 
         <ul class="menu">
@@ -18,44 +18,31 @@
           </li>
 
           <li class="menu-item">
-            <div class="menu-title"
-                 :class="{active: $route.path.startsWith('/courses')}"
-                 @click="toggleSubMenu">
+            <div class="menu-title" :class="{active: $route.path === '/data'}"
+                 @click="navigateTo('/data')">
               <div>
-                <i class="fas fa-book"></i>
-                <span>我的课程</span>
+                <i class="fas fa-chart-line"></i>
+                <span>学习数据</span>
               </div>
-              <i class="fas fa-chevron-right arrow" :class="{active: isSubMenuOpen}"></i>
             </div>
-
-            <ul class="submenu" :class="{open: isSubMenuOpen}">
-              <li class="submenu-item"
-                  :class="{active: $route.path === '/courses/all'}"
-                  @click="navigateTo('/courses/all')">
-                <i class="fas fa-th-list"></i>
-                <span>全部课程</span>
-              </li>
-              <li class="submenu-item"
-                  :class="{active: $route.path === '/courses/video'}"
-                  @click="navigateTo('/courses/video')">
-                <i class="fas fa-video"></i>
-                <span>视频课程</span>
-              </li>
-              <li class="submenu-item"
-                  :class="{active: $route.path === '/courses/file'}"
-                  @click="navigateTo('/courses/file')">
-                <i class="fas fa-file-alt"></i>
-                <span>文档课程</span>
-              </li>
-            </ul>
           </li>
 
           <li class="menu-item">
-            <div class="menu-title" :class="{active: $route.path === '/history'}"
-                 @click="navigateTo('/history')">
+            <div class="menu-title" :class="{active: $route.path === '/group'}"
+                 @click="navigateTo('/group')">
               <div>
-                <i class="fas fa-history"></i>
-                <span>历史记录</span>
+                <i class="fas fa-users"></i>
+                <span>学习分组</span>
+              </div>
+            </div>
+          </li>
+
+          <li class="menu-item">
+            <div class="menu-title" :class="{active: $route.path === '/work'}"
+                 @click="navigateTo('/work')">
+              <div>
+                <i class="fas fa-file"></i>
+                <span>作品提交</span>
               </div>
             </div>
           </li>
@@ -70,32 +57,19 @@
             </div>
           </li>
 
-          <li class="menu-item">
-            <div class="menu-title" :class="{active: $route.path === '/survey'}"
-                 @click="navigateTo('/survey')">
-              <div>
-                <i class="fas fa-poll"></i>
-                <span>问卷调查</span>
-              </div>
-            </div>
-          </li>
         </ul>
       </div>
-
       <div class="user-panel">
         <div class="user-info" @click="toggleUserMenu">
           <div>
-            <div class="user-avatar">学</div>
-            <span>王小虎</span>
+            <div class="user-avatar">{{ avatar }}</div>
+            <span>{{ userName }}</span>
+            <span class="work-chip" :class="workStatusClass">{{ workStatusLabel }}</span>
           </div>
           <i class="fas fa-chevron-up" :class="{active: showUserMenu}"></i>
         </div>
 
         <ul class="user-dropdown" :class="{show: showUserMenu}">
-          <li class="dropdown-item" @click="navigateToContact">
-            <i class="fas fa-headset"></i>
-            <span>联系我们</span>
-          </li>
           <li class="dropdown-item" @click="logout">
             <i class="fas fa-sign-out-alt"></i>
             <span>退出登录</span>
@@ -103,46 +77,63 @@
         </ul>
       </div>
     </div>
-
     <div class="main-content">
-      <slot></slot>
+      <router-view></router-view>
     </div>
   </div>
 </template>
 
 <script setup>
-import {ref, watch} from 'vue'
-import {useRouter, useRoute} from 'vue-router'
+import { ref, watch, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
 
 const isSubMenuOpen = ref(false)
 const showUserMenu = ref(false)
+const userName = ref('未登录')
+const avatar = computed(() => {
+  const name = userName.value || ''
+  return name ? name[name.length - 1] : '访'
+})
 
-const toggleSubMenu = () => {
-  showUserMenu.value = false
-  isSubMenuOpen.value = !isSubMenuOpen.value
+
+const workStatus = ref('none')
+const workStatusLabel = computed(() => workStatus.value === 'submitted' ? '作业已提交' : '有新的作业')
+const workStatusClass = computed(() => workStatus.value === 'submitted' ? 'chip-ok' : 'chip-none')
+
+function refreshWorkStatus() {
+  try {
+    const s = localStorage.getItem('work_status') || 'none'
+    workStatus.value = s === 'submitted' ? 'submitted' : 'none'
+  } catch { workStatus.value = 'none' }
 }
 
+function loadUserFromStorage() {
+  try {
+    const u = JSON.parse(localStorage.getItem('currentUser') || 'null')
+    userName.value = u?.name || '未登录'
+  } catch {
+    userName.value = '未登录'
+  }
+}
+
+onMounted(() => {
+  loadUserFromStorage()
+  refreshWorkStatus()
+  try { window.addEventListener('storage', refreshWorkStatus) } catch {}
+  try { window.addEventListener('work-status-updated', refreshWorkStatus) } catch {}
+})
 const toggleUserMenu = () => {
   showUserMenu.value = !showUserMenu.value
 }
-
 const logout = () => {
-  // 退出登录逻辑
   showUserMenu.value = false
-  // 清除用户信息
-  localStorage.removeItem('userToken')
   localStorage.removeItem('userRole')
+  localStorage.removeItem('currentUser')
   navigateTo('/login')
 }
-
-const navigateToContact = () => {
-  showUserMenu.value = false
-  navigateTo('/contact')
-}
-
 const navigateTo = (path) => {
   showUserMenu.value = false
   router.push(path)
@@ -150,16 +141,32 @@ const navigateTo = (path) => {
     isSubMenuOpen.value = false
   }
   setTimeout(() => {
-    window.scrollTo({top: 0, behavior: 'smooth'})
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }, 100)
 }
 
 watch(() => route.path, (newPath) => {
   isSubMenuOpen.value = newPath.startsWith('/courses')
-}, {immediate: true})
+}, { immediate: true })
 </script>
 
-<style scoped>
+<style>
+body {
+  overflow-x: hidden;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Microsoft YaHei', sans-serif;
+}
+
+body {
+  background-color: #f5f7fa;
+  color: #333;
+}
+
 #app {
   display: flex;
   width: 100%;
@@ -232,43 +239,12 @@ watch(() => route.path, (newPath) => {
   align-items: center;
 }
 
-.menu-title .arrow {
+.menu-title  {
   transition: transform 0.3s ease;
 }
 
-.menu-title .arrow.active {
+.menu-title .active {
   transform: rotate(90deg);
-}
-
-.submenu {
-  list-style: none;
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.4s ease;
-  background-color: rgba(0, 0, 0, 0.1);
-}
-
-.submenu.open {
-  max-height: 250px;
-}
-
-.submenu-item {
-  padding: 14px 20px 14px 50px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  line-height: 1.2;
-}
-
-.submenu-item:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.submenu-item.active {
-  background-color: rgba(255, 255, 255, 0.2);
-  border-left: 4px solid #fff;
 }
 
 .submenu-item i {
@@ -312,6 +288,17 @@ watch(() => route.path, (newPath) => {
   margin-right: 10px;
   font-weight: bold;
 }
+
+.work-chip {
+  display:inline-block;
+  margin-left:8px;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+}
+.chip-ok { background:#e8f5e9; color:#2e7d32; }
+.chip-none { background:#ffebee; color:#c62828; }
 
 .user-info .fa-chevron-up {
   transition: transform 0.3s ease;
