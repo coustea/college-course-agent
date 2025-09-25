@@ -2,36 +2,32 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 // 学生端路由
 const studentRoutes = [
-  {
-    path: '/home',
-    name: 'Home',
-    component: () => import('../views/student/Home.vue'),
-    meta: { title: '首页', requiresAuth: true, role: 'student' }
-  },
-  {
-    path: '/data',
-    name: 'LearningData',
-    component: () => import('../views/student/LearningData.vue'),
-    meta: { title: '学习数据', requiresAuth: true, role: 'student' }
-  },
-  {
-    path: '/group',
-    name: 'LearningGroup',
-    component: () => import('../views/student/Groups.vue'),
-    meta: { title: '学习分组', requiresAuth: true, role: 'student' }
-  },
-  {
-    path: '/work',
-    name: 'Work',
-    component: () => import('../views/student/work.vue'),
-    meta: { title: '作品提交', requiresAuth: true, role: 'student' }
-  },
-  {
-    path: '/profile',
-    name: 'Profile',
-    component: () => import('../views/student/Profile.vue'),
-    meta: { title: '个人中心', requiresAuth: true, role: 'student' }
-  },
+    {
+        path: '/',
+        name: 'Home',
+        component: () => import('../views/student/Home.vue')
+    },
+    {
+        path: '/data',
+        name: 'LearningData',
+        component: () => import('../views/student/LearningData.vue')
+    },
+    {
+        path: '/group',
+        name: 'LearningGroup',
+        component: () => import('../views/student/Groups.vue')
+    },
+    {
+        path: '/work',
+        name: 'Work',
+        component: () => import('../views/student/work.vue')
+    },
+    {
+        path: '/profile',
+        name: 'Profile',
+        component: () => import('../views/student/Profile.vue')
+    },
+
 ]
 
 // 教师端路由
@@ -146,24 +142,19 @@ const teacherRoutes = [
   }
 ]
 
-// 公共路由（登录、注册等）- 不使用布局
+// 公共路由（登录、注册等）
 const publicRoutes = [
   {
-    path: '/',
+    path: '/login',
     name: 'Login',
     component: () => import('../views/Login.vue'),
-    meta: { title: '登录', requiresAuth: false, noLayout: true }
-  },
-  {
-    path: '/login',
-    name: 'LoginRedirect',
-    redirect: '/'
+    meta: { title: '登录', requiresAuth: false }
   },
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('../views/NotFound.vue'),
-    meta: { title: '页面未找到', requiresAuth: false, noLayout: true }
+    meta: { title: '页面未找到', requiresAuth: false }
   }
 ]
 
@@ -176,5 +167,56 @@ const router = createRouter({
   ]
 })
 
+// // 路由守卫
+// router.beforeEach(async (to, from, next) => {
+//   // 设置页面标题
+//   document.title = to.meta.title ? `${to.meta.title} - 课程思政平台` : '课程思政平台'
+//
+//   // 检查是否需要认证
+//   if (to.meta.requiresAuth) {
+//     const isAuthenticated = checkAuth()
+//
+//     if (!isAuthenticated) {
+//       next('/login')
+//       return
+//     }
+//
+//     // 检查角色权限
+//     const userRole = getUserRole()
+//     if (to.meta.role && to.meta.role !== userRole) {
+//       // 根据用户角色重定向到对应首页
+//       if (userRole === 'teacher') {
+//         next('/teacher')
+//       } else {
+//         next('/')
+//       }
+//       return
+//     }
+//   }
+//
+//   // 如果已登录且访问登录/注册页，重定向到首页
+//   if ((to.name === 'Login' || to.name === 'Register') && checkAuth()) {
+//     const userRole = getUserRole()
+//     if (userRole === 'teacher') {
+//       next('/teacher')
+//     } else {
+//       next('/')
+//     }
+//     return
+//   }
+//
+//   next()
+// })
+//
+// // 辅助函数 - 实际应用中需要替换为真实的认证检查
+// function checkAuth() {
+//   const token = localStorage.getItem('userToken')
+//   return !!token
+// }
+//
+// // 辅助函数 - 实际应用中需要替换为真实的角色获取
+// function getUserRole() {
+//   return localStorage.getItem('userRole') || 'student'
+// }
 
 export default router

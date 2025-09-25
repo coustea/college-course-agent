@@ -231,13 +231,7 @@
 import {ref, computed, onMounted} from 'vue'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import {Search, Upload} from '@element-plus/icons-vue'
-import axios from 'axios'
-
-// 创建axios实例
-const api = axios.create({
-  baseURL: 'http://localhost:3000/api', // 根据实际后端地址修改
-  timeout: 10000
-})
+import { api, listStudents, insertStudent, updateStudent, deleteStudentById, importStudents, listCoursesByStudent, getCourseProgress } from '@/services/coursesApi.js'
 
 export default {
   name: 'StudentsList',
@@ -286,7 +280,7 @@ export default {
     }
 
     // 上传配置
-    const uploadAction = computed(() => `${api.defaults.baseURL}/students/import`)
+    const uploadAction = computed(() => `${api.defaults.baseURL}/teacher/import/students`)
     const uploadHeaders = ref({
       'Authorization': `Bearer ${localStorage.getItem('token')}` // 根据实际认证方式调整
     })
@@ -356,8 +350,11 @@ export default {
     const fetchStudents = async () => {
       loading.value = true
       try {
-        const response = await api.get('/students')
-        students.value = response.data
+        const res = await listStudents()
+        const body = res?.data
+        if (body && Number(body.code) === 200 && Array.isArray(body.data)) students.value = body.data
+        else students.value = []
+        try { await updateCourseCountsForStudents() } catch {}
       } catch (error) {
         console.error('获取学生列表失败:', error)
         ElMessage.error('获取学生列表失败')
@@ -371,8 +368,24 @@ export default {
       loading.value = true
       selectedStudent.value = student
       try {
-        const response = await api.get(`/students/${student.id}/progress`)
-        learningProgress.value = response.data
+        const coursesRes = await listCoursesByStudent(student.id)
+        const coursesBody = coursesRes?.data
+        const courses = (coursesBody && Number(coursesBody.code) === 200 && Array.isArray(coursesBody.data)) ? coursesBody.data : []
+        const list = []
+        for (const c of courses.slice(0, 50)) {
+          try {
+            const pr = await getCourseProgress(student.id, c.courseId ?? c.id)
+            const pb = pr?.data
+            let pct = 0
+            if (pb && Number(pb.code) === 200 && pb.data) {
+              pct = Number(pb.data.completionPercentage ?? pb.data.completion_percentage ?? 0)
+              if (!Number.isFinite(pct)) pct = 0
+              if (pct >= 0 && pct <= 1) pct = pct * 100
+            }
+            list.push({ courseName: c.courseName ?? c.title ?? '课程', progress: Math.round(Math.max(0, Math.min(100, pct))), lastStudyTime: '', score: null, status: pct >= 100 ? 'completed' : 'learning' })
+          } catch {}
+        }
+        learningProgress.value = list
         showProgressDialog.value = true
       } catch (error) {
         console.error('获取学习进度失败:', error)
@@ -402,7 +415,7 @@ export default {
           }
         )
 
-        await api.delete(`/students/${student.id}`)
+        await deleteStudentById(student.id)
 
         // 更新本地数据
         const index = students.value.findIndex(s => s.id === student.id)
@@ -434,7 +447,6 @@ export default {
         )
 
         const newStatus = student.status === 'active' ? 'locked' : 'active'
-        await api.patch(`/students/${student.id}/status`, {status: newStatus})
 
         // 更新本地数据
         student.status = newStatus
@@ -454,8 +466,8 @@ export default {
 
         if (isEditing.value) {
           // 更新学生
-          const response = await api.put(`/students/${studentForm.value.id}`, studentForm.value)
-          const updatedStudent = response.data
+          await updateStudent(studentForm.value.id, studentForm.value)
+          const updatedStudent = { ...studentForm.value }
 
           // 更新本地数据
           const index = students.value.findIndex(s => s.id === updatedStudent.id)
@@ -466,8 +478,8 @@ export default {
           ElMessage.success('学生信息更新成功')
         } else {
           // 添加新学生
-          const response = await api.post('/students', studentForm.value)
-          const newStudent = response.data
+          await insertStudent(studentForm.value)
+          const newStudent = { ...studentForm.value, id: Date.now() }
           students.value.push(newStudent)
           ElMessage.success('学生添加成功')
         }
@@ -507,14 +519,40 @@ export default {
     }
 
     const handleUploadSuccess = (response) => {
-      if (response.success) {
+      if (response && Number(response.code) === 200) {
         ElMessage.success('学生导入成功')
         showImportDialog.value = false
         fileList.value = []
         fetchStudents() // 重新获取学生列表
       } else {
-        ElMessage.error(response.message || '学生导入失败')
+        ElMessage.error(response?.message || '学生导入失败')
       }
+    }
+
+    // 动态计算每个学生加入课程数
+    const updateCourseCountsForStudents = async () => {
+      const limit = 5
+      let idx = 0
+      const workers = []
+      for (let i = 0; i < Math.min(limit, students.value.length); i++) {
+        workers.push((async () => {
+          while (true) {
+            const current = idx++
+            if (current >= students.value.length) break
+            const s = students.value[current]
+            if (!s || !s.id) { continue }
+            try {
+              const res = await listCoursesByStudent(s.id)
+              const body = res?.data
+              const count = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data.length : 0
+              students.value[current] = { ...students.value[current], courseCount: count }
+            } catch {
+              students.value[current] = { ...students.value[current], courseCount: 0 }
+            }
+          }
+        })())
+      }
+      await Promise.all(workers)
     }
 
     const handleUploadError = (error) => {
