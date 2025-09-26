@@ -9,7 +9,4 @@ public interface TeacherService {
     int update(Teacher teacher);
     int deleteById(Long id);
     List<Teacher> selectAll();
-
-
-
 }

@@ -34,29 +34,6 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int insert(Student student) {
-        // 0) 兜底与校验
-        String username = student.getUsername();
-        if (username == null || username.isEmpty()) {
-            username = student.getStudentNumber();
-        }
-        if (username == null || username.isEmpty()) {
-            throw new IllegalArgumentException("username 或 studentNumber 不能为空");
-        }
-        String password = student.getPassword();
-        if (password == null || password.isEmpty()) {
-            password = "123456";
-        }
-        // 回写给 student，保持两表一致
-        student.setUsername(username);
-        student.setPassword(password);
-
-        // 1) 先插入 users，生成主键 id
-        User user = new User(username, password, User.Role.student);
-        userMapper.insertUser(user);
-        // 确保拿到自增的 id
-        Long generatedId = user.getId();
-        student.setId(generatedId);
-        // 2) 再插入 students，使用与 users 相同的 id 作为外键
         return studentMapper.insertStudent(student);
     }
 
@@ -78,8 +55,4 @@ public class StudentServiceImpl implements StudentService {
         return studentMapper.selectByGrade(grade);
     }
 
-    @Override
-    public int insertByExcel(List<Student> students) {
-        return 0;
-    }
 }

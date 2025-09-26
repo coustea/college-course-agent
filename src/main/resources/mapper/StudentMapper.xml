@@ -3,31 +3,32 @@
 <mapper namespace="com.ccut.mapper.StudentMapper">
     <insert id="insertStudent" parameterType="com.ccut.entity.Student">
         INSERT INTO students (
-        <trim prefix="" suffix="" suffixOverrides=",">
+        <trim suffixOverrides=",">
             <if test="id != null">id,</if>
             <if test="studentNumber != null">student_number,</if>
             <if test="name != null">name,</if>
+            <if test="className != null">class_name,</if>
             <if test="email != null">email,</if>
             <if test="phone != null">phone,</if>
             <if test="major != null">major,</if>
             <if test="grade != null">grade,</if>
-            <if test="className != null">class_name,</if>
             <if test="enrollmentYear != null">enrollment_year,</if>
         </trim>
         ) VALUES (
-        <trim prefix="" suffix="" suffixOverrides=",">
+        <trim suffixOverrides=",">
             <if test="id != null">#{id},</if>
             <if test="studentNumber != null">#{studentNumber},</if>
             <if test="name != null">#{name},</if>
+            <if test="className != null">#{className},</if>
             <if test="email != null">#{email},</if>
             <if test="phone != null">#{phone},</if>
             <if test="major != null">#{major},</if>
-            <if test="className != null">#{className},</if>
             <if test="grade != null">#{grade},</if>
             <if test="enrollmentYear != null">#{enrollmentYear},</if>
         </trim>
         )
     </insert>
+
 
     <update id="updateById">
         UPDATE students
