@@ -170,7 +170,7 @@ CREATE TABLE document_progress (
 -- ===============================
 CREATE TABLE student_groups (
         group_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '分组ID',
-        course_id BIGINT NOT NULL COMMENT '课程ID',
+        course_id BIGINT NULL COMMENT '课程ID',
         group_name VARCHAR(100) NOT NULL COMMENT '小组名称',
         group_leader_id BIGINT  NULL COMMENT '组长ID',
         teacher_id BIGINT COMMENT '审核教师ID',
@@ -179,10 +179,8 @@ CREATE TABLE student_groups (
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
         status ENUM('active','disbanded') DEFAULT 'active' COMMENT '小组状态',
         approval_status ENUM('pending','approved','rejected') DEFAULT 'pending' COMMENT '审核状态',
-        FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
         FOREIGN KEY (group_leader_id) REFERENCES students(id) ON DELETE SET NULL,
-        FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL,
-        UNIQUE KEY uniq_leader_course (course_id, group_leader_id) COMMENT '同一课程一个学生只能创建一个队伍'
+        FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
 ) COMMENT='学生小组表';
 
 -- ===============================
@@ -190,8 +188,8 @@ CREATE TABLE student_groups (
 -- ===============================
 CREATE TABLE group_members (
        id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '成员记录ID',
-       group_id BIGINT NOT NULL COMMENT '小组ID',
-       course_id BIGINT NOT NULL COMMENT '课程ID',
+       group_id BIGINT  NULL COMMENT '小组ID',
+       course_id BIGINT  NULL COMMENT '课程ID',
        student_id BIGINT NOT NULL COMMENT '学生ID',
        student_name VARCHAR(100) COMMENT '学生姓名',
        join_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
@@ -200,8 +198,7 @@ CREATE TABLE group_members (
        FOREIGN KEY (group_id) REFERENCES student_groups(group_id) ON DELETE CASCADE,
        FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-       UNIQUE KEY uniq_group_student (group_id, student_id),
-       UNIQUE KEY uniq_course_student (course_id, student_id) COMMENT '同一课程学生只能加入一个队伍'
+       UNIQUE KEY uniq_group_student (group_id, student_id)
 ) COMMENT='小组成员表';
 
 -- ===============================
@@ -210,7 +207,7 @@ CREATE TABLE group_members (
 CREATE TABLE teacher_assignments (
      assignment_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '作业ID',
      teacher_id BIGINT NOT NULL COMMENT '发布教师ID',
-     course_id BIGINT NOT NULL COMMENT '课程ID',
+     course_id BIGINT  NULL COMMENT '课程ID',
      assignment_name VARCHAR(200) NOT NULL COMMENT '作业名称',
      description TEXT COMMENT '作业描述',
      requirements TEXT COMMENT '作业要求',
@@ -219,8 +216,7 @@ CREATE TABLE teacher_assignments (
      attachment_files JSON COMMENT '作业附件（老师上传的文件，JSON存储路径/文件名/类型/大小）',
      created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-     FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
-     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+     FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
 ) COMMENT='老师发布作业表';
 
 -- ===============================

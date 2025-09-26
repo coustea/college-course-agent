@@ -5,10 +5,9 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="groupId" keyColumn="group_id">
         INSERT INTO student_groups
-        (course_id,group_name,group_leader_id,teacher_id,
+        (group_name,group_leader_id,teacher_id,
          created_at,status,approval_status)
-        VALUES
-        (#{courseId},#{groupName},#{groupLeaderId},#{teacherId},
+        values (#{groupName},#{groupLeaderId},#{teacherId},
          CURRENT_TIMESTAMP,#{status},#{approvalStatus})
     </insert>
     <update id="update" parameterType="com.ccut.entity.StudentGroup">
