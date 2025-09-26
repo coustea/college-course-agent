@@ -26,7 +26,7 @@ CREATE TABLE users (
 -- 学生表（扩展用户信息）
 -- ===============================
 CREATE TABLE students (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '学生ID（对应 users.id）',
+  id BIGINT PRIMARY KEY  COMMENT '学生ID（对应 users.id）',
   student_number VARCHAR(20) UNIQUE NOT NULL COMMENT '学号',
   name VARCHAR(100) NOT NULL COMMENT '学生姓名',
   class_name VARCHAR(100) COMMENT '班级',
