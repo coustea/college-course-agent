@@ -26,7 +26,7 @@
         </association>
     </resultMap>
 
-    <insert id="insert">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="courseId" keyColumn="course_id">
         INSERT INTO courses (
             <trim suffixOverrides=",">
                 <if test="courseCode != null">course_code,</if>

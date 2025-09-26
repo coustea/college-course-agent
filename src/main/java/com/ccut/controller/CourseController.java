@@ -3,11 +3,16 @@ package com.ccut.controller;
 import com.ccut.entity.Course;
 import com.ccut.entity.Result;
 import com.ccut.service.CourseService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/course")
@@ -27,7 +32,7 @@ public class CourseController {
         try {
             Course course;
             if (courseJson != null && !courseJson.isEmpty()) {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                 course = mapper.readValue(courseJson, Course.class);
             } else {
                 course = new Course();
@@ -37,11 +42,11 @@ public class CourseController {
                 course.setTeacherId(teacherId);
             }
             if (image != null && !image.isEmpty()) {
-                java.time.LocalDate date = java.time.LocalDate.now();
-                java.nio.file.Path baseDir = java.nio.file.Paths.get("uploads").toAbsolutePath();
-                java.nio.file.Files.createDirectories(baseDir);
-                java.nio.file.Path uploadDir = baseDir.resolve(date.toString());
-                java.nio.file.Files.createDirectories(uploadDir);
+                LocalDate date = java.time.LocalDate.now();
+                Path baseDir = java.nio.file.Paths.get("uploads").toAbsolutePath();
+                Files.createDirectories(baseDir);
+                Path uploadDir = baseDir.resolve(date.toString());
+                Files.createDirectories(uploadDir);
                 String original = image.getOriginalFilename();
                 String ext = null;
                 if (original != null && original.contains(".")) {
@@ -49,8 +54,8 @@ public class CourseController {
                 }
                 String filename = java.util.UUID.randomUUID().toString().replace("-", "");
                 if (ext != null && !ext.isEmpty()) filename = filename + "." + ext;
-                java.nio.file.Path target = uploadDir.resolve(filename);
-                java.nio.file.Files.createDirectories(target.getParent());
+                Path target = uploadDir.resolve(filename);
+                Files.createDirectories(target.getParent());
                 image.transferTo(target.toFile());
                 String url = "/uploads/" + date + "/" + filename;
                 course.setResourceUrl(url);
