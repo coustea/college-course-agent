@@ -68,6 +68,10 @@
             <span>{{ formatDate(course.startDate) }} ~ {{ formatDate(course.endDate) }}</span>
             <span>{{ course.teacher || '教师待定' }}</span>
           </div>
+          <div v-if="isTeacherCoursesPage" class="teacher-actions" @click.stop>
+            <button class="btn-primary" @click.stop="editCourseMaterials(course)">编辑课程内容</button>
+            <button class="btn-danger" @click.stop="deleteCourse(course)">删除课程</button>
+          </div>
         </div>
       </div>
 
@@ -85,6 +89,7 @@
         :title="activeCourse.title"
         :chapters="activeCourse.chapters || []"
         :fallback-src="activeCourse.videoUrl || ''"
+        :enable-questions="!isTeacherCoursesPage"
         @progress="onOverallProgress"
     />
 
@@ -106,6 +111,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import CoursePlayer from '/src/components/CoursePlayer.vue'
 import DocumentViewer from '/src/components/DocumentViewer.vue'
 import { fetchHomeCourses } from '/src/services/homeCoursesApi'
@@ -115,6 +121,8 @@ const activeFilter = ref('all')
 const courses = ref([])
 const loading = ref(false)
 const userName = ref('同学')
+const router = useRouter()
+const route = useRoute()
 
 // 日期的格式化，将后端传递的只时间展示前端所需
 const formatDate = (input) => {
@@ -173,6 +181,8 @@ const playerVisible = ref(false)
 const activeCourse = ref(null)
 const openCourse = (course) => {
   if (course.type !== 'video') return
+  // 教师课程列表页：进入播放前清空本地题目记录，确保会弹题
+  try { if (route.path.startsWith('/teacher/courses/list')) localStorage.removeItem('course_questions_state_v1') } catch {}
   activeCourse.value = course
   playerVisible.value = true
 }
@@ -195,6 +205,34 @@ const onCardClick = (course) => {
 }
 
 const filterCourses = () => {}
+// 教师课程列表页面判定
+const isTeacherCoursesPage = computed(() => route.path.startsWith('/teacher/courses/list'))
+
+// 进入课程内容管理
+const editCourseMaterials = (course) => {
+  const id = course.id || course.courseId
+  if (!id) return
+  router.push(`/teacher/courses/${id}/materials`)
+}
+
+// 删除课程（旧版逻辑）
+const deleteCourse = async (course) => {
+  try {
+    const ok = window.confirm(`确定要删除课程 “${course.title || ''}” 吗？此操作不可恢复。`)
+    if (!ok) return
+    const base = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+    const res = await fetch(`${base}/course/delete?courseId=${encodeURIComponent(course.id || course.courseId)}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    if (Number(data?.code) === 200) {
+      courses.value = courses.value.filter(c => (c.id || c.courseId) !== (course.id || course.courseId))
+      alert('课程删除成功')
+    } else {
+      alert(`删除失败：${data?.message || res.status}`)
+    }
+  } catch (e) {
+    alert('删除失败，请稍后重试')
+  }
+}
 
 // 如果后端没有给文档课程章节，但提供了多个 url 字段，自动构造章节
 function ensureDocChapters(course) {
@@ -404,6 +442,30 @@ function ensureDocChapters(course) {
   color: #94a3b8;
   font-size: 13px;
 }
+
+.teacher-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.btn-primary {
+  padding: 6px 12px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-primary:hover { background: #1d4ed8; }
+.btn-danger {
+  padding: 6px 12px;
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-danger:hover { background: #dc2626; }
 
 .no-results {
   text-align: center;

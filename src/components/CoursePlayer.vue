@@ -154,6 +154,7 @@
     </div>
   </div>
   <Question
+      v-if="enableQuestions"
       v-model="questionVisible"
       :questions="questionList"
       title="知识检查"
@@ -179,7 +180,8 @@ const props = defineProps({
   startIndex: { type: Number, default: 0 },
   episodeTotal: { type: Number, default: 0 },
   videoCount: { type: Number, default: 0 },
-  docCount: { type: Number, default: 0 }
+  docCount: { type: Number, default: 0 },
+  enableQuestions: { type: Boolean, default: true }
 })
 const emit = defineEmits(['update:modelValue', 'progress'])
 
@@ -656,6 +658,7 @@ async function onTimeUpdate() {
   try { window.dispatchEvent(new CustomEvent('learning-progress-updated', { detail: { courseId: props.courseId } })) } catch {}
   // 题目触发：视频在 40% 与 80% 位置各触发一次；避免同时弹多个
   try {
+    if (!props.enableQuestions) return
     if (questionVisible.value) return
     const isSingle = !hasChapters.value || flatChapters.value.length === 0
     const baseKey = isSingle ? 'single' : `idx-${currentIndex.value}`
@@ -683,6 +686,7 @@ async function onTimeUpdate() {
 
 async function onQuestionSubmit(payload) {
   try {
+    if (!props.enableQuestions) return
     const answers = payload?.answers || {}
     const nodeKey = questionNodeKey.value
     const questions = questionList.value || []

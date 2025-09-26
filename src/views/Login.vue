@@ -42,7 +42,6 @@ import axios from 'axios'
 
 const router = useRouter()
 
-// 登录表单数据
 const username = ref('')
 const password = ref('')
 const role = ref('')
@@ -71,23 +70,21 @@ onBeforeUnmount(() => {
 // 登录方法：必须账号/密码/角色与后端一致才跳转；不再依赖 token
 const handleLogin = async () => {
   try {
-    console.log(1)
+    console.log('登录请求')
     const res = await axios.post('http://192.168.52.75:9999/api/auth/login', {
       username: username.value,
       password: password.value,
       role: role.value
     })
     console.log('登录信息', res?.data)
-    const ok = (res?.data && (res.data.code === 200 || res.data.success === true)) || res.status === 200
+    const ok = (res.data.code === 200) || res.status === 200
     if (ok) {
-      // 保存后端返回的个人信息，供个人中心展示
       try {
-        const user = res?.data?.data || {}
+        const user = res?.data?.data
         localStorage.setItem('currentUser', JSON.stringify(user))
       } catch {}
-      // 可选：记录角色用于 UI 展示（非鉴权）
       try { localStorage.setItem('userRole', role.value) } catch {}
-      router.push(role.value === 'student' ? '/' : '/teacher')
+      await router.push(role.value === 'student' ? '/home' : '/teacher')
       return
     }
     alert('登录失败，请检查账号/密码/角色')
