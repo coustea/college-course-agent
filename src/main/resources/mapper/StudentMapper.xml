@@ -11,6 +11,7 @@
             <if test="phone != null">phone,</if>
             <if test="major != null">major,</if>
             <if test="grade != null">grade,</if>
+            <if test="className != null">class_name,</if>
             <if test="enrollmentYear != null">enrollment_year,</if>
         </trim>
         ) VALUES (
@@ -21,6 +22,7 @@
             <if test="email != null">#{email},</if>
             <if test="phone != null">#{phone},</if>
             <if test="major != null">#{major},</if>
+            <if test="className != null">#{className},</if>
             <if test="grade != null">#{grade},</if>
             <if test="enrollmentYear != null">#{enrollmentYear},</if>
         </trim>
@@ -34,6 +36,7 @@
             <if test="name != null">name = #{name},</if>
             <if test="email != null">email = #{email},</if>
             <if test="phone != null">phone = #{phone},</if>
+            <if test="className != null">class_name = #{className},</if>
             <if test="major != null">major = #{major},</if>
             <if test="grade != null">grade = #{grade},</if>
             <if test="enrollmentYear != null">enrollment_year = #{enrollmentYear},</if>
@@ -47,12 +50,13 @@
         <result property="name" column="name"/>
         <result property="email" column="email"/>
         <result property="phone" column="phone"/>
+        <result property="className" column="class_name"/>
         <result property="major" column="major"/>
         <result property="grade" column="grade"/>
         <result property="enrollmentYear" column="enrollment_year"/>
     </resultMap>
     <select id="getStudentByStudentNumber" resultMap="StudentRM">
-        SELECT id, student_number, name, email, phone, major, grade, enrollment_year
+        SELECT id, student_number, name, email, phone, class_name, major, grade, enrollment_year
         FROM students
         WHERE student_number = #{studentNumber}
     </select>
@@ -62,19 +66,19 @@
     </delete>
 
     <select id="selectAll" resultMap="StudentRM">
-        SELECT id, student_number, name, email, phone, major, grade, enrollment_year
+        SELECT id, student_number, name, email, phone, class_name, major, grade, enrollment_year
         FROM students
         ORDER BY id DESC
     </select>
 
     <select id="selectById" resultMap="StudentRM">
-        SELECT id, student_number, name, email, phone, major, grade, enrollment_year
+        SELECT id, student_number, name, email, phone, class_name, major, grade, enrollment_year
         FROM students
         WHERE id = #{id}
     </select>
 
     <select id="selectByGrade" resultMap="StudentRM">
-        SELECT id, student_number, name, email, phone, major, grade, enrollment_year
+        SELECT id, student_number, name, email, phone, class_name, major, grade, enrollment_year
         FROM students
         WHERE grade = #{grade}
         ORDER BY id DESC

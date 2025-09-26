@@ -6,6 +6,8 @@ DROP TABLE IF EXISTS course_videos;
 DROP TABLE IF EXISTS learning_progress;
 DROP TABLE IF EXISTS enrollments;
 DROP TABLE IF EXISTS group_members;
+DROP TABLE IF EXISTS student_submissions;
+DROP TABLE IF EXISTS teacher_assignments;
 DROP TABLE IF EXISTS student_groups;
 DROP TABLE IF EXISTS courses;
 DROP TABLE IF EXISTS teachers;
@@ -27,6 +29,7 @@ CREATE TABLE students (
   id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '学生ID（对应 users.id）',
   student_number VARCHAR(20) UNIQUE NOT NULL COMMENT '学号',
   name VARCHAR(100) NOT NULL COMMENT '学生姓名',
+  class_name VARCHAR(100) COMMENT '班级',
   email VARCHAR(100) COMMENT '邮箱地址',
   phone VARCHAR(20) COMMENT '联系电话',
   major VARCHAR(100) COMMENT '专业',
@@ -162,8 +165,6 @@ CREATE TABLE document_progress (
            UNIQUE KEY uniq_student_document (student_id, document_id)
 ) COMMENT='课程文档学习进度表';
 
-DROP TABLE IF EXISTS group_members;
-DROP TABLE IF EXISTS student_groups;
 -- ===============================
 -- 学生分组表（小组信息）
 -- ===============================
@@ -202,10 +203,6 @@ CREATE TABLE group_members (
        UNIQUE KEY uniq_group_student (group_id, student_id),
        UNIQUE KEY uniq_course_student (course_id, student_id) COMMENT '同一课程学生只能加入一个队伍'
 ) COMMENT='小组成员表';
-
-
-DROP TABLE IF EXISTS teacher_assignments;
-DROP TABLE IF EXISTS student_submissions;
 
 -- ===============================
 -- 老师发布作业表（支持附件 JSON）

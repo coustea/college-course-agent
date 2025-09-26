@@ -13,4 +13,5 @@ public interface StudentService {
     List<Student> selectAll();
     Student selectById(Long id);
     List<Student> selectByGrade(String grade);
+    int insertByExcel(List<Student> students);
 }
