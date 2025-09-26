@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const fallbackBase = (() => {
-  try { if (window?.location?.port === '4173') return 'http://localhost:9999/api' } catch {}
+try { if (window?.location?.port === '4173') return 'http://localhost:9999/api' } catch (e) { console.error(e) }
   return '/api'
 })()
 

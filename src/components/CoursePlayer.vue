@@ -357,7 +357,7 @@ function lockScroll(enable) {
         wheelHandler = null
       }
     }
-  } catch {}
+  } catch (e) { console.error(e) }
 }
 function toggleTheatre() {
   isTheatre.value = !isTheatre.value
@@ -372,7 +372,7 @@ function forwardBackgroundScroll(e) {
       e.preventDefault()
       sc.scrollTop += e.deltaY
     }
-  } catch {}
+  } catch (e) { console.error(e) }
 }
 
 function handleKeydown(e) {
@@ -401,7 +401,7 @@ function handleKeydown(e) {
       seekBy(5) // 受限：不允许超过当前进度
       return
     }
-  } catch {}
+  } catch (e) { console.error(e) }
 }
 
 function seekBy(deltaSec) {
@@ -461,7 +461,7 @@ function startHeartbeatTicker() {
         accumulatedHeartbeatSec += delta
         lastTick = now
         if (accumulatedHeartbeatSec >= 5) {
-          try { reportLearningHeartbeat({ courseId: props.courseId, deltaSec: accumulatedHeartbeatSec, eventType: 'heartbeat', videoIndex: currentIndex.value, currentTimeSec: player.value?.currentTime, durationSec: player.value?.duration }) } catch {}
+          try { reportLearningHeartbeat({ courseId: props.courseId, deltaSec: accumulatedHeartbeatSec, eventType: 'heartbeat', videoIndex: currentIndex.value, currentTimeSec: player.value?.currentTime, durationSec: player.value?.duration }) } catch (e) { console.error(e) }
           accumulatedHeartbeatSec = 0
         }
       }
@@ -485,7 +485,7 @@ function flushHeartbeat(eventType) {
         videoIndex: currentIndex.value,
         currentTimeSec: player.value?.currentTime,
         durationSec: player.value?.duration
-      }) } catch {}
+      }) } catch (e) { console.error(e) }
     accumulatedHeartbeatSec = 0
   }
 }
@@ -522,9 +522,16 @@ const currentTimeLabel = computed(() => {
   return `${m}:${s}`
 })
 
-const durationLabel = computed(() => {
+// 用于展示的时长（优先采用后端提供的每集时长，其次回退到真实时长）
+const displayDurationSec = computed(() => {
+  const backend = backendDurationSec.value
+  if (Number.isFinite(backend) && backend > 0) return Math.floor(backend)
   const el = player.value
-  const d = Math.floor(el?.duration || 0)
+  return Math.floor(el?.duration || 0)
+})
+
+const durationLabel = computed(() => {
+  const d = displayDurationSec.value
   const m = Math.floor(d / 60)
   const s = String(d % 60).padStart(2, '0')
   return `${m}:${s}`
@@ -550,15 +557,16 @@ function parseDurationSec(obj) {
   return 0
 }
 
-// 每个视频单独判断展示
+
+const backendDurationsSec = computed(() => {
+  return (flatChapters.value || []).map(ch => parseDurationSec(ch))
+})
+
 const backendDurationSec = computed(() => {
-  const currentChapter = flatChapters.value[currentIndex.value]
-  return parseDurationSec(currentChapter)
+  return backendDurationsSec.value?.[currentIndex.value] || 0
 })
 const hudDurationLabel = computed(() => {
-  const el = player.value
-  const run = Math.floor(el?.duration || 0)
-  const base = Math.max(run, backendDurationSec.value)
+  const base = displayDurationSec.value
   const m = Math.floor(base / 60)
   const s = String(base % 60).padStart(2, '0')
   return `${m}:${s}`
@@ -600,7 +608,7 @@ function startDragging(which) {
   try {
     document.addEventListener('mousemove', onDragMove)
     document.addEventListener('mouseup', stopDragging)
-  } catch {}
+  } catch (e) { console.error(e) }
 }
 
 function onDragMove(e) {
@@ -621,7 +629,7 @@ function stopDragging() {
   try {
     document.removeEventListener('mousemove', onDragMove)
     document.removeEventListener('mouseup', stopDragging)
-  } catch {}
+  } catch (e) { console.error(e) }
 }
 
 function formatTime(sec) {
@@ -688,13 +696,13 @@ function onLoaded() {
           player.value.currentTime = pct * player.value.duration
         }
       }
-    } catch {}
+    } catch (e) { console.error(e) }
   }
   try {
     if (!hudTicker) {
-      hudTicker = setInterval(() => { hudNow.value = Date.now() }, 100)
+      hudTicker = setInterval(() => { hudNow.value = Date.now() }, 200)
     }
-  } catch {}
+  } catch (e) { console.error(e) }
 }
 
 function onEnded() {
@@ -716,7 +724,7 @@ async function onTimeUpdate() {
   try {
     const key = `video_resume_${props.courseId}_${currentIndex.value}`
     localStorage.setItem(key, JSON.stringify({ p: progress, t: Date.now() }))
-  } catch {}
+  } catch (e) { console.error(e) }
   emit('progress', overallProgress.value)
   try { window.dispatchEvent(new CustomEvent('learning-progress-updated', { detail: { courseId: props.courseId } })) } catch {}
   // 题目触发：视频在 40% 与 80% 位置各触发一次；避免同时弹多个
@@ -797,7 +805,7 @@ function nextTickSeekSaved() {
             player.value.currentTime = pct * player.value.duration
           }
         }
-      } catch {}
+      } catch (e) { console.error(e) }
     }
   })
 }
@@ -807,7 +815,7 @@ onMounted(() => {
   if (!hasChapters.value) {
     showEnterTip(props.title)
   }
-  try { window.addEventListener('keydown', handleKeydown) } catch {}
+  try { window.addEventListener('keydown', handleKeydown) } catch (e) { console.error(e) }
 })
 watch(currentIndex, (v) => {
   if (v != null && totalCount.value > 0) {
@@ -825,9 +833,9 @@ watch(visible, (v) => {
 onBeforeUnmount(() => {
   lockScroll(false)
   stopTickerAndFlush('ended')
-  try { window.removeEventListener('keydown', handleKeydown) } catch {}
+  try { window.removeEventListener('keydown', handleKeydown) } catch (e) { console.error(e) }
   stopDragging()
-  try { if (hudTicker) { clearInterval(hudTicker); hudTicker = null } } catch {}
+  try { if (hudTicker) { clearInterval(hudTicker); hudTicker = null } } catch (e) { console.error(e) }
 })
 
 watch(() => props.startIndex, (v) => {

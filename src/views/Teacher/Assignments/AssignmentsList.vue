@@ -367,7 +367,7 @@ export default {
       try {
         // 获取教师ID（userInfo.id -> teacherId 本地 -> 后端列表首个）
         let teacherId = null
-        try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) teacherId = Number(u.id) } catch {}
+        try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) teacherId = Number(u.id) } catch (e) { console.error(e) }
         if (!teacherId) { const tid = localStorage.getItem('teacherId'); if (tid) teacherId = Number(tid) }
         if (!teacherId) {
           try {
@@ -375,7 +375,7 @@ export default {
             const tRaw = tRes?.data
             const tList = (tRaw && Number(tRaw.code) === 200 && Array.isArray(tRaw.data)) ? tRaw.data : []
             if (tList.length > 0) teacherId = Number(tList[0].id)
-          } catch {}
+          } catch (e) { console.error(e) }
         }
         if (!teacherId) { ElMessage.error('未获取到教师ID'); assignments.value = []; return }
 

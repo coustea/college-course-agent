@@ -9,7 +9,7 @@ function readStore() {
 
 function writeStore(list) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
-  try { window.dispatchEvent(new CustomEvent('learning-history-updated')) } catch { }
+try { window.dispatchEvent(new CustomEvent('learning-history-updated')) } catch (e) { console.error(e) }
 }
 
 export function getHistory() {

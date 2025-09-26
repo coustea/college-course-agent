@@ -71,7 +71,9 @@ onBeforeUnmount(() => {
 const handleLogin = async () => {
   try {
     console.log('登录请求')
-    const res = await axios.post('http://192.168.52.75:9999/api/auth/login', {
+    console.log('username', username.value)
+    console.log('password', password.value)
+    const res = await axios.post('http://192.168.52.75:9999/api/user/login', {
       username: username.value,
       password: password.value,
       role: role.value
@@ -83,8 +85,10 @@ const handleLogin = async () => {
         const user = res?.data?.data
         localStorage.setItem('currentUser', JSON.stringify(user))
         console.log('当前用户', localStorage.getItem('currentUser'))
-      } catch {}
-      try { localStorage.setItem('userRole', role.value) } catch {}
+        localStorage.setItem('className', user.className)
+        console.log('className', localStorage.getItem('className'))
+      } catch (e) { console.error(e) }
+      try { localStorage.setItem('userRole', role.value) } catch (e) { console.error(e) }
       await router.push(role.value === 'student' ? '/home' : '/teacher')
       return
     }

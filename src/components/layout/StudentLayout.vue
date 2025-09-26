@@ -69,21 +69,51 @@
         </div>
 
         <ul class="user-dropdown" :class="{show: showUserMenu}">
+          <li class="dropdown-item" @click="openPasswordDialog">
+            <i class="fas fa-key"></i>
+            <span>修改密码</span>
+          </li>
           <li class="dropdown-item" @click="logout">
             <i class="fas fa-sign-out-alt"></i>
             <span>退出登录</span>
           </li>
+
         </ul>
       </div>
     </div>
     <div class="main-content">
       <router-view></router-view>
     </div>
+    <!-- 修改密码 -->
+    <el-dialog v-model="passwordDialogVisible" title="修改密码" width="500px" :before-close="handleClosePasswordDialog">
+      <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" label-width="100px">
+        <el-form-item label="当前密码" prop="currentPassword">
+          <el-input v-model="passwordForm.currentPassword" type="password" show-password />
+        </el-form-item>
+
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="passwordForm.newPassword" type="password" show-password />
+        </el-form-item>
+
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="cancelPasswordChange">取消</el-button>
+          <el-button type="primary" @click="changePassword" :loading="changingPassword">确认修改</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { updateStudentPassword } from '@/services/changePasswordApi'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
@@ -120,8 +150,8 @@ function loadUserFromStorage() {
 onMounted(() => {
   loadUserFromStorage()
   refreshWorkStatus()
-  try { window.addEventListener('storage', refreshWorkStatus) } catch {}
-  try { window.addEventListener('work-status-updated', refreshWorkStatus) } catch {}
+  try { window.addEventListener('storage', refreshWorkStatus) } catch (e) { console.error(e) }
+  try { window.addEventListener('work-status-updated', refreshWorkStatus) } catch (e) { console.error(e) }
 })
 
 const toggleUserMenu = () => {
@@ -132,6 +162,11 @@ const logout = () => {
   showUserMenu.value = false
   localStorage.removeItem('userRole')
   localStorage.removeItem('currentUser')
+  // 清理小组持久化状态
+  try {
+    localStorage.removeItem('student_group_status')
+    localStorage.removeItem('student_group_info')
+  } catch (e) { console.error(e) }
   router.push('/')
 }
 
@@ -149,6 +184,87 @@ const navigateTo = (path) => {
 watch(() => route.path, (newPath) => {
   isSubMenuOpen.value = newPath.startsWith('/courses')
 }, { immediate: true })
+
+// 修改密码对话框逻辑
+const passwordDialogVisible = ref(false)
+const changingPassword = ref(false)
+const passwordFormRef = ref()
+const passwordForm = ref({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const validateConfirmPassword = (rule, value, callback) => {
+  if (!value) return callback(new Error('请再次输入新密码'))
+  if (value !== passwordForm.value.newPassword) {
+    return callback(new Error('两次输入的密码不一致'))
+  }
+  callback()
+}
+
+const passwordRules = {
+  currentPassword: [
+    { required: true, message: '请输入当前密码', trigger: 'blur' }
+  ],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '新密码长度至少为6位', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { validator: validateConfirmPassword, trigger: 'blur' }
+  ]
+}
+
+const resetPasswordForm = () => {
+  passwordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' }
+  if (passwordFormRef.value) passwordFormRef.value.clearValidate()
+}
+
+const openPasswordDialog = () => {
+  showUserMenu.value = false
+  resetPasswordForm()
+  passwordDialogVisible.value = true
+}
+
+const handleClosePasswordDialog = (done) => {
+  if (changingPassword.value) return
+  resetPasswordForm()
+  done()
+}
+
+const cancelPasswordChange = () => {
+  handleClosePasswordDialog(() => {
+    passwordDialogVisible.value = false
+  })
+}
+
+const changePassword = async () => {
+  if (!passwordFormRef.value) return
+  await passwordFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+      ElMessage.error('两次输入的密码不一致')
+      return
+    }
+    try {
+      changingPassword.value = true
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null')
+      const studentId = currentUser?.id ?? 10 // 后备ID=10，或从登录信息取
+      await updateStudentPassword(studentId, {
+        currentPassword: passwordForm.value.currentPassword,
+        newPassword: passwordForm.value.newPassword
+      })
+      ElMessage.success('密码修改成功')
+      passwordDialogVisible.value = false
+      resetPasswordForm()
+    } catch (e) {
+      ElMessage.error('密码修改失败，请稍后重试')
+    } finally {
+      changingPassword.value = false
+    }
+  })
+}
 </script>
 
 <style scoped>

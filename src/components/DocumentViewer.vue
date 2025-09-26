@@ -69,7 +69,7 @@ const props = defineProps({
   chapters: { type: Array, default: () => [] }
 })
 
-const backendHost = (() => { try { const p = window?.location?.port; if (p === '4173' || p === '5173') return 'http://localhost:9999'; } catch {} return '' })()
+const backendHost = (() => { try { const p = window?.location?.port; if (p === '4173' || p === '5173') return 'http://localhost:9999'; } catch (e) { console.error(e) } return '' })()
 function toUrl(u) {
   if (!u) return ''
   const s = String(u)
@@ -149,7 +149,7 @@ function isPrivateUrl(u) {
     const host = loc.hostname
     if (host === 'localhost' || host === '127.0.0.1') return true
     if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)) return true
-  } catch {}
+  } catch (e) { console.error(e) }
   return false
 }
 const viewerSrc = computed(() => {
@@ -190,7 +190,7 @@ async function maybeAskByProgress(pct) {
         return new Promise((resolve) => { resolver.value = resolve })
       }
     }
-  } catch {}
+  } catch (e) { console.error(e) }
 }
 
 async function close() {
@@ -214,10 +214,10 @@ async function onQuestionSubmit(payload) {
     const answers = payload?.answers || {}
     const questions = questionList.value || []
     await submitExamAnswers(courseId, nodeKey, questions, answers)
-  } catch {}
+  } catch (e) { console.error(e) }
   questionVisible.value = false
   if (typeof resolver.value === 'function') {
-    try { resolver.value(true) } catch {}
+    try { resolver.value(true) } catch (e) { console.error(e) }
     resolver.value = null
   }
 }
@@ -283,7 +283,7 @@ function forwardBackgroundScroll(e) {
       e.preventDefault()
       sc.scrollTop += e.deltaY
     }
-  } catch {}
+  } catch (e) { console.error(e) }
 }
 
 function onPrev() { if (currentIndex.value > 0) currentIndex.value -= 1; emit('prev') }
@@ -298,9 +298,9 @@ function handleFullscreenChange() {
   try { isFullscreen.value = !!document.fullscreenElement } catch { isFullscreen.value = false }
 }
 onMounted(() => {
-  try { document.addEventListener('fullscreenchange', handleFullscreenChange) } catch {}
+  try { document.addEventListener('fullscreenchange', handleFullscreenChange) } catch (e) { console.error(e) }
 })
-onBeforeUnmount(() => { try { document.removeEventListener('fullscreenchange', handleFullscreenChange) } catch {} })
+onBeforeUnmount(() => { try { document.removeEventListener('fullscreenchange', handleFullscreenChange) } catch (e) { console.error(e) } })
 
 // 本地滚动进度计算（非 iframe 文档有效）
 function updateReadProgress() {
@@ -341,7 +341,7 @@ watch(() => props.modelValue, (v) => {
     }, 0)
   } else {
     const el = bodyRef.value
-    try { el?.removeEventListener('scroll', updateReadProgress) } catch {}
+    try { el?.removeEventListener('scroll', updateReadProgress) } catch (e) { console.error(e) }
   }
 })
 

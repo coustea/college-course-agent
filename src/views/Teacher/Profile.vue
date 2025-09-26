@@ -225,7 +225,7 @@ const passwordRules = {
 
 // 获取教师ID（优先登录信息）
 const teacherId = computed(() => {
-  try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) return Number(u.id) } catch {}
+  try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) return Number(u.id) } catch (e) { console.error(e) }
   const id = localStorage.getItem('teacherId')
   return id ? Number(id) : null
 })
@@ -235,7 +235,7 @@ const fetchTeacherData = async () => {
   try {
     // 读取本地登录信息用于匹配键
     let local = null
-    try { local = JSON.parse(localStorage.getItem('userInfo') || 'null') } catch {}
+    try { local = JSON.parse(localStorage.getItem('userInfo') || 'null') } catch (e) { console.error(e) }
     const localId = Number(local?.id) || null
     const localUsername = local?.username || null
     const localEmpNo = local?.employeeNumber || local?.employee_number || null
@@ -255,7 +255,7 @@ const fetchTeacherData = async () => {
       const mapped = { ...found }
       if (mapped.employee_number && !mapped.employeeNumber) mapped.employeeNumber = mapped.employee_number
       teacherInfo.value = mapped
-      try { localStorage.setItem('userInfo', JSON.stringify(mapped)) } catch {}
+      try { localStorage.setItem('userInfo', JSON.stringify(mapped)) } catch (e) { console.error(e) }
       return
     }
 
@@ -285,7 +285,7 @@ const saveProfile = async () => {
     if (!teacherId.value) { ElMessage.error('未获取到教师ID'); return }
     await api.put(`/teacher/update/teacher`, editForm, { params: { id: teacherId.value } })
     teacherInfo.value = { ...teacherInfo.value, ...editForm }
-    try { localStorage.setItem('userInfo', JSON.stringify(teacherInfo.value)) } catch {}
+    try { localStorage.setItem('userInfo', JSON.stringify(teacherInfo.value)) } catch (e) { console.error(e) }
     editDialogVisible.value = false
     ElMessage.success('个人信息更新成功')
   } catch (error) {

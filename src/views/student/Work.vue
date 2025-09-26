@@ -1,233 +1,174 @@
 <template>
-  <div class="header">
-    <h1 class="page-title">作品提交</h1>
-  </div>
-  <div class="card">
-    <div class="field">
-      <label>作业标题</label>
-      <input class="title-input" type="text" v-model="title" placeholder="请输入作业标题" />
+  <div class="work-page">
+    <div class="header">
+      <h1 class="page-title">作品提交</h1>
     </div>
-    <div class="field">
-      <label>作品描述</label>
-      <textarea v-model="description" placeholder="请输入作品描述"></textarea>
-    </div>
-    <div class="field">
-      <label>上传作品（图片或文档）</label>
-      <div class="upload" :class="{dragover: dragOver}" @dragenter.prevent="dragOver=true" @dragover.prevent @dragleave.prevent="dragOver=false" @drop.prevent="onDrop">
-        <div class="upload-inner">
-          <i class="fas fa-cloud-upload-alt"></i>
-          <div>拖拽到此处或</div>
-          <button class="btn" type="button" @click="chooseFiles">选择文件</button>
-          <input ref="fileInput" type="file" class="hidden" multiple :accept="accepts" @change="onChoose" />
+
+    <div class="content">
+      <div class="submission-form">
+        <h3 class="form-title">提交新作品</h3>
+        <el-form :model="submissionForm" label-width="100px">
+          <div class="form-row">
+            <el-form-item label="作品标题">
+              <el-input v-model="submissionForm.title" placeholder="请输入作品标题" />
+            </el-form-item>
+          </div>
+
+          <div class="form-row">
+            <el-form-item label="作品描述">
+              <el-input
+                v-model="submissionForm.description"
+                type="textarea"
+                :rows="4"
+                placeholder="请描述您的作品"
+              />
+            </el-form-item>
+          </div>
+
+          <div class="form-row">
+            <el-form-item label="上传文件">
+              <el-upload
+                class="upload-demo"
+                action="#"
+                :on-change="handleFileChange"
+                :on-remove="handleFileRemove"
+                :file-list="submissionForm.files"
+                :auto-upload="false"
+                multiple
+                list-type="text"
+              >
+                <el-button size="small" type="primary">点击上传</el-button>
+                <template #tip>
+                  <div class="el-upload__tip">支持图片、文档、压缩包等格式，单个文件不超过10MB</div>
+                </template>
+              </el-upload>
+            </el-form-item>
+          </div>
+
+        </el-form>
+        <div class="form-bottom-bar">
+          <div class="deadline-text">{{ deadlineText }}</div>
+          <el-button type="primary" :loading="submitting" @click="submitWork">提交作品</el-button>
         </div>
       </div>
-      <ul class="file-list" v-if="files.length">
-        <li v-for="(f, i) in files" :key="i">
-          <span class="name">{{ f.name }}</span>
-          <button class="link" type="button" @click="remove(i)">删除</button>
-        </li>
-      </ul>
-    </div>
-    <div class="actions">
-      <div class="deadline">截至时间：{{ deadlineLabel }}</div>
-      <button class="btn primary" type="button" @click="submit">提交作品</button>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { getWorkSidebarStatus, submitWork as submitWorkApi } from '@/services/workApi'
 
-const title = ref('')
-const description = ref('')
-const files = ref([])
-const dragOver = ref(false)
-const fileInput = ref(null)
-const accepts = '.png,.jpg,.jpeg,.gif,.bmp,.svg,.webp,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt'
+const submissionForm = ref({
+  title: '',
+  description: '',
+  files: []
+})
 
-const endTime = ref(formatDateTime(new Date(Date.now() + 7 * 24 * 3600 * 1000)))
+const deadlineText = ref('截止时间：2025-12-31 23:59')
+const submitting = ref(false)
 
-const status = ref(localStorage.getItem('work_status') || 'none')
-
-function chooseFiles() { fileInput.value?.click() }
-function onChoose(e) { addFiles(e.target.files) }
-function onDrop(e) { dragOver.value=false; addFiles(e.dataTransfer?.files) }
-function addFiles(list){ if(!list) return; files.value = [...files.value, ...Array.from(list)] }
-function remove(i){ files.value.splice(i,1) }
-
-function submit(){
-  // 保存提交记录（最多保留最近50条）
-  const titleVal = computeTitle()
-  const record = { id: Date.now(), title: titleVal, submittedAt: new Date().toISOString() }
+onMounted(async () => {
   try {
-    const raw = localStorage.getItem('work_submissions_v1') || '[]'
-    const arr = Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : []
-    arr.unshift(record)
-    localStorage.setItem('work_submissions_v1', JSON.stringify(arr.slice(0, 50)))
-  } catch {}
+    const data = await getWorkSidebarStatus()
+    if (data && data.deadline) {
+      const text = String(data.deadline)
+      deadlineText.value = text.startsWith('截止') ? text : `截止时间：${text}`
+    }
+    try {
+      localStorage.setItem('work_sidebar_status', JSON.stringify(data || {}))
+      window.dispatchEvent(new CustomEvent('work-sidebar-updated', { detail: data || {} }))
+    } catch (e) { console.error(e) }
+  } catch (e) { console.error(e) }
+})
 
-  try { localStorage.setItem('work_deadline_v1', endTime.value || '') } catch {}
-  localStorage.setItem('work_status', 'submitted')
-  status.value = 'submitted'
-  try { window.dispatchEvent(new Event('work-status-updated')) } catch {}
-  try { window.dispatchEvent(new Event('work-submitted')) } catch {}
-  try { window.dispatchEvent(new Event('work-deadline-updated')) } catch {}
-  alert('提交成功')
+
+function handleFileChange(file, fileList) {
+  submissionForm.value.files = fileList
 }
 
-function computeTitle() {
-  if (title.value.trim()) return title.value.trim().slice(0, 50)
-  if (files.value.length > 0) {
-    const n = files.value[0].name || ''
-    const dot = n.lastIndexOf('.')
-    return dot > 0 ? n.slice(0, dot) : n
+function handleFileRemove(file, fileList) {
+  submissionForm.value.files = fileList
+}
+
+function submitWork() {
+  if (!submissionForm.value.title) {
+    ElMessage.error('请输入作品标题')
+    return
   }
-  const text = (description.value || '').trim()
-  if (text) return text.slice(0, 20)
-  return '未命名作品'
+  submitting.value = true
+  ;(async () => {
+    try {
+      await submitWorkApi({
+        title: submissionForm.value.title,
+        description: submissionForm.value.description,
+        files: submissionForm.value.files
+      })
+      ElMessage.success('作品提交成功！')
+      submissionForm.value = { title: '', description: '', files: [] }
+      try {
+        const data = await getWorkSidebarStatus()
+        localStorage.setItem('work_sidebar_status', JSON.stringify(data || {}))
+        window.dispatchEvent(new CustomEvent('work-sidebar-updated', { detail: data || {} }))
+      } catch (e) { console.error(e) }
+    } catch (e) {
+      ElMessage.error('提交失败，请稍后重试')
+    } finally {
+      submitting.value = false
+    }
+  })()
 }
-
-watch(endTime, (v) => {
-  try { localStorage.setItem('work_deadline_v1', v || '') } catch {}
-  try { window.dispatchEvent(new Event('work-deadline-updated')) } catch {}
-})
-
-function formatDateTime(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth()+1).padStart(2,'0')
-  const d = String(date.getDate()).padStart(2,'0')
-  const hh = String(date.getHours()).padStart(2,'0')
-  const mm = String(date.getMinutes()).padStart(2,'0')
-  const ss = String(date.getSeconds()).padStart(2,'0')
-  return `${y}-${m}-${d}T${hh}:${mm}:${ss}`
-}
-
-const deadlineLabel = computed(() => {
-  try { return (endTime.value || '').replace('T',' ') } catch { return '' }
-})
 </script>
 
 <style scoped>
-.content {
-  max-width: 100%;
-  margin: 0 auto;
-}
+.work-page { width: 100%; }
 .header {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
 }
 .page-title {
-  font-size:24px;
-  font-weight:700;
-  color:#2c3e50;
+  font-size: 24px;
+  font-weight: 700;
+  color: #2c3e50;
 }
-.status-chip {
-  padding:6px 12px;
-  border-radius:999px;
-  font-weight:700;
-  font-size:12px;
+
+.content {
+  width: 70%;
 }
-.card {
-  background:#fff;
-  border-radius:10px;
-  box-shadow:0 4px 10px rgba(0,0,0,.05);
-  padding:20px;
+
+.submission-form {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 22px;
+  margin-bottom: 16px;
 }
-.grid-2 {
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap:16px;
+.form-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 14px 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f1f5f9;
 }
-label {
-  display:block;
-  margin-bottom:6px;
-  color:#2c3e50;
-  font-weight:600;
+.form-row { margin-bottom: 14px; }
+
+.form-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #f1f5f9;
+  margin-top: 10px;
+  padding-top: 12px;
 }
-input[type="datetime-local"], textarea {
-  width:100%;
-  border:1px solid #dcdfe6;
-  border-radius:6px;
-  padding:10px;
+.deadline-text {
+  color: #6b7280;
+  font-size: 13px;
 }
-textarea {
-  min-height:120px;
-}
-.field {
-  margin-top:16px;
-}
-.title-input {
-  width:100%;
-  border:1px solid #dcdfe6;
-  border-radius:6px;
-  padding:10px;
-}
-.upload {
-  border:2px dashed #cbd5e1;
-  border-radius:8px;
-  background:#fafafa;
-}
-.upload.dragover {
-  background: rgba(37,99,235,.05);
-  border-color:#2563eb;
-}
-.upload-inner {
-  text-align:center;
-  padding:28px;
-  color:#64748b;
-}
-.upload .btn {
-  margin-top:8px;
-}
-.file-list {
-  margin-top:10px;
-}
-.file-list li {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:8px 10px;
-  background:#f5f7fa;
-  border-radius:6px;
-  margin-bottom:8px;
-}
-.file-list .name {
-  font-size:14px;
-}
-.link {
-  background:transparent;
-  border:0; color:#f43f5e;
-  cursor:pointer;
-}
-.actions {
-  text-align:right;
-  margin-top:16px;
-}
-.deadline {
-  float:left;
-  color:#64748b;
-  line-height:36px;
-}
-.btn {
-  padding:8px 14px;
-  border-radius:6px;
-  border:1px solid #cbd5e1;
-  background:#f0f2f5;
-  cursor:pointer;
-}
-.btn.primary {
-  background:#2563eb;
-  color:#fff;
-  border-color:#2563eb;
-}
-.hidden {
-  display:none;
-}
-@media (max-width:768px){
-  .grid-2{
-    grid-template-columns:1fr;
-  }
-}
+
 </style>

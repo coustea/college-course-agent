@@ -187,7 +187,7 @@ const fetchCourses = async () => {
     courses.value = list.map(c => ({ id: c.courseId, name: c.courseName }))
     // 若登录教师存在，则仅保留该教师的课程（绑定教师与课程）
     let currentTid = null
-    try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) currentTid = Number(u.id) } catch {}
+    try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) currentTid = Number(u.id) } catch (e) { console.error(e) }
     if (!currentTid) { const tid = localStorage.getItem('teacherId'); if (tid) currentTid = Number(tid) }
     if (currentTid) {
       const filtered = list.filter(c => Number(c.teacherId) === currentTid)
@@ -208,7 +208,7 @@ const fetchTeachers = async () => {
     teachers.value = list
     // 默认选中本地 userInfo.id 对应的教师
     let defaultTid = null
-    try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) defaultTid = u.id } catch {}
+    try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) defaultTid = u.id } catch (e) { console.error(e) }
     if (!defaultTid) { const tid = localStorage.getItem('teacherId'); if (tid) defaultTid = Number(tid) }
     if (defaultTid && list.some(t => Number(t.id) === Number(defaultTid))) assignmentForm.teacherId = Number(defaultTid)
     else if (list.length > 0) assignmentForm.teacherId = list[0].id
