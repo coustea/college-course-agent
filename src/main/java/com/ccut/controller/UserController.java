@@ -27,6 +27,7 @@ public class UserController {
     @Autowired
     private StudentServiceImpl studentService;
 
+
     @PostMapping("/insert")
     public Result<User> insert(@RequestBody User user){
         int result = userService.insert(user);
@@ -38,8 +39,21 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public Result<String> login(@RequestBody User user){
-        return Result.success("登录成功");
+    public Result<Student> login(@RequestBody User user){
+        if (user.getUsername() == null || user.getUsername().trim().isEmpty()) {
+            return Result.error(400, "用户名不能为空");
+        }
+        if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+            return Result.error(400, "密码不能为空");
+        }
+        Student student = studentService.getStudentByStudentNumber(user.getUsername());
+        if (student == null) {
+            return Result.error(400, "用户不存在");
+        }
+        if (!student.getPassword().equals(user.getPassword())) {
+            return Result.error(400, "密码错误");
+        }
+        return Result.success(student);
     }
 
 
