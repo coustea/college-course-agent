@@ -40,18 +40,27 @@ public class UserController {
 
     @PostMapping("/login")
     public Result<Student> login(@RequestBody User user){
+        log.info("登录请求：{}", user);
         if (user.getUsername() == null || user.getUsername().trim().isEmpty()) {
             return Result.error(400, "用户名不能为空");
         }
         if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
             return Result.error(400, "密码不能为空");
         }
+        User user1 = userService.getByUsername(user.getUsername());
+        if (user1 == null) {
+            return Result.error(400, "用户不存在");
+        }
+
+        if (!user1.getPassword().equals(user.getPassword())) {
+            return Result.error(400, "密码错误");
+        }
+        if (user1.getRole() != User.Role.student) {
+            return Result.error(400, "用户角色错误");
+        }
         Student student = studentService.getStudentByStudentNumber(user.getUsername());
         if (student == null) {
             return Result.error(400, "用户不存在");
-        }
-        if (!student.getPassword().equals(user.getPassword())) {
-            return Result.error(400, "密码错误");
         }
         return Result.success(student);
     }
