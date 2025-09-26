@@ -82,6 +82,7 @@ const handleLogin = async () => {
       try {
         const user = res?.data?.data
         localStorage.setItem('currentUser', JSON.stringify(user))
+        console.log('当前用户', localStorage.getItem('currentUser'))
       } catch {}
       try { localStorage.setItem('userRole', role.value) } catch {}
       await router.push(role.value === 'student' ? '/home' : '/teacher')

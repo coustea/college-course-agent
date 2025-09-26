@@ -18,7 +18,7 @@
 
     <div class="courses-grid">
       <div class="course-card" v-for="course in paginatedCourses" :key="course.id">
-        <div class="course-image">
+        <div class="course-image" @click="openVideoPicker(course)">
           <img :src="course.image || 'https://via.placeholder.com/300x180?text=课程封面'" :alt="course.title" />
           <div class="course-status-badge" :class="course.status">{{ course.status === 'published' ? '已发布' : '草稿' }}</div>
           <div class="course-stats-overlay">
@@ -77,7 +77,7 @@
     </div>
 
     <!-- 预览弹窗组件 -->
-    <CoursePlayer v-model="playerVisible" :course-id="playerCourseId" :title="playerTitle" :chapters="playerChapters" :start-index="playerStartIndex" />
+    <CoursePlayer v-model="playerVisible" :course-id="playerCourseId" :title="playerTitle" :chapters="playerChapters" :start-index="playerStartIndex" :fallback-src="playerFallback" :video-count="playerChapters.length" :enable-questions="false" />
     <DocumentViewer v-model="docVisible" :title="docTitle" :file-url="docFileUrl" :html-content="docHtmlContent" :progress="docProgress" :id="docId" :image="docImage" :duration="docDuration" />
     <el-dialog v-model="videoPickerVisible" :title="videoPickerTitle" width="560px">
       <el-table :data="videoPickerList" style="width: 100%" size="small" height="360">
@@ -104,7 +104,7 @@ export default {
   setup() {
     const router = useRouter()
     const token = ref(localStorage.getItem('token') || '')
-    const backendHost = (() => { try { if (window?.location?.port === '4173') return 'http://localhost:9999' } catch {} return '' })()
+    const backendHost = (() => { try { const p = window?.location?.port; if (p === '4173' || p === '5173') return 'http://localhost:9999' } catch {} return '' })()
 
     const courses = ref([])
     const categories = ref([]) // 先不请求后端分类接口，保持空列表
@@ -136,6 +136,7 @@ export default {
       if (!Array.isArray(list) || list.length === 0) return
       let idx = 0
       const concurrency = 5
+      
       const workers = []
       for (let i = 0; i < Math.min(concurrency, list.length); i++) {
         workers.push((async () => {
@@ -206,12 +207,14 @@ export default {
     }
 
     const normalizeUrl = (url) => { if (!url || typeof url !== 'string') return ''; if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return encodeURI(url); if (url.startsWith('/uploads/')) return encodeURI((backendHost || '') + url); return encodeURI(url) }
+    const normalizeVideoUrl = (url) => { if (!url || typeof url !== 'string') return ''; const u = String(url); const m = u.match(/^https?:\/\/[^/]+(:\d+)?\/(uploads\/.*)$/i); if (m) return `/${m[2]}`; if (u.startsWith('/uploads/')) return u; return normalizeUrl(u) }
 
     const playerVisible = ref(false)
     const playerTitle = ref('')
     const playerCourseId = ref(null)
     const playerChapters = ref([])
     const playerStartIndex = ref(0)
+    const playerFallback = ref('')
 
     const docVisible = ref(false)
     const docTitle = ref('')
@@ -224,11 +227,24 @@ export default {
 
     const courseVideosCache = ref({})
     const loadCourseVideos = async (courseId) => { try { const base = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api'; const headers = token.value ? { Authorization: `Bearer ${token.value}` } : {}; const res = await axios.get(`${base}/course/video/list`, { params: { courseId }, headers }); const body = res?.data; if (body && Number(body.code) === 200 && Array.isArray(body.data)) return body.data; return [] } catch { return [] } }
-    const getCourseVideos = async (courseId) => { const key = String(courseId); const cached = courseVideosCache.value[key]; if (cached && Array.isArray(cached)) return cached; const list = await loadCourseVideos(courseId); courseVideosCache.value[key] = list; return list }
+    const getCourseVideos = async (courseId) => { const key = String(courseId); const cached = courseVideosCache.value[key]; if (cached && Array.isArray(cached)) return cached; const list = await loadCourseVideos(courseId); const normalized = list.map(v => ({ ...v, videoUrl: normalizeVideoUrl(v.videoUrl || v.url || v.fileUrl || '') })) ; courseVideosCache.value[key] = normalized; return normalized }
     const loadCourseDocs = async (courseId) => { try { const base = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api'; const headers = token.value ? { Authorization: `Bearer ${token.value}` } : {}; const res = await axios.get(`${base}/course/document/list`, { params: { courseId }, headers }); const body = res?.data; if (body && Number(body.code) === 200 && Array.isArray(body.data)) return body.data; return [] } catch { return [] } }
 
-    const openVideoPicker = async (course) => { const cid = course.id || course.courseId; if (!cid) { ElMessage.error('缺少课程ID'); return } const list = await getCourseVideos(cid); if (!list.length) { ElMessage.info('该课程暂无视频'); return } videoPickerCourse.value = course; videoPickerTitle.value = (course.title || course.courseName || '课程') + ' - 选择视频'; videoPickerList.value = list; videoPickerVisible.value = true }
-    const openVideoAt = async (course, index) => { const cid = course.id || course.courseId; const list = await getCourseVideos(cid); if (!list.length) { ElMessage.info('该课程暂无视频'); return } playerCourseId.value = cid; playerTitle.value = course.title || course.courseName || '课程视频'; playerChapters.value = list.map(v => ({ title: v.videoTitle || `第${(v.videoIndex ?? 0) + 1}节`, videoUrl: normalizeUrl(v.videoUrl), duration: v.duration ? String(v.duration) : '' })); playerStartIndex.value = Math.max(0, Math.min(index || 0, list.length - 1)); videoPickerVisible.value = false; playerVisible.value = true }
+    const openVideoPicker = async (course) => {
+      const cid = course.id || course.courseId; if (!cid) { ElMessage.error('缺少课程ID'); return }
+      const list = await getCourseVideos(cid)
+      if (!list.length) { ElMessage.info('该课程暂无视频'); return }
+      // 直接采用学生端逻辑：构造章节并打开播放器
+      playerCourseId.value = cid
+      playerTitle.value = course.title || course.courseName || '课程视频'
+      playerChapters.value = list.map(v => ({ title: v.videoTitle || `第${(v.videoIndex ?? 0) + 1}节`, videoUrl: normalizeVideoUrl(v.videoUrl || v.url || v.fileUrl || ''), duration: v.duration ? String(v.duration) : '' }))
+      playerStartIndex.value = 0
+      const first = playerChapters.value.find(it => it.videoUrl)
+      playerFallback.value = first ? first.videoUrl : ''
+      videoPickerVisible.value = false
+      playerVisible.value = true
+    }
+    const openVideoAt = async (course, index) => { const cid = course.id || course.courseId; const list = await getCourseVideos(cid); if (!list.length) { ElMessage.info('该课程暂无视频'); return } playerCourseId.value = cid; playerTitle.value = course.title || course.courseName || '课程视频'; playerChapters.value = list.map(v => ({ title: v.videoTitle || `第${(v.videoIndex ?? 0) + 1}节`, videoUrl: normalizeVideoUrl(v.videoUrl || v.url || v.fileUrl || ''), duration: v.duration ? String(v.duration) : '' })); playerStartIndex.value = Math.max(0, Math.min(index || 0, list.length - 1)); const first = playerChapters.value.find(it => it.videoUrl); playerFallback.value = first ? first.videoUrl : ''; videoPickerVisible.value = false; playerVisible.value = true }
 
     const previewCourseDocs = async (course) => { const cid = course.id || course.courseId; if (!cid) { ElMessage.error('缺少课程ID'); return } const list = await loadCourseDocs(cid); if (!list.length) { ElMessage.info('该课程暂无文档'); const url = (course.resourceUrl || course.image || '').toString(); if (/\.(pdf|docx?|pptx?)(\?.*)?$/i.test(url)) { docTitle.value = course.title || '课程文档'; docFileUrl.value = normalizeUrl(url); docHtmlContent.value = ''; docProgress.value = 0; docId.value = cid; docImage.value = ''; docDuration.value = ''; docVisible.value = true } return } const d = list[0]; docTitle.value = d.title || d.documentTitle || '课程文档'; docFileUrl.value = d.fileUrl ? normalizeUrl(d.fileUrl) : ''; docHtmlContent.value = d.content || ''; docProgress.value = 0; docId.value = d.id || null; docImage.value = ''; docDuration.value = ''; docVisible.value = true }
 

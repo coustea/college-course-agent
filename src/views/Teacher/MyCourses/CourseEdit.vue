@@ -20,7 +20,7 @@
     <div class="section">
       <h3>更新视频</h3>
       <el-form :model="video" label-width="120px">
-        <el-form-item label="视频ID(videoId)"><el-input v-model.number="video.videoId" placeholder="必填，例如 10" /></el-form-item>
+        <el-form-item label="视频ID(videoId)"><el-input v-model.number="video.videoId" placeholder="点击下方列表自动带入" /></el-form-item>
         <el-form-item label="视频标题"><el-input v-model="video.videoTitle" placeholder="第1讲 绪论（更新）" /></el-form-item>
         <el-form-item label="视频文件"><input type="file" accept=".mp4,.mov,.webm" @change="onEditVideoFileChange" /></el-form-item>
         <el-form-item label="时长(秒)"><el-input v-model.number="video.duration" placeholder="例如 1810" /></el-form-item>
@@ -28,7 +28,7 @@
       </el-form>
 
       <el-divider>当前课程视频</el-divider>
-      <el-table :data="videos" style="width:100%" v-loading="loadingVideos" size="small">
+      <el-table :data="videos" style="width:100%" v-loading="loadingVideos" size="small" @row-click="onVideoRowClick">
         <el-table-column prop="videoId" label="ID" width="80" />
         <el-table-column prop="videoIndex" label="序号" width="80" />
         <el-table-column prop="videoTitle" label="标题" min-width="220" />
@@ -88,7 +88,8 @@ export default {
     const savingVideo = ref(false)
     const savingDoc = ref(false)
 
-    const loadVideos = async () => { try { loadingVideos.value = true; const res = await axios.get(`${base}/course/video/list`, { params: { courseId, _t: Date.now() } }); const body = res?.data; videos.value = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : [] } catch { videos.value = [] } finally { loadingVideos.value = false } }
+    const loadVideos = async () => { try { loadingVideos.value = true; const res = await axios.get(`${base}/course/video/list`, { params: { courseId, _t: Date.now() } }); const body = res?.data; videos.value = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []; if (Array.isArray(videos.value) && videos.value.length > 0 && (video.value.videoId == null || video.value.videoId === '')) { const v0 = videos.value[0]; video.value.videoId = v0.videoId || v0.id; video.value.videoTitle = v0.videoTitle || v0.title || ''; video.value.duration = v0.duration || null } } catch { videos.value = [] } finally { loadingVideos.value = false } }
+    const onVideoRowClick = (row) => { if (!row) return; video.value.videoId = row.videoId || row.id; video.value.videoTitle = row.videoTitle || row.title || ''; video.value.duration = row.duration || null }
     const loadDocs = async () => { try { loadingDocs.value = true; const res = await axios.get(`${base}/course/document/list`, { params: { courseId } }); const body = res?.data; documents.value = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : [] } catch { documents.value = [] } finally { loadingDocs.value = false } }
 
     const onCourseImageChange = (e) => { const file = e?.target?.files?.[0]; if (!file) return; imageFile.value = file; const reader = new FileReader(); reader.onload = () => { imagePreview.value = reader.result }; reader.readAsDataURL(file) }
@@ -102,6 +103,7 @@ export default {
     const updateDoc = async () => { try { savingDoc.value = true; if (doc.value.file) { const form = new FormData(); form.append('courseId', String(courseId)); if (doc.value.docIndex != null) form.append('docIndex', String(doc.value.docIndex)); if (doc.value.docTitle) form.append('docTitle', doc.value.docTitle); form.append('file', doc.value.file); const ins = await axios.post(`${base}/course/document/insert`, form); const iv = ins?.data; if (!(iv && Number(iv.code) === 200 && iv.data && iv.data.docUrl)) { ElMessage.error(iv?.message || '文档上传失败'); savingDoc.value = false; return } const payload = { id: doc.value.id, docIndex: doc.value.docIndex, docTitle: doc.value.docTitle, docUrl: iv.data.docUrl }; const res = await axios.put(`${base}/course/document/update`, payload); const body = res?.data; if (body && Number(body.code) === 200) { ElMessage.success('文档已更新'); loadDocs() } else { ElMessage.error(body?.message || '更新失败') } } else { const payload = { id: doc.value.id, docIndex: doc.value.docIndex, docTitle: doc.value.docTitle, docUrl: doc.value.docUrl }; const res = await axios.put(`${base}/course/document/update`, payload); const body = res?.data; if (body && Number(body.code) === 200) { ElMessage.success('文档已更新'); loadDocs() } else { ElMessage.error(body?.message || '更新失败') } } } catch (e) { console.error(e); ElMessage.error('更新失败，请稍后重试') } finally { savingDoc.value = false } }
 
     onMounted(() => { loadVideos(); loadDocs() })
+
     return { courseId, course, imagePreview, onCourseImageChange, video, doc, videos, documents, loadingVideos, loadingDocs, savingCourse, savingVideo, savingDoc, updateCourse, updateVideo, updateDoc, onEditVideoFileChange, onEditDocFileChange }
   }
 }

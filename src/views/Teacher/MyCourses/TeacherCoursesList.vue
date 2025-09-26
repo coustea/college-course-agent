@@ -55,7 +55,7 @@
       </div>
     </div>
 
-    <CoursePlayer v-if="activeCourse" v-model="playerVisible" :course-id="activeCourse.id" :title="activeCourse.title" :chapters="activeCourse.chapters || []" :fallback-src="activeCourse.videoUrl || ''" :enable-questions="false" @progress="onOverallProgress" />
+    <CoursePlayer v-if="activeCourse" v-model="playerVisible" :course-id="activeCourse.id" :title="activeCourse.title" :chapters="activeCourse.chapters || []" :fallback-src="activeCourse.videoUrl || ''" :video-count="(activeCourse.chapters && activeCourse.chapters.length) || activeCourse.videoCount || 0" :enable-questions="false" @progress="onOverallProgress" />
 
     <DocumentViewer v-model="docVisible" :id="activeDoc?.id" :title="activeDoc?.title || '文档课程'" :file-url="activeDoc?.fileUrl || activeDoc?.url || ''" :html-content="activeDoc?.html || ''" :chapters="activeDoc?.chapters || []" :course-title="activeDoc?.title || ''" :chapter-index="1" :progress="0" :image="activeDoc?.image || ''" :duration="activeDoc?.duration || ''" />
 
@@ -100,14 +100,15 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import CoursePlayer from '/src/components/CoursePlayer.vue'
 import DocumentViewer from '/src/components/DocumentViewer.vue'
-import { fetchHomeCourses } from '/src/services/homeCoursesApi'
 import { listStudents } from '/src/services/coursesApi'
+import axios from 'axios'
 
 const searchQuery = ref('')
 const activeFilter = ref('all')
 const courses = ref([])
 const loading = ref(false)
 const userName = ref('老师')
+let currentTeacherName = ''
 const router = useRouter()
 
 const formatDate = (input) => {
@@ -133,18 +134,155 @@ const filteredCourses = computed(() => {
 
 const setFilter = (filter) => { activeFilter.value = filter }
 
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+  if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  return config
+})
+const backendHost = (() => { try { const p = window?.location?.port; if (p === '4173' || p === '5173') return 'http://localhost:9999' } catch {} return '' })()
+const normalizeUrl = (url) => {
+  if (!url || typeof url !== 'string') return ''
+  if (/^(https?:|data:|blob:)/i.test(url)) return url
+  if (url.startsWith('/uploads/')) return (backendHost || '') + url
+  return url
+}
+
+// 为视频播放构造同源路径，避免 CORS：将 http(s)://.../uploads/** 重写为同源 /uploads/**
+const normalizeVideoUrl = (url) => {
+  if (!url || typeof url !== 'string') return ''
+  const u = String(url)
+  // 直接后端完整地址 → 改为同源 /uploads/**（已由 Vite 代理到后端）
+  const m = u.match(/^https?:\/\/[^/]+(:\d+)?\/(uploads\/.*)$/i)
+  if (m) return `/${m[2]}`
+  if (u.startsWith('/uploads/')) return u
+  // 其他情况复用 normalizeUrl
+  return normalizeUrl(u)
+}
+
 const loadCourses = async () => {
   if (loading.value) return
   loading.value = true
   try {
-    const list = await fetchHomeCourses()
+    // 获取教师ID
+    let teacherId = null
+    try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) teacherId = Number(u.id) } catch {}
+    if (!teacherId) { const tid = localStorage.getItem('teacherId'); if (tid) teacherId = Number(tid) }
+
+    // 优先调用教师聚合接口
+    let list = []
+    if (teacherId) {
+      try {
+        const res = await api.get('/teacher/videos', { params: { teacherId } })
+        const raw = res?.data
+        const data = raw?.data || {}
+        const coursesArr = Array.isArray(data?.courses) ? data.courses : []
+        list = coursesArr.map(c => {
+          const chapters = Array.isArray(c.videos)
+            ? c.videos.map(v => ({ title: v.title || v.videoTitle || '视频', videoUrl: normalizeVideoUrl(v.url || v.videoUrl || v.fileUrl || ''), duration: v.duration }))
+            : []
+          const firstVideoUrl = chapters[0]?.videoUrl || normalizeVideoUrl(c.videoUrl || '')
+          return {
+            id: c.id || c.course_id || c.courseId,
+            title: c.title || c.course_name || c.courseName || '未命名课程',
+            description: c.description || '',
+            image: normalizeUrl(c.image || c.resourceUrl || ''),
+            resourceUrl: normalizeUrl(c.resourceUrl || c.image || ''),
+            type: 'video',
+            startDate: c.createTime || c.start_date || '',
+            endDate: '',
+            teacher: currentTeacherName || '',
+            videoCount: Number(c.videoCount || (Array.isArray(c.videos) ? c.videos.length : 0) || 0),
+            docCount: Number(c.documentCount || 0),
+            studentCount: Number(c.studentCount || 0),
+            chapters,
+            videoUrl: firstVideoUrl
+          }
+        })
+      } catch {}
+    }
+
+    // 回退：全量列表再过滤当前教师
+    if (!Array.isArray(list) || list.length === 0) {
+      try {
+        const res = await api.get('/course/list')
+        const body = res?.data
+        const all = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
+        const filtered = teacherId ? all.filter(c => Number(c.teacherId) === teacherId) : all
+        list = filtered.map(c => {
+          const vids = Array.isArray(c.videos) ? c.videos : []
+          const chapters = vids.map(v => ({
+            title: v.videoTitle || v.title || `第${(v.videoIndex || v.index || 0) + 1}节`,
+            videoUrl: normalizeVideoUrl(v.videoUrl || v.url || v.fileUrl || ''),
+            duration: v.duration
+          }))
+          const firstVideoUrl = chapters[0]?.videoUrl || ''
+          return {
+            id: c.courseId,
+            title: c.courseName || '未命名课程',
+            description: c.description || '',
+            image: normalizeUrl(c.resourceUrl || ''),
+            resourceUrl: normalizeUrl(c.resourceUrl || ''),
+            type: vids.length > 0 ? 'video' : 'document',
+            startDate: c.startDate || '',
+            endDate: c.endDate || '',
+            teacher: (c.teacher && (c.teacher.name || c.teacher.t_name)) || c.t_name || currentTeacherName || '',
+            videoCount: vids.length,
+            docCount: Array.isArray(c.documents) ? c.documents.length : 0,
+            studentCount: 0,
+            chapters,
+            videoUrl: firstVideoUrl
+          }
+        })
+      } catch {}
+    }
+
     courses.value = Array.isArray(list) ? list : []
-  } catch { courses.value = [] } finally { loading.value = false }
+    // 动态刷新学生数
+    await updateStudentCounts()
+  } catch { courses.value = [] }
+  finally { loading.value = false }
+}
+
+const updateStudentCounts = async () => {
+  const base = API_BASE
+  const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const arr = courses.value
+  if (!Array.isArray(arr) || arr.length === 0) return
+  let idx = 0
+  const concurrency = 5
+  const workers = []
+  for (let i = 0; i < Math.min(concurrency, arr.length); i++) {
+    workers.push((async () => {
+      while (true) {
+        const cur = idx++
+        if (cur >= arr.length) break
+        const c = arr[cur]
+        if (!c || !c.id) continue
+        try {
+          const res = await fetch(`${base}/teacher/enrollments/students?courseId=${encodeURIComponent(c.id)}`, { headers })
+          const raw = await res.json().catch(() => ({}))
+          const count = (raw && Number(raw.code) === 200 && Array.isArray(raw.data)) ? raw.data.length : 0
+          courses.value[cur] = { ...courses.value[cur], studentCount: count }
+        } catch { courses.value[cur] = { ...courses.value[cur], studentCount: 0 } }
+      }
+    })())
+  }
+  await Promise.all(workers)
 }
 
 onMounted(() => {
   loadCourses()
-  try { const saved = JSON.parse(localStorage.getItem('userInfo') || 'null'); userName.value = saved?.name || '老师' } catch { userName.value = '老师' }
+  try {
+    const saved = JSON.parse(localStorage.getItem('userInfo') || 'null')
+    userName.value = saved?.name || '老师'
+    currentTeacherName = saved?.name || ''
+  } catch {
+    userName.value = '老师'
+    currentTeacherName = ''
+  }
 })
 
 const playerVisible = ref(false)

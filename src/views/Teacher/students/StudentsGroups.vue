@@ -151,11 +151,15 @@ import {ref, computed, onMounted} from 'vue'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import {Search} from '@element-plus/icons-vue'
 import axios from 'axios'
-
-// 创建axios实例
-const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
-  timeout: 10000
+// 动态后端基址 + Token 拦截
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
+api.interceptors.request.use((config) => {
+  try {
+    const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+    if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  } catch {}
+  return config
 })
 
 export default {
@@ -174,24 +178,8 @@ export default {
 
     // 数据
     const groups = ref([])
-    const courses = ref([
-      {id: 1, name: 'Web前端开发'},
-      {id: 2, name: 'Java程序设计'},
-      {id: 3, name: '数据库原理'},
-      {id: 4, name: '计算机网络'}
-    ])
-    const students = ref([
-      {id: 1, name: '张三', groupId: 1},
-      {id: 2, name: '李四', groupId: 1},
-      {id: 3, name: '王五', groupId: 1},
-      {id: 4, name: '赵六', groupId: 2},
-      {id: 5, name: '钱七', groupId: 2},
-      {id: 6, name: '孙八', groupId: 3},
-      {id: 7, name: '周九', groupId: 3},
-      {id: 8, name: '吴十', groupId: 3},
-      {id: 9, name: '郑一', groupId: 3},
-      {id: 10, name: '王二', groupId: 4}
-    ])
+    const courses = ref([])
+    const students = ref([])
 
     // 获取状态标签类型
     const getStatusTagType = (status) => {
@@ -258,100 +246,70 @@ export default {
       return filteredGroups.value.slice(start, end)
     })
 
-    // 获取分组数据
+    // 获取分组数据（接后端 /api/student-group/approvalStatus）
+    const requestApprovalStatus = async () => {
+      const params = {}
+      if (courseFilter.value) params.courseId = courseFilter.value
+      if (applicationStatusFilter.value) params.approvalStatus = applicationStatusFilter.value
+      // 优先尝试 GET ?params
+      try {
+        return await api.get('/student-group/approvalStatus', { params })
+      } catch (e) {
+        // 若后端不允许 GET（405），尝试 POST JSON
+        if (e?.response?.status === 405) {
+          return await api.post('/student-group/approvalStatus', params)
+        }
+        throw e
+      }
+    }
+
     const fetchGroups = async () => {
       loading.value = true
       try {
-        // 模拟API调用，使用模拟数据
-        const groupsRes = [
-          {
-            id: 1,
-            name: '前端开发组',
-            courseId: 1,
-            leaderId: 1,
-            description: '负责项目前端页面开发，使用Vue框架实现响应式布局'
-          },
-          {
-            id: 2,
-            name: '后端开发组',
-            courseId: 2,
-            leaderId: 4,
-            description: '负责后端服务开发，使用Spring Boot框架'
-          },
-          {
-            id: 3,
-            name: '数据库组',
-            courseId: 3,
-            leaderId: 6,
-            description: '负责数据库设计与优化，编写SQL查询语句'
-          },
-          {
-            id: 4,
-            name: '网络配置组',
-            courseId: 4,
-            leaderId: 10,
-            description: '负责网络拓扑设计与配置'
-          },
-          {
-            id: 5,
-            name: '测试组',
-            courseId: 1,
-            leaderId: 2,
-            description: '负责项目测试工作，编写测试用例'
-          },
-          {id: 6, name: '运维组', courseId: 4, leaderId: 5, description: '负责服务器部署与维护'}
-        ];
-
-        // 处理分组数据，添加成员信息
-        const groupsWithDetails = groupsRes.map(group => {
-          const groupStudents = students.value.filter(student => student.groupId === group.id);
-          const leader = students.value.find(student => student.id === group.leaderId);
-
+        const res = await requestApprovalStatus()
+        const raw = res?.data
+        const list = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : [])
+        const groupsWithDetails = list.map((g) => {
+          const id = g.id || g.groupId || g.group_id
+          const courseIdVal = g.courseId || g.course_id || g.course?.id
+          const courseName = g.courseName || g.course_name || g.course?.courseName || g.course?.name || '未知课程'
+          const leader = g.leader || g.leaderInfo || null
+          const leaderName = g.leaderName || leader?.name || leader?.username || '未知'
+          const memberListRaw = g.members || g.memberList || g.students || []
+          const memberList = Array.isArray(memberListRaw)
+            ? memberListRaw.map(m => (typeof m === 'string' ? { name: m } : m))
+            : String(memberListRaw || '').split(',').filter(Boolean).map(n => ({ name: n.trim() }))
+          const members = memberList.map(m => m.name || m.username || '').filter(Boolean).join(', ')
+          const memberCount = memberList.length
+          const status = g.status || g.approvalStatus || g.state || ''
           return {
-            ...group,
-            status: Math.random() > 0.5 ? 'approved' : 'pending', // 随机设置状态用于演示
-            members: groupStudents.map(s => s.name).join(', '),
-            memberList: groupStudents,
-            leaderName: leader ? leader.name : '未知',
-            memberCount: groupStudents.length,
-            courseName: courses.value.find(c => c.id === group.courseId)?.name || '未知课程'
+            id,
+            name: g.name || g.groupName || `分组#${id ?? ''}`,
+            courseId: courseIdVal,
+            courseName,
+            leaderId: leader?.id,
+            leaderName,
+            description: g.description || g.remark || '',
+            members,
+            memberList,
+            memberCount,
+            status,
           }
-        });
-
-        groups.value = groupsWithDetails;
-        // 更新未审批数量
-        updatePendingCountStorage();
-
-        // 如果需要真实API数据，取消下面注释并注释上面代码
-        /*
-        const [groupsRes, coursesRes, studentsRes] = await Promise.all([
-          api.get('/groups'),
-          api.get('/courses'),
-          api.get('/students')
-        ])
-
-        // 处理分组数据，添加成员信息
-        const groupsWithDetails = groupsRes.data.map(group => {
-          const groupStudents = studentsRes.data.filter(student => student.groupId === group.id);
-          const leader = studentsRes.data.find(student => student.id === group.leaderId);
-
-          return {
-            ...group,
-            status: Math.random() > 0.5 ? 'approved' : 'pending', // 随机设置状态用于演示
-            members: groupStudents.map(s => s.name).join(', '),
-            memberList: groupStudents,
-            leaderName: leader ? leader.name : '未知',
-            memberCount: groupStudents.length
-          }
-        });
+        })
 
         groups.value = groupsWithDetails
-        courses.value = coursesRes.data
-        students.value = studentsRes.data
-        */
+        // 从分组聚合课程下拉
+        const uniqueCourses = new Map()
+        for (const g of groupsWithDetails) {
+          if (!uniqueCourses.has(g.courseId)) uniqueCourses.set(g.courseId, { id: g.courseId, name: g.courseName })
+        }
+        courses.value = Array.from(uniqueCourses.values()).filter(c => c.id != null)
+
+        updatePendingCountStorage()
       } catch (error) {
         console.error('获取数据失败:', error)
-        ElMessage.error('获取数据失败')
+        const msg = error?.response?.data?.message || error?.message || '获取数据失败'
+        ElMessage.error(msg)
       } finally {
         loading.value = false
       }

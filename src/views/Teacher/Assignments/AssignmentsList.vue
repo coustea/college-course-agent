@@ -48,7 +48,7 @@
       >
         <el-table-column prop="title" label="检查标题" min-width="200" align="center">
         </el-table-column>
-        <el-table-column prop="courseName" label="班级" min-width="150" align="center">
+        <el-table-column prop="courseName" label="课程" min-width="150" align="center">
         </el-table-column>
         <el-table-column prop="deadline" label="截止日期" width="120" align="center">
           <template #default="scope">
@@ -222,8 +222,8 @@ export default {
       if (searchQuery.value) {
         const query = searchQuery.value.toLowerCase()
         result = result.filter(a =>
-          a.title.toLowerCase().includes(query) ||
-          a.courseName.toLowerCase().includes(query)
+          String(a.title || '').toLowerCase().includes(query) ||
+          String(a.courseName || '').toLowerCase().includes(query)
         )
       }
 
@@ -344,6 +344,23 @@ export default {
       })
     }
 
+    // 获取课程名映射
+    const buildCourseNameMap = async () => {
+      try {
+        const res = await api.get('/course/list')
+        const body = res?.data
+        const arr = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
+        const m = new Map()
+        for (const c of arr) {
+          const id = Number(c.courseId || c.id)
+          if (Number.isFinite(id)) m.set(id, c.courseName || c.title || '')
+        }
+        return m
+      } catch {
+        return new Map()
+      }
+    }
+
     // 获取检测项目列表：GET /api/teacherAssignments/{teacherId}
     const fetchAssignments = async () => {
       loading.value = true
@@ -371,7 +388,8 @@ export default {
           return {
             id: it.assignmentId,
             title: it.assignmentName || '未命名检测',
-            courseName: it.courseId ? `课程#${it.courseId}` : '—',
+            courseId: it.courseId || it.course_id,
+            courseName: it.courseName || it.course_name || (it.courseId ? `课程#${it.courseId}` : '—'),
             deadline: deadline,
             submittedCount: 0,
             totalGroups: 0,
@@ -379,6 +397,14 @@ export default {
             createdAt: ''
           }
         })
+        // 课程名增强：从课程列表补全
+        try {
+          const courseMap = await buildCourseNameMap()
+          assignments.value = assignments.value.map(a => {
+            const name = courseMap.get(Number(a.courseId))
+            return { ...a, courseName: name || a.courseName || (a.courseId ? `课程#${a.courseId}` : '—') }
+          })
+        } catch {}
         // 如果后端给的是 LocalDateTime（不带秒），补零再解析
         assignments.value = assignments.value.map(a => {
           let s = String(a.deadline || '').trim()

@@ -40,7 +40,7 @@
         </aside>
         <section class="course-main">
           <div class="video-container" ref="videoContainer" :class="{ theatre: isTheatre }">
-            <video ref="player" class="video-player" playsinline :src="currentSrc" crossorigin="anonymous"
+            <video ref="player" class="video-player" playsinline preload="metadata" :src="currentSrc"
                    @click="togglePlay" @timeupdate="onTimeUpdate(); syncPlayState()"
                    @loadedmetadata="onLoaded" @play="syncPlayState" @pause="syncPlayState" @ended="onEnded" @seeked="onSeeked"
                    @error="onVideoError">
@@ -226,15 +226,78 @@ const currentSrc = computed(() => {
   return currentChapter?.videoUrl || props.fallbackSrc
 })
 
+// 错误切换候选源，尽量自愈播放路径
+const triedSources = ref(new Set())
+const UPLOADS_ORIGIN = (import.meta?.env?.VITE_UPLOADS_ORIGIN || import.meta?.env?.VITE_BACKEND_ORIGIN || 'http://localhost:9999')
+function buildAltSources(src) {
+  const list = []
+  const s = String(src || '')
+  const add = (u) => { if (u && !list.includes(u)) list.push(u) }
+  // 当前章节与回退
+  const chapter = flatChapters.value[currentIndex.value]
+  add(chapter?.videoUrl)
+  add(props.fallbackSrc)
+  // /uploads <-> /media/uploads 互换
+  if (s.startsWith('/uploads/')) add(`/media${s}`)
+  if (s.startsWith('/media/uploads/')) add(s.replace(/^\/media/, ''))
+  // 绝对地址 host -> 同源 /uploads/**
+  const m = s.match(/^https?:\/\/[^/]+(:\d+)?\/(uploads\/.*)$/i)
+  if (m) add(`/${m[2]}`)
+  // 绝对地址 host -> 同源 /media/uploads/**
+  const m2 = s.match(/^https?:\/\/[^/]+(:\d+)?\/(media\/uploads\/.*)$/i)
+  if (m2) add(`/${m2[2]}`)
+  // 同源 /uploads/** -> 绝对后端 ORIGIN
+  const mu = s.match(/^\/(?:media\/)?(uploads\/.*)$/i)
+  if (mu) add(`${UPLOADS_ORIGIN}/${mu[1]}`)
+  return list.filter(Boolean)
+}
+
+async function isReachable(url) {
+  if (!url) return false
+  try {
+    const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-1' }, cache: 'no-store' })
+    if (res.ok) return true
+  } catch {}
+  try {
+    const res2 = await fetch(url, { method: 'HEAD', cache: 'no-store' })
+    return res2.ok
+  } catch {}
+  return false
+}
+
+async function choosePlayableAndLoad(preferred) {
+  const el = player.value
+  if (!el) return false
+  const start = String(preferred || '')
+  const candidates = [start, ...buildAltSources(start)].filter(Boolean)
+  for (const u of candidates) {
+    if (triedSources.value.has(u)) continue
+    // eslint-disable-next-line no-console
+    console.debug('[CoursePlayer] 尝试播放源:', u)
+    const ok = await isReachable(u)
+    if (ok) {
+      try {
+        el.src = u
+        el.load()
+        await el.play?.()
+        triedSources.value.add(u)
+        return true
+      } catch {}
+    }
+    triedSources.value.add(u)
+  }
+  return false
+}
+
 function onVideoError(e) {
   console.warn('视频加载失败，回退到 fallbackSrc', e)
   const el = player.value
   if (!el) return
-  if (props.fallbackSrc && el.src !== props.fallbackSrc) {
-    el.src = props.fallbackSrc
-    el.load()
-    el.play?.()
-  }
+  const cur = el.currentSrc || el.src || ''
+  if (!triedSources.value) triedSources.value = new Set()
+  triedSources.value.add(cur)
+  // 依次检测候选源，找到可访问的立即切换
+  choosePlayableAndLoad(cur)
 }
 
 const hasChapters = computed(() => flatChapters.value.length > 0)

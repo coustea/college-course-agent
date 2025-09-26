@@ -44,7 +44,7 @@ export default {
     const router = useRouter()
     const formRef = ref()
     const token = ref('')
-    const userInfo = (() => { try { return JSON.parse(localStorage.getItem('userInfo') || '{}') } catch { return {} } })()
+    const userInfo = (() => { try { return JSON.parse(localStorage.getItem('currentUser') || '{}') } catch { return {} } })()
     const teacherId = ref(userInfo?.id || '')
 
     const form = reactive({ title: '', description: '' })
@@ -83,7 +83,7 @@ export default {
         formData.append('courseCode', genCourseCode())
         formData.append('courseName', form.title)
         formData.append('description', form.description)
-        formData.append('teacherId', String(teacherId.value))
+        formData.append('teacherId', userInfo.id)
         if (imageFile.value) formData.append('image', imageFile.value)
         const response = await axios.post(`${base}/course/insert`, formData, { headers: { Authorization: `Bearer ${token.value}` } })
         const body = response?.data

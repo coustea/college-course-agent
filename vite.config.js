@@ -10,6 +10,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:9999', changeOrigin: true },
       '/media': { target: 'http://localhost:9999', changeOrigin: true },
+      '/uploads': { target: 'http://localhost:9999', changeOrigin: true },
     },
   },
 })
