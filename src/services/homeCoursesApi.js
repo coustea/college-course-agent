@@ -3,7 +3,13 @@ import axios from 'axios'
 
 // 将后端 resourceUrl/相对路径转换为可访问的完整 URL
 // 按需把所有相对地址统一拼上后端主机前缀
-const BACKEND_HOST = 'http://192.168.52.75:9999'
+const BACKEND_HOST = (() => {
+    try {
+        const p = window?.location?.port
+        if (p === '4173' || p === '5173') return 'http://localhost:9999'
+    } catch {}
+    return 'http://localhost:9999'
+})()
 const toUrl = (u) => {
     if (!u) return ''
     const s = String(u)
@@ -51,10 +57,11 @@ export async function fetchHomeCourses(signal) {
                     videoUrl: toUrl(v.url || v.videoUrl || v.resourceUrl || '')
                 }))
                 const docChapters = docs.map((d, i) => ({
-                    title: d.title || d.name || `第${i + 1}节`,
+                    title: d.title || d.name || d.docTitle || `第${i + 1}节`,
                     duration: d.duration || d.pages || '',
-                    fileUrl: toUrl(d.url || d.fileUrl || d.resourceUrl || ''),
-                    html: d.html || ''
+                    // 兼容后端字段：docUrl / fileUrl / url / resourceUrl
+                    fileUrl: toUrl(d.docUrl || d.fileUrl || d.url || d.resourceUrl || ''),
+                    html: d.html || d.content || ''
                 }))
 
                 // B 方案：两种类型都有时视为视频类
@@ -69,6 +76,8 @@ export async function fetchHomeCourses(signal) {
                     videoUrl: isVideo ? toUrl(videoChapters[0]?.videoUrl || '') : '',
                     videoCount: videos.length || 0,
                     docCount: docs.length || 0,
+                    // 文档课程兜底：若无章节但有 resourceUrl，则作为单文档
+                    fileUrl: (!isVideo && (!chapters || chapters.length === 0) && base.image) ? toUrl(base.image) : ''
                 }))
             }
 

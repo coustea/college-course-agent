@@ -115,10 +115,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import axios from 'axios'
 
-// 创建axios实例
-const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
-  timeout: 10000
+// 动态后端基址 + token 拦截
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+  if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  return config
 })
 
 export default {
@@ -296,22 +299,51 @@ export default {
       currentPage.value = val
     }
 
-    // 获取检查项目列表
+    // 获取检测项目列表：GET /api/teacherAssignments/{teacherId}
     const fetchAssignments = async () => {
       loading.value = true
       try {
-        // 实际API调用
-        // const response = await api.get('/assignments/checks')
-        // assignments.value = response.data
+        // 获取教师ID（userInfo.id -> teacherId 本地 -> 后端列表首个）
+        let teacherId = null
+        try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) teacherId = Number(u.id) } catch {}
+        if (!teacherId) { const tid = localStorage.getItem('teacherId'); if (tid) teacherId = Number(tid) }
+        if (!teacherId) {
+          try {
+            const tRes = await api.get('/teacher/list/teachers')
+            const tRaw = tRes?.data
+            const tList = (tRaw && Number(tRaw.code) === 200 && Array.isArray(tRaw.data)) ? tRaw.data : []
+            if (tList.length > 0) teacherId = Number(tList[0].id)
+          } catch {}
+        }
+        if (!teacherId) { ElMessage.error('未获取到教师ID'); assignments.value = []; return }
 
-        // 使用模拟数据
-        assignments.value = [...mockAssignments]
+        const res = await api.get(`/teacherAssignments/${teacherId}`)
+        const raw = res?.data
+        const list = (raw && Number(raw.code) === 200 && Array.isArray(raw.data)) ? raw.data : []
+        // 映射为表格需要的字段
+        const now = Date.now()
+        assignments.value = list.map((it) => {
+          const deadline = it.dueDate || ''
+          const ts = deadline ? new Date(deadline).getTime() : null
+          const status = ts && ts < now ? '已截止' : '进行中'
+          return {
+            id: it.assignmentId,
+            title: it.assignmentName || '未命名检测',
+            courseName: it.courseId ? `课程#${it.courseId}` : '—',
+            deadline: deadline,
+            submittedCount: 0,
+            totalGroups: 0,
+            status,
+            createdAt: ''
+          }
+        })
+        if (!assignments.value.length) {
+          ElMessage.info('当前教师暂无检测记录')
+        }
       } catch (error) {
-        console.error('获取检查项目列表失败:', error)
-        ElMessage.error('获取检查项目列表失败')
-
-        // 失败时使用模拟数据
-        assignments.value = [...mockAssignments]
+        console.error('获取检测列表失败:', error)
+        ElMessage.error('获取检测列表失败')
+        assignments.value = []
       } finally {
         loading.value = false
       }

@@ -38,7 +38,7 @@
               </div>
               <div class="info-item">
                 <label>工号</label>
-                <span>{{ teacherInfo.employeeId || '未设置' }}</span>
+                <span>{{ teacherInfo.employee_number || teacherInfo.employeeNumber || '未设置' }}</span>
               </div>
               <div class="info-item">
                 <label>学院</label>
@@ -166,14 +166,18 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Edit } from '@element-plus/icons-vue'
 import axios from 'axios'
 
-// 创建axios实例
-const api = axios.create({
-  baseURL: 'http://localhost:3000/api', // 根据实际后端地址修改
-  timeout: 10000
+// 动态后端基址
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+// axios 实例（附加 token）
+const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+  if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  return config
 })
 
 // 教师信息
@@ -219,24 +223,50 @@ const passwordRules = {
   ]
 }
 
-// 获取教师ID
+// 获取教师ID（优先登录信息）
 const teacherId = computed(() => {
-  return localStorage.getItem('teacherId') || 'default-id'
+  try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) return Number(u.id) } catch {}
+  const id = localStorage.getItem('teacherId')
+  return id ? Number(id) : null
 })
 
-// 获取教师信息
+// 获取教师信息（强匹配后端：优先 id -> username -> employeeNumber；命中后覆盖本地）
 const fetchTeacherData = async () => {
   try {
-    const token = localStorage.getItem('token')
-    const response = await api.get(`/teacher/${teacherId.value}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-    teacherInfo.value = { ...response.data }
+    // 读取本地登录信息用于匹配键
+    let local = null
+    try { local = JSON.parse(localStorage.getItem('userInfo') || 'null') } catch {}
+    const localId = Number(local?.id) || null
+    const localUsername = local?.username || null
+    const localEmpNo = local?.employeeNumber || local?.employee_number || null
+
+    const res = await api.get('/teacher/list/teachers')
+    const list = Array.isArray(res?.data?.data) ? res.data.data : []
+
+    // 多重匹配：id -> username -> employeeNumber -> teacherId 计算值 -> 首个
+    let found = null
+    if (localId) found = list.find(t => Number(t?.id) === localId) || null
+    if (!found && localUsername) found = list.find(t => (t?.username || '').toString() === localUsername) || null
+    if (!found && localEmpNo) found = list.find(t => (t?.employeeNumber || t?.employee_number || '').toString() === localEmpNo) || null
+    if (!found && teacherId.value) found = list.find(t => Number(t?.id) === Number(teacherId.value)) || null
+    if (!found && list.length) found = list[0]
+
+    if (found) {
+      const mapped = { ...found }
+      if (mapped.employee_number && !mapped.employeeNumber) mapped.employeeNumber = mapped.employee_number
+      teacherInfo.value = mapped
+      try { localStorage.setItem('userInfo', JSON.stringify(mapped)) } catch {}
+      return
+    }
+
+    // 后端未返回任何教师时，回退到本地
+    if (local && typeof local === 'object') {
+      const mapped = { ...local }
+      if (mapped.employee_number && !mapped.employeeNumber) mapped.employeeNumber = mapped.employee_number
+      teacherInfo.value = mapped
+    }
   } catch (error) {
     console.error('获取教师数据失败:', error)
-    ElMessage.error('获取教师数据失败')
   }
 }
 
@@ -247,29 +277,20 @@ const initEditForm = () => {
   })
 }
 
-// 保存个人信息
+// 保存个人信息（调用后端现有接口）
 const saveProfile = async () => {
   try {
     saving.value = true
     await editFormRef.value.validate()
-
-    const token = localStorage.getItem('token')
-    await api.put(`/teacher/${teacherId.value}`, editForm, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
+    if (!teacherId.value) { ElMessage.error('未获取到教师ID'); return }
+    await api.put(`/teacher/update/teacher`, editForm, { params: { id: teacherId.value } })
     teacherInfo.value = { ...teacherInfo.value, ...editForm }
+    try { localStorage.setItem('userInfo', JSON.stringify(teacherInfo.value)) } catch {}
     editDialogVisible.value = false
     ElMessage.success('个人信息更新成功')
   } catch (error) {
     console.error('更新个人信息失败:', error)
-    if (error.response && error.response.data && error.response.data.errors) {
-      ElMessage.error('请检查表单填写是否正确')
-    } else {
-      ElMessage.error('更新个人信息失败')
-    }
+    ElMessage.error('更新个人信息失败')
   } finally {
     saving.value = false
   }
@@ -295,31 +316,16 @@ const showPasswordDialog = () => {
   passwordDialogVisible.value = true
 }
 
-// 修改密码
+// 修改密码（若后端暂无对应接口，则暂不调用，仅前端校验）
 const changePassword = async () => {
   try {
     changingPassword.value = true
     await passwordFormRef.value.validate()
-
-    const token = localStorage.getItem('token')
-    await api.put(`/teacher/${teacherId.value}/password`, {
-      currentPassword: passwordForm.currentPassword,
-      newPassword: passwordForm.newPassword
-    }, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
+    ElMessage.success('已校验表单（后端密码修改接口未接入）')
     passwordDialogVisible.value = false
-    ElMessage.success('密码修改成功')
   } catch (error) {
     console.error('修改密码失败:', error)
-    if (error.response && error.response.data && error.response.data.errors) {
-      ElMessage.error('请检查密码填写是否正确')
-    } else {
-      ElMessage.error('修改密码失败: ' + (error.response?.data?.message || '未知错误'))
-    }
+    ElMessage.error('请检查密码填写是否正确')
   } finally {
     changingPassword.value = false
   }
@@ -353,33 +359,14 @@ const beforeAvatarUpload = (file) => {
   return true
 }
 
-// 处理头像上传
-const handleAvatarUpload = async (options) => {
-  const { file } = options
-  try {
-    const formData = new FormData()
-    formData.append('avatar', file)
-
-    const token = localStorage.getItem('token')
-    const response = await api.post(`/teacher/${teacherId.value}/avatar`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
-    teacherInfo.value.avatar = response.data.avatarUrl
-    ElMessage.success('头像上传成功')
-  } catch (error) {
-    console.error('头像上传失败:', error)
-    ElMessage.error('头像上传失败')
-  }
+// 处理头像上传（后端暂无接口，先提示占位）
+const handleAvatarUpload = async () => {
+  ElMessage.info('头像上传功能暂未接入后端')
 }
 
 // 初始化
 onMounted(() => {
-  fetchTeacherData()
-  initEditForm()
+  fetchTeacherData().then(() => initEditForm())
 })
 </script>
 

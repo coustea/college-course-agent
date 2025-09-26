@@ -15,9 +15,13 @@
       </el-form-item>
 
       <el-form-item label="课程封面">
-        <input type="file" accept="image/*" @change="onImageChange" />
-        <div v-if="imageName" class="filename">{{ imageName }}</div>
-        <img v-if="imagePreview" :src="imagePreview" alt="预览" class="avatar" />
+        <div class="cover-uploader">
+          <input type="file" accept="image/*" @change="onImageChange" />
+          <div v-if="imageName" class="file-name">{{ imageName }}</div>
+          <div v-if="imagePreview" class="image-preview">
+            <img :src="imagePreview" alt="预览" class="avatar" />
+          </div>
+        </div>
       </el-form-item>
 
       <el-form-item>
@@ -101,7 +105,9 @@ export default {
 .course-create { padding: 20px; max-width: 1300px; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 .avatar { width: 178px; height: 178px; display: block; }
-.filename { margin-top: 8px; color: #666; font-size: 13px; }
+.cover-uploader { display: flex; flex-direction: column; gap: 10px; }
+.file-name { font-size: 13px; color: #606266; }
+.image-preview { display: flex; justify-content: center; align-items: center; background: #f5f7fa; padding: 10px; border-radius: 8px; }
 </style>
 
 

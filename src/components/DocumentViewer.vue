@@ -69,12 +69,13 @@ const props = defineProps({
   chapters: { type: Array, default: () => [] }
 })
 
-const BACKEND_HOST = 'http://192.168.52.75:9999'
+const backendHost = (() => { try { const p = window?.location?.port; if (p === '4173' || p === '5173') return 'http://localhost:9999'; } catch {} return '' })()
 function toUrl(u) {
   if (!u) return ''
   const s = String(u)
   if (/^(https?:|data:|blob:)/.test(s)) return s
-  return `${BACKEND_HOST.replace(/\/$/, '')}/${s.replace(/^\//, '')}`
+  if (s.startsWith('/uploads/')) return (backendHost || '') + s
+  return s
 }
 
 const emit = defineEmits(['update:modelValue', 'next', 'prev', 'progressClick'])
@@ -87,7 +88,7 @@ const flatChapters = computed(() => {
     for (const n of nodes) {
       if (!n) continue
       const title = n.title || n.name || n.docTitle || ''
-      const fileUrl = n.docUrl
+      const fileUrl = n.docUrl || n.fileUrl || n.url || n.resourceUrl || ''
       const html = n.html || n.content || ''
       if (title || fileUrl || html) list.push({ title, fileUrl, html })
       if (Array.isArray(n.children)) walk(n.children)
@@ -114,7 +115,15 @@ const progressDisplay = computed(() => {
   const p = Math.round((readProgress.value || 0) * 100)
   return Number.isFinite(p) ? p : (props.progress || 0)
 })
-const safeHtml = computed(() => effectiveHtml.value || '<p style="color:#666">暂无内容</p>')
+const safeHtml = computed(() => {
+  if (effectiveHtml.value) return effectiveHtml.value
+  if (!viewerSrc.value && normalizedFileUrl.value) {
+    const name = (props.title || '文档')
+    const href = normalizedFileUrl.value
+    return `<div style="padding:16px;color:#666;">无法在线预览此文档（可能为内网/本地地址或格式不支持）。<a href="${href}" target="_blank" rel="noopener" style="color:#1a56db;">点击下载查看 (${name})</a></div>`
+  }
+  return '<p style="color:#666">暂无内容</p>'
+})
 
 const headerTitle = computed(() => {
   const course = props.courseTitle || props.title || '课程'
@@ -124,8 +133,7 @@ const headerTitle = computed(() => {
 })
 
 const normalizedFileUrl = computed(() => {
-  const fallback = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
-  const url = effectiveFileUrl.value || fallback
+  const url = effectiveFileUrl.value || ''
   return toUrl(url)
 })
 
@@ -135,16 +143,27 @@ const fileExt = computed(() => {
   return idx >= 0 ? u.slice(idx + 1).toLowerCase() : ''
 })
 
+function isPrivateUrl(u) {
+  try {
+    const loc = new URL(u)
+    const host = loc.hostname
+    if (host === 'localhost' || host === '127.0.0.1') return true
+    if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)) return true
+  } catch {}
+  return false
+}
 const viewerSrc = computed(() => {
-  if (!normalizedFileUrl.value) return ''
-  if (["doc","docx","ppt","pptx","xls","xlsx"].includes(fileExt.value)) {
-    return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(normalizedFileUrl.value)}`
+  const url = normalizedFileUrl.value
+  if (!url) return ''
+  const isOffice = ["doc","docx","ppt","pptx","xls","xlsx"].includes(fileExt.value)
+  if (isOffice) {
+    if (isPrivateUrl(url)) return ''
+    return `https://view.officeapps.live.com/op/view.aspx?ui=en-US&src=${encodeURIComponent(url)}`
   }
-  // 默认直接用浏览器原生 PDF/图片/文本预览
-  return normalizedFileUrl.value
+  return url
 })
 
-const isIframe = computed(() => !!effectiveFileUrl.value)
+const isIframe = computed(() => !!viewerSrc.value)
 
 // 按阅读进度在 40% 与 80% 触发问题
 async function maybeAskByProgress(pct) {

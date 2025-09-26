@@ -20,7 +20,7 @@
     <div class="table-container">
       <el-table :data="paginatedStudents" style="width: 100%" v-loading="loading" height="100%">
         <el-table-column type="index" label="序号" width="60" :style="{ textAlign: 'center' }" />
-        <el-table-column prop="studentId" label="学号" width="120" :style="{ textAlign: 'center' }" />
+        <el-table-column prop="studentNumber" label="学号" width="140" :style="{ textAlign: 'center' }" />
         <el-table-column prop="name" label="姓名" width="120" :style="{ textAlign: 'center' }" />
         <el-table-column prop="className" label="班级" width="120" :style="{ textAlign: 'center' }" />
         <el-table-column prop="phone" label="手机号" width="150" :style="{ textAlign: 'center' }" />
@@ -50,7 +50,7 @@
     <!-- 编辑学生对话框 -->
     <el-dialog :title="isEditing ? '编辑学生' : '添加学生'" v-model="showEditDialog" width="500px">
       <el-form :model="studentForm" label-width="80px" :rules="rules" ref="formRef">
-        <el-form-item label="学号" prop="studentId"><el-input v-model="studentForm.studentId" placeholder="请输入学号" /></el-form-item>
+        <el-form-item label="学号" prop="studentNumber"><el-input v-model="studentForm.studentNumber" placeholder="请输入学号" /></el-form-item>
         <el-form-item label="姓名" prop="name"><el-input v-model="studentForm.name" placeholder="请输入姓名" /></el-form-item>
         <el-form-item label="班级" prop="className">
           <el-select v-model="studentForm.className" placeholder="请选择班级">
@@ -66,7 +66,7 @@
     <!-- 学习进度弹窗 -->
     <el-dialog title="学生学习进度" v-model="showProgressDialog" width="80%" top="5vh" center>
       <div class="progress-content" v-if="selectedStudent">
-        <div class="student-info"><h3>{{ selectedStudent.name }} 的学习进度</h3><p>学号: {{ selectedStudent.studentId }} | 班级: {{ selectedStudent.className }}</p></div>
+        <div class="student-info"><h3>{{ selectedStudent.name }} 的学习进度</h3><p>学号: {{ selectedStudent.studentNumber || selectedStudent.studentId }} | 班级: {{ selectedStudent.className }}</p></div>
         <div class="table-container">
           <el-table :data="learningProgress" style="width: 100%" height="400">
             <el-table-column prop="courseName" label="课程名称" width="200" :style="{ textAlign: 'center' }" />
@@ -109,9 +109,9 @@ export default {
     const learningProgress = ref([])
 
     const students = ref([])
-    const studentForm = ref({ id: null, studentId: '', name: '', className: '', phone: '', email: '' })
+    const studentForm = ref({ id: null, studentNumber: '', name: '', className: '', phone: '', email: '' })
 
-    const rules = { studentId: [{ required: true, message: '请输入学号', trigger: 'blur' }], name: [{ required: true, message: '请输入姓名', trigger: 'blur' }], className: [{ required: true, message: '请选择班级', trigger: 'change' }] }
+    const rules = { studentNumber: [{ required: true, message: '请输入学号', trigger: 'blur' }], name: [{ required: true, message: '请输入姓名', trigger: 'blur' }], className: [{ required: true, message: '请选择班级', trigger: 'change' }] }
 
     const uploadAction = computed(() => `${import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api')}/teacher/import/students`)
     const uploadHeaders = ref({ 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` })
@@ -122,7 +122,11 @@ export default {
       let result = students.value
       if (searchQuery.value) {
         const query = searchQuery.value.toLowerCase()
-        result = result.filter(s => s.name.toLowerCase().includes(query) || s.studentId.toLowerCase().includes(query))
+        result = result.filter(s => {
+          const nm = (s.name || '').toLowerCase()
+          const sn = (s.studentNumber || s.studentId || '').toLowerCase()
+          return nm.includes(query) || sn.includes(query)
+        })
       }
       if (classFilter.value) result = result.filter(s => s.className === classFilter.value)
       if (statusFilter.value) result = result.filter(s => s.status === statusFilter.value)
@@ -180,13 +184,16 @@ export default {
     const saveStudent = async () => {
       try {
         await formRef.value.validate()
-        if (isEditing.value) { await updateStudent(studentForm.value.id, studentForm.value); const updatedStudent = { ...studentForm.value }; const index = students.value.findIndex(s => s.id === updatedStudent.id); if (index !== -1) students.value[index] = updatedStudent; ElMessage.success('学生信息更新成功') }
-        else { await insertStudent(studentForm.value); const newStudent = { ...studentForm.value, id: Date.now() }; students.value.push(newStudent); ElMessage.success('学生添加成功') }
+        // 向后端传输时兼容 studentId 与 studentNumber 两种字段
+        const payload = { ...studentForm.value }
+        if (!payload.studentId && payload.studentNumber) payload.studentId = payload.studentNumber
+        if (isEditing.value) { await updateStudent(studentForm.value.id, payload); const updatedStudent = { ...payload, id: studentForm.value.id }; const index = students.value.findIndex(s => s.id === updatedStudent.id); if (index !== -1) students.value[index] = { ...students.value[index], ...updatedStudent }; ElMessage.success('学生信息更新成功') }
+        else { await insertStudent(payload); const newStudent = { ...payload, id: Date.now() }; students.value.push(newStudent); ElMessage.success('学生添加成功') }
         showEditDialog.value = false; resetForm()
       } catch (error) { if (error !== 'cancel') { console.error('保存学生失败:', error); ElMessage.error('保存学生失败') } }
     }
 
-    const resetForm = () => { studentForm.value = { id: null, studentId: '', name: '', className: '', phone: '', email: '' }; isEditing.value = false }
+    const resetForm = () => { studentForm.value = { id: null, studentNumber: '', name: '', className: '', phone: '', email: '' }; isEditing.value = false }
     const beforeUpload = (file) => { const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.type === 'application/vnd.ms-excel'; if (!isExcel) { ElMessage.error('只能上传Excel文件!'); return false } return true }
     const handleUploadSuccess = (response) => { if (response && Number(response.code) === 200) { ElMessage.success('学生导入成功'); showImportDialog.value = false; fileList.value = []; fetchStudents() } else { ElMessage.error(response?.message || '学生导入失败') } }
     const handleUploadError = (error) => { console.error('上传失败:', error); ElMessage.error('学生导入失败') }

@@ -17,7 +17,7 @@ const teacherRoutes = [
   { path: '/teacher/courses', name: 'TeacherCourses', component: () => import('../views/Teacher/Courses.vue'), meta: { requiresAuth: true, role: 'teacher', title: '课程管理' },
     children: [
       { path: '', redirect: 'list' },
-      { path: 'list', name: 'TeacherCoursesList', component: () => import('../views/student/Home.vue'), meta: { title: '课程列表' } },
+      { path: 'list', name: 'TeacherCoursesList', component: () => import('../views/Teacher/MyCourses/TeacherCoursesList.vue'), meta: { title: '课程列表' } },
       { path: 'create', name: 'TeacherCoursesCreate', component: () => import('../views/Teacher/MyCourses/CoursesCreate.vue'), meta: { title: '创建课程' } },
       { path: 'edit/:id', name: 'TeacherCourseEdit', component: () => import('../views/Teacher/MyCourses/CourseEdit.vue'), meta: { title: '编辑课程' } },
       { path: ':id/materials', name: 'TeacherCourseMaterials', component: () => import('../views/Teacher/MyCourses/CourseMaterials.vue'), meta: { title: '课程内容管理' } },

@@ -69,6 +69,8 @@
             <span>{{ course.teacher || '教师待定' }}</span>
           </div>
           <div v-if="isTeacherCoursesPage" class="teacher-actions" @click.stop>
+            <button class="btn-secondary" @click.stop="openStudentManager(course)">学生管理</button>
+            <button class="btn-secondary" @click.stop="editCourse(course)">修改课程</button>
             <button class="btn-primary" @click.stop="editCourseMaterials(course)">编辑课程内容</button>
             <button class="btn-danger" @click.stop="deleteCourse(course)">删除课程</button>
           </div>
@@ -106,6 +108,27 @@
         :image="activeDoc?.image || ''"
         :duration="activeDoc?.duration || ''"
     />
+
+    <!-- 教师端：学生管理对话框（将学生选入当前课程） -->
+    <el-dialog v-model="studentManagerVisible" :title="'学生管理 - ' + (managingCourse?.title || '课程')" width="720px">
+      <div class="student-manager">
+        <div class="toolbar">
+          <el-input v-model="studentSearch" placeholder="搜索姓名或学号" clearable style="max-width: 260px;" />
+          <el-button type="primary" :loading="enrolling" @click="enrollSelectedStudents">加入选中学生</el-button>
+        </div>
+        <el-table :data="filteredStudentList" style="width: 100%" height="360" v-loading="studentLoading" @selection-change="onStudentSelectionChange">
+          <el-table-column type="selection" width="48" fixed="left" />
+          <el-table-column prop="studentNumber" label="学号" width="140" />
+          <el-table-column prop="name" label="姓名" width="120" />
+          <el-table-column prop="className" label="班级" width="120" />
+          <el-table-column prop="phone" label="手机号" width="150" />
+        </el-table>
+      </div>
+      <template #footer>
+        <el-button @click="studentManagerVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="enrolling" @click="enrollSelectedStudents">加入选中学生</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -115,6 +138,7 @@ import { useRouter, useRoute } from 'vue-router'
 import CoursePlayer from '/src/components/CoursePlayer.vue'
 import DocumentViewer from '/src/components/DocumentViewer.vue'
 import { fetchHomeCourses } from '/src/services/homeCoursesApi'
+import { listStudents } from '/src/services/coursesApi'
 
 const searchQuery = ref('')
 const activeFilter = ref('all')
@@ -207,6 +231,77 @@ const onCardClick = (course) => {
 const filterCourses = () => {}
 // 教师课程列表页面判定
 const isTeacherCoursesPage = computed(() => route.path.startsWith('/teacher/courses/list'))
+
+// 学生管理（选入课程）
+const studentManagerVisible = ref(false)
+const studentLoading = ref(false)
+const studentList = ref([])
+const studentSearch = ref('')
+const selectedStudents = ref([])
+const managingCourse = ref(null)
+const enrolling = ref(false)
+
+const filteredStudentList = computed(() => {
+  const q = (studentSearch.value || '').toLowerCase().trim()
+  if (!q) return studentList.value
+  return (studentList.value || []).filter(s => {
+    const name = String(s.name || '').toLowerCase()
+    const no = String(s.studentNumber || s.studentId || '').toLowerCase()
+    return name.includes(q) || no.includes(q)
+  })
+})
+
+const openStudentManager = async (course) => {
+  managingCourse.value = course
+  studentManagerVisible.value = true
+  await fetchStudentList()
+}
+
+const fetchStudentList = async () => {
+  try {
+    studentLoading.value = true
+    const res = await listStudents()
+    const body = res?.data
+    const arr = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
+    studentList.value = arr
+  } catch (e) {
+    studentList.value = []
+  } finally {
+    studentLoading.value = false
+  }
+}
+
+const onStudentSelectionChange = (rows) => { selectedStudents.value = rows || [] }
+
+const enrollSelectedStudents = async () => {
+  if (!managingCourse.value) return
+  const cid = managingCourse.value.id || managingCourse.value.courseId
+  if (!cid) return
+  const base = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+  const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  try {
+    enrolling.value = true
+    for (const stu of selectedStudents.value) {
+      const sid = stu.id
+      if (!sid) continue
+      await fetch(`${base}/teacher/enroll?studentId=${encodeURIComponent(sid)}&courseId=${encodeURIComponent(cid)}`, { method: 'POST', headers })
+    }
+    alert('已加入所选学生')
+    studentManagerVisible.value = false
+  } catch (e) {
+    alert('操作失败，请稍后重试')
+  } finally {
+    enrolling.value = false
+  }
+}
+
+// 修改课程（跳编辑页）
+const editCourse = (course) => {
+  const id = course.id || course.courseId
+  if (!id) return
+  router.push(`/teacher/courses/edit/${id}`)
+}
 
 // 进入课程内容管理
 const editCourseMaterials = (course) => {
@@ -445,25 +540,39 @@ function ensureDocChapters(course) {
 
 .teacher-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 4px;
+  margin-top: 8px;
 }
 .btn-primary {
-  padding: 6px 12px;
+  padding: 4px 8px;
   background: #2563eb;
   color: #fff;
   border: none;
   border-radius: 6px;
   cursor: pointer;
+  font-size: 12px;
 }
 .btn-primary:hover { background: #1d4ed8; }
+.btn-secondary {
+  padding: 4px 8px;
+  background: #64748b;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.btn-secondary:hover { background: #475569; }
+
+.student-manager .toolbar { display: flex; gap: 10px; justify-content: space-between; margin-bottom: 10px; }
 .btn-danger {
-  padding: 6px 12px;
+  padding: 4px 8px;
   background: #ef4444;
   color: #fff;
   border: none;
   border-radius: 6px;
   cursor: pointer;
+  font-size: 12px;
 }
 .btn-danger:hover { background: #dc2626; }
 
