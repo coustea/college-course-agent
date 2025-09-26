@@ -84,5 +84,11 @@
         WHERE grade = #{grade}
         ORDER BY id DESC
     </select>
+    <select id="selectByClassName" resultMap="StudentRM">
+        SELECT id, student_number, name, email, phone, class_name, major, grade, enrollment_year
+        FROM students
+        WHERE class_name = #{className}
+
+    </select>
 
 </mapper>

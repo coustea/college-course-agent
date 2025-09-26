@@ -15,4 +15,5 @@ public interface StudentService {
     List<Student> selectAll();
     Student selectById(Long id);
     List<Student> selectByGrade(String grade);
+    List<Student> selectByClassName(String className);
 }

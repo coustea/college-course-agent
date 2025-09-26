@@ -55,4 +55,9 @@ public class StudentServiceImpl implements StudentService {
         return studentMapper.selectByGrade(grade);
     }
 
+    @Override
+    public List<Student> selectByClassName(String className) {
+        return studentMapper.selectByClassName(className);
+    }
+
 }

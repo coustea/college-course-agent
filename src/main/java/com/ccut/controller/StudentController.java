@@ -25,24 +25,37 @@ public class StudentController {
     private StudentServiceImpl studentService;
 
     @GetMapping("/by-grade")
-    public Result<java.util.List<Student>> listByGrade(@RequestParam("grade") String grade){
+    public Result<java.util.List<Student>> listByGrade(@RequestParam("grade") String grade) {
         try {
             if (grade == null || grade.trim().isEmpty()) {
                 return Result.error(400, "grade 不能为空");
             }
             return Result.success(studentService.selectByGrade(grade.trim()));
-        } catch (Exception e){
+        } catch (Exception e) {
             return Result.error(500, e.getMessage());
         }
     }
+
     @PostMapping
-    public Result<Student> insert(@RequestBody Student student){
+    public Result<Student> insert(@RequestBody Student student) {
         int res = studentService.insert(student);
         if (res <= 0) {
             log.error("添加学生失败：{}", student);
             return Result.error(500, "添加学生失败");
         }
         return Result.success(student);
+    }
+
+    @GetMapping("/class/{className}")
+    public Result<List<Student>> selectByClassName(@PathVariable("className") String className) {
+        try {
+            if (className == null || className.trim().isEmpty()) {
+                return Result.error(400, "className 不能为空");
+            }
+            return Result.success(studentService.selectByClassName(className.trim()));
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
     }
 }
 
