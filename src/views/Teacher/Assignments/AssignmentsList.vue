@@ -55,11 +55,11 @@
             {{ formatDate(scope.row.deadline) }}
           </template>
         </el-table-column>
-        <el-table-column prop="submittedCount" label="完成情况" width="120" align="center">
+        <el-table-column prop="submittedCount" label="完成情况" width="140" align="center">
           <template #default="scope">
-            <span>{{ scope.row.submittedCount }}/{{ scope.row.totalGroups }}</span>
+            <span>{{ Number(scope.row.submittedCount) || 0 }}/{{ Number(scope.row.totalGroups) || 0 }}</span>
             <el-progress
-              :percentage="Math.round((scope.row.submittedCount / scope.row.totalGroups) * 100)"
+              :percentage="safePct(scope.row.submittedCount, scope.row.totalGroups)"
               :show-text="false"
               style="margin-top: 5px;"
             />
@@ -109,7 +109,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
@@ -142,6 +142,13 @@ export default {
 
     // 检查项目数据
     const assignments = ref([])
+    const safePct = (done, total) => {
+      const d = Number(done) || 0
+      const t = Number(total) || 0
+      if (t <= 0) return 0
+      const p = Math.round((d / t) * 100)
+      return Math.max(0, Math.min(100, p))
+    }
 
     // 模拟数据 - 用于调试
     const mockAssignments = [
@@ -299,6 +306,44 @@ export default {
       currentPage.value = val
     }
 
+    // 解析截止时间为时间戳（兼容 yyyy-MM-dd HH:mm）
+    const parseDeadlineTs = (deadline) => {
+      if (!deadline) return null
+      const s = String(deadline).trim()
+      // 提取本地年月日时分秒，忽略 T/Z 等，以本地时间构造
+      const re = /(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/
+      const m = s.match(re)
+      if (m) {
+        const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3])
+        const hh = Number(m[4]); const mm = Number(m[5]); const ss = Number(m[6] || 0)
+        // 约定：若后端时间为当天 00:00:00，视为当日 23:59:59 截止
+        const hh2 = (hh === 0 && mm === 0 && ss === 0) ? 23 : hh
+        const mm2 = (hh === 0 && mm === 0 && ss === 0) ? 59 : mm
+        const ss2 = (hh === 0 && mm === 0 && ss === 0) ? 59 : ss
+        const ts = new Date(y, mo - 1, d, hh2, mm2, ss2).getTime()
+        return Number.isFinite(ts) ? ts : null
+      }
+      // 仅有日期（到日） -> 视为该天 23:59:59 截止
+      const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      if (m2) {
+        const y = Number(m2[1]); const mo = Number(m2[2]); const d = Number(m2[3])
+        const ts = new Date(y, mo - 1, d, 23, 59, 59).getTime()
+        return Number.isFinite(ts) ? ts : null
+      }
+      const ts = new Date(s).getTime()
+      return Number.isFinite(ts) ? ts : null
+    }
+
+    let statusTimer = null
+    const updateStatuses = () => {
+      const now = Date.now()
+      assignments.value = (assignments.value || []).map(a => {
+        const ts = parseDeadlineTs(a.deadline)
+        const status = ts != null && ts < now ? '已截止' : '进行中'
+        return { ...a, status }
+      })
+    }
+
     // 获取检测项目列表：GET /api/teacherAssignments/{teacherId}
     const fetchAssignments = async () => {
       loading.value = true
@@ -321,11 +366,8 @@ export default {
         const raw = res?.data
         const list = (raw && Number(raw.code) === 200 && Array.isArray(raw.data)) ? raw.data : []
         // 映射为表格需要的字段
-        const now = Date.now()
         assignments.value = list.map((it) => {
           const deadline = it.dueDate || ''
-          const ts = deadline ? new Date(deadline).getTime() : null
-          const status = ts && ts < now ? '已截止' : '进行中'
           return {
             id: it.assignmentId,
             title: it.assignmentName || '未命名检测',
@@ -333,10 +375,18 @@ export default {
             deadline: deadline,
             submittedCount: 0,
             totalGroups: 0,
-            status,
+            status: '进行中',
             createdAt: ''
           }
         })
+        // 如果后端给的是 LocalDateTime（不带秒），补零再解析
+        assignments.value = assignments.value.map(a => {
+          let s = String(a.deadline || '').trim()
+          if (s && /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/.test(s)) s = s + ':00'
+          return { ...a, deadline: s }
+        })
+        updateStatuses()
+        if (!statusTimer) statusTimer = setInterval(updateStatuses, 60000)
         if (!assignments.value.length) {
           ElMessage.info('当前教师暂无检测记录')
         }
@@ -348,6 +398,8 @@ export default {
         loading.value = false
       }
     }
+
+    onUnmounted(() => { if (statusTimer) { clearInterval(statusTimer); statusTimer = null } })
 
     // 初始化数据
     onMounted(() => {
@@ -371,7 +423,8 @@ export default {
       deleteAssignment,
       handleSizeChange,
       handleCurrentChange,
-      fetchAssignments
+      fetchAssignments,
+      safePct
     }
   }
 }
