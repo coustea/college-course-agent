@@ -46,7 +46,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Line, Bar } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -61,6 +61,8 @@ import {
   Filler
 } from 'chart.js'
 
+import { fetchHomeCourses } from '/src/services/homeCoursesApi'
+
 const selectedCourse = ref('__all__')
 const timeFilter = ref('week')
 const selectedTypes = ref({ video: true, document: true })
@@ -69,45 +71,77 @@ function toggleType(key) {
   selectedTypes.value[key] = !selectedTypes.value[key]
 }
 
-// 模拟课程数据
-const allCourses = [
-  '习近平新时代中国特色社会主义思想',
-  '毛泽东思想和中国特色社会主义理论体系概论',
-  '中国近现代史纲要',
-  '思想道德修养与法律基础',
-  '形势与政策',
-  '军事理论',
-  '中华优秀传统文化',
-  '革命文化教育',
-  '社会主义先进文化'
-]
+// 与首页绑定：复用首页课程数据源
+const homeCourses = ref([])
+onMounted(async () => {
+  try {
+    const list = await fetchHomeCourses()
+    homeCourses.value = Array.isArray(list) ? list : []
+  } catch {
+    homeCourses.value = []
+  }
+})
 
-const allCoursesProgress = [92, 85, 78, 65, 88, 70, 95, 82, 75, 90]
+// 课程名称列表
+const allCourses = computed(() => (homeCourses.value || [])
+  .map(c => c.title || c.courseName || '')
+  .filter(Boolean))
 
-// 课程类型分类
-const courseTypes = {
-  '习近平新时代中国特色社会主义思想': 'video',
-  '毛泽东思想和中国特色社会主义理论体系概论': 'video',
-  '中国近现代史纲要': 'document',
-  '思想道德修养与法律基础': 'video',
-  '形势与政策': 'document',
-  '军事理论': 'video',
-  '中华优秀传统文化': 'document',
-  '革命文化教育': 'video',
-  '社会主义先进文化': 'document'
-}
+// 课程类型映射：name -> 'video' | 'document'
+const courseTypes = computed(() => {
+  const map = {}
+  for (const c of (homeCourses.value || [])) {
+    const name = c.title || c.courseName || ''
+    if (!name) continue
+    const t = c.type === 'video' ? 'video' : 'document'
+    map[name] = t
+  }
+  return map
+})
+
+// 课程整体进度（0-100），若后端无值则默认为 0
+const allCoursesProgress = computed(() => (homeCourses.value || []).map(c => {
+  const v = c.progress ?? c.overall ?? c.overallProgress ?? c.completionRate
+  const n = Number(v)
+  if (Number.isFinite(n)) return Math.max(0, Math.min(100, n))
+  return 0
+}))
 
 const singleCourseChapters = [
   '第一章', '第二章', '第三章', '第四章', '第五章',
   '第六章', '第七章', '第八章', '第九章', '第十章'
 ]
 // 按课程自定义章节进度（示例），没有配置则按“单条”展示
-const courseChaptersMap = {
-  '中国近现代史纲要': [78, 82, 69, 74, 88, 63, 70, 75],
-  '思想道德修养与法律基础': [65, 72, 68, 71, 69, 73],
-  '毛泽东思想和中国特色社会主义理论体系概论': [90, 86, 92, 84, 88, 91, 87],
-  '中华优秀传统文化': [60, 66, 71, 69, 74],
-}
+// 提取并拍平成“章节进度”数组：支持多层 children；若无进度字段则默认 0
+const courseChaptersMap = computed(() => {
+  const map = {}
+  const flatten = (nodes = [], acc = []) => {
+    for (const node of nodes) {
+      if (Array.isArray(node?.children) && node.children.length) {
+        flatten(node.children, acc)
+      } else {
+        acc.push(node)
+      }
+    }
+    return acc
+  }
+  for (const c of (homeCourses.value || [])) {
+    const name = c.title || c.courseName || ''
+    if (!name) continue
+    const raw = Array.isArray(c.chapters) ? c.chapters : []
+    const leafChapters = flatten(raw, [])
+    if (leafChapters.length > 1) {
+      const progresses = leafChapters.map(ch => {
+        const v = ch?.progress ?? ch?.completionRate ?? ch?.overall ?? 0
+        const n = Number(v)
+        if (Number.isFinite(n)) return Math.max(0, Math.min(100, n))
+        return 0
+      })
+      map[name] = progresses
+    }
+  }
+  return map
+})
 
 const timeData = {
   week: {
@@ -136,25 +170,31 @@ ChartJS.register(
 
 const progressChartData = computed(() => {
   if (selectedCourse.value === '__all__') {
-    const visibleIdx = allCourses
+    const names = allCourses.value
+    const types = courseTypes.value
+    const progress = allCoursesProgress.value
+    const visibleIdx = names
         .map((name, idx) => ({ name, idx, type: courseTypes[name] }))
-        .filter(({ type }) => (type === 'video' && selectedTypes.value.video) || (type === 'document' && selectedTypes.value.document) || (type !== 'video' && type !== 'document'))
+        .filter(({ name, type }) => {
+          const t = types[name] || type
+          return (t === 'video' && selectedTypes.value.video) || (t === 'document' && selectedTypes.value.document) || (t !== 'video' && t !== 'document')
+        })
         .map(({ idx }) => idx)
 
     return {
       labels: visibleIdx.map(i => {
-        const course = allCourses[i]
+        const course = names[i]
         return course.length > 12 ? course.substring(0, 12) + '...' : course
       }),
       datasets: [{
         label: '学习进度',
-        data: visibleIdx.map(i => allCoursesProgress[i]),
+        data: visibleIdx.map(i => progress[i]),
         backgroundColor: visibleIdx.map(i => {
-          const t = courseTypes[allCourses[i]]
+          const t = types[names[i]]
           return t === 'video' ? '#3b82f6' : t === 'document' ? '#10b981' : '#6b7280'
         }),
         borderColor: visibleIdx.map(i => {
-          const t = courseTypes[allCourses[i]]
+          const t = types[names[i]]
           return t === 'video' ? '#2563eb' : t === 'document' ? '#059669' : '#4b5563'
         }),
         borderWidth: 1,
@@ -170,8 +210,10 @@ const progressChartData = computed(() => {
 
   // 选中单课程：如果是单视频/单文档，仅保留该课程数据；若有章节则 y 轴为章节列表
   const name = selectedCourse.value
-  const type = courseTypes[name]
-  const chapterProgress = courseChaptersMap[name]
+  const types = courseTypes.value
+  const chapterMap = courseChaptersMap.value
+  const type = types[name]
+  const chapterProgress = chapterMap[name]
   if (Array.isArray(chapterProgress) && chapterProgress.length > 1) {
     // 多章节：按章节数量动态生成标签与进度
     const labels = Array.from({ length: chapterProgress.length }, (_, i) => `第${i + 1}章`)
@@ -195,8 +237,8 @@ const progressChartData = computed(() => {
     }
   }
 
-  const idx = allCourses.indexOf(name)
-  const value = idx >= 0 ? allCoursesProgress[idx] : 0
+  const idx = allCourses.value.indexOf(name)
+  const value = idx >= 0 ? allCoursesProgress.value[idx] : 0
   return {
     labels: [name.length > 12 ? name.substring(0, 12) + '...' : name],
     datasets: [{
@@ -387,6 +429,7 @@ const timeChartOptions = ref({
 })
 
 const updateCharts = () => {}
+// 选中项变化时，图表已根据 selectedCourse 的计算属性联动；此处仅作为手动触发器
 </script>
 
 <style scoped>
@@ -440,6 +483,8 @@ const updateCharts = () => {}
   color: #1f2937;
   margin: 0;
 }
+
+/* 课程选择改回右侧下拉，无需课程 pills 样式 */
 
 .chart-filter select {
   padding: 8px 12px;

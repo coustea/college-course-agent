@@ -60,7 +60,7 @@ export async function getAllCoursesSummary() {
 export async function resetCourseProgress(courseId) {
     try {
         await api.delete(`/progress/${encodeURIComponent(courseId)}`)
-    } catch {}
+    } catch (e) { console.error(e) }
 }
 
 /**
@@ -78,7 +78,7 @@ export async function reportLearningHeartbeat(payload, signal) {
             durationSec: payload.durationSec,
         }
         await api.post(`/progress/course/heartbeat`, body, { signal })
-    } catch {}
+    } catch (e) { console.error(e) }
 }
 
 /**
@@ -100,6 +100,7 @@ export async function getCourseCompletion(courseId, signal) {
 /**
  * 获取学习时间分布
  * @param {'7d'|'30d'} range 最近一周或最近一月
+ * @param signal
  * @returns {Promise<{days: string[], video: number[], doc: number[]}>}
  */
 export async function getTimeDistribution(range = '7d', signal) {
@@ -109,7 +110,7 @@ export async function getTimeDistribution(range = '7d', signal) {
         if (Array.isArray(d.days) && Array.isArray(d.video) && Array.isArray(d.doc)) {
             return d
         }
-    } catch {}
+    } catch (e) { console.error(e) }
     // 本地兜底：生成等长的轻量数据，避免空图
     const length = range === '30d' ? 30 : 7
     const days = Array.from({ length }, (_, i) => {

@@ -6,9 +6,9 @@ import axios from 'axios'
 const BACKEND_HOST = (() => {
     try {
         const p = window?.location?.port
-        if (p === '4173' || p === '5173') return 'http://localhost:9999'
-    } catch {}
-    return 'http://localhost:9999'
+        if (p === '4173' || p === '5173') return 'http://192.168.52.75:9999'
+    } catch (e) { console.error(e) }
+    return 'http://192.168.52.75:9999'
 })()
 const toUrl = (u) => {
     if (!u) return ''
@@ -45,6 +45,7 @@ export async function fetchHomeCourses(signal) {
                     startDate: c.startDate || '',
                     endDate: c.endDate || '',
                     teacher: c.teacher.name || '无',
+                    teacherId: c.teacher.id || null,
                     category: c.courseCode || c.category || '',
                 }
 

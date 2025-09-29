@@ -14,15 +14,16 @@ function toUrl(u) {
     return `${BASE.replace(/\/$/, '')}/${s.replace(/^\//, '')}`
 }
 
-export async function getStudentsByGrade(grade, signal) {
-    const url = toUrl(`/api/student/by-grade`)
-    const resp = await http.get(url, { params: { grade }, signal })
-    console.log('学生分组列表',resp.data)
+export async function getStudentsByGrade(className, signal) {
+    console.log('className', className)
+    const url = toUrl(`/api/student/class/${className}`)
+    const resp = await http.get(url, { params: { className }, signal })
+    console.log('学生列表',resp.data)
     return Array.isArray(resp?.data) ? resp.data : (resp?.data?.data || [])
 }
 
 export async function createStudentGroup(payload, signal) {
-    const url = toUrl(`/api/student-group/insert`)
+    const url = toUrl(`/api/student-group`)
     const resp = await http.post(url, payload, { signal })
     console.log('创建的学生分组', resp.data)
     return resp?.data

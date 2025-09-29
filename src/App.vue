@@ -17,7 +17,6 @@ const route = useRoute()
 const noLayoutPaths = ['/', '/login', '/404', '/not-found']
 
 const hasLayout = computed(() => {
-  // 精确匹配，而不是使用 startsWith
   return !noLayoutPaths.includes(route.path)
 })
 
@@ -35,7 +34,6 @@ onMounted(() => {
 </script>
 
 <style>
-/* 全局CSS变量 - 这些会被JavaScript动态覆盖 */
 :root {
   --primary-color: #409EFF;
   --primary-light: #79bbff;

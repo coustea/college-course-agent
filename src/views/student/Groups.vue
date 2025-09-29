@@ -1,41 +1,53 @@
 <template>
-  <div class="welcome">
-    <div class="title-row" v-show="!taskOnlyMode">
-      <h1 class="page-title">学习分组</h1>
+  <div class="header">
+    <h1 class="page-title">学习分组</h1>
+    <div class="header-right">
       <span
           class="status-chip"
           :class="{
-            'status-not-formed': groupStatus === 'none',
-            'status-pending': groupStatus === 'pending',
-            'status-approved': groupStatus === 'approved'
-          }"
+                'status-not-formed': groupStatus === 'none',
+                'status-pending': groupStatus === 'pending',
+                'status-approved': groupStatus === 'approved'
+              }"
       >
-          我的组队状态：{{ groupStatus === 'none' ? '未组队' : (groupStatus === 'pending' ? '待审批' : '已组队') }}
-        </span>
+              我的组队状态：{{ groupStatus === 'none' ? '未组队' : (groupStatus === 'pending' ? '待审批' : '已组队') }}
+            </span>
+      <span v-if="isSelecting && groupStatus === 'none'" class="selected-count">已选择 {{ selectedMembers.length }} 人</span>
     </div>
-    <div class="filters-row" v-show="!taskOnlyMode">
-      <el-input
-          v-model="keyword"
-          placeholder="搜索学生姓名或学号..."
-          clearable
-          prefix-icon="el-icon-search"
-          style="max-width: 420px; width: 100%"
-      />
-      <el-select v-model="statusFilter" clearable placeholder="组队状态" style="width: 160px">
-        <el-option label="全部" :value="''" />
-        <el-option label="未组队" value="available" />
-        <el-option label="已组队" value="unavailable" />
-      </el-select>
-      <div class="actions-spacer"></div>
-      <el-button type="primary" @click="createNewGroup">新建小组</el-button>
-    </div>
+  </div>
 
+
+  <div class="filters-row block-section" v-if="(groupStatus === 'none') && (!isCreating || isSelecting)">
+    <el-input
+        v-model="keyword"
+        placeholder="搜索学生姓名或学号..."
+        clearable
+        prefix-icon="el-icon-search"
+        class="keyword-input"
+    />
+    <el-select v-model="statusFilter" clearable placeholder="组队状态" class="status-select">
+      <el-option label="全部" :value="''" />
+      <el-option label="未组队" value="available" />
+      <el-option label="已组队" value="unavailable" />
+    </el-select>
+    <div class="actions-spacer"></div>
+    <div v-if="groupStatus === 'none' && (!isCreating || isSelecting)" class="header-actions">
+      <span v-if="isCreating && isSelecting" class="select-hint">请选择 2 ~ 4 名组员</span>
+      <el-button
+          type="primary"
+          @click="headerPrimaryAction"
+      >
+        {{ !isCreating ? '新建小组' : '选择完成' }}
+      </el-button>
+    </div>
+  </div>
+
+  <div class="block-section" v-if="(groupStatus === 'none') && (!isCreating || isSelecting)">
     <el-table
-        v-show="!taskOnlyMode"
         :data="filteredStudents"
         stripe
         border
-        style="width: 100%"
+        class="full-width-table"
         @row-click="onRowClick"
         :row-class-name="rowClassName"
         empty-text="暂无学生"
@@ -48,7 +60,10 @@
       </el-table-column>
       <el-table-column label="姓名" width="140">
         <template #default="{ row }">
-          <span class="col-name">{{ row.name }}</span>
+          <span class="col-name">
+            {{ row.name }}
+            <span v-if="isSelf(row)" class="self-mark">本人</span>
+          </span>
         </template>
       </el-table-column>
       <el-table-column label="组队状态" width="160">
@@ -68,7 +83,7 @@
           <span class="col-email">{{ row.email || '-' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="160" align="center">
+      <el-table-column v-if="isCreating && isSelecting" label="操作" width="160" align="center">
         <template #default="{ row }">
           <el-button v-if="row.status !== 'available'" size="small" disabled>已组队</el-button>
           <el-button v-else-if="isSelected(row.id)" size="small" type="danger" plain @click.stop="toggleSelect(row)">取消</el-button>
@@ -76,68 +91,134 @@
         </template>
       </el-table-column>
     </el-table>
+  </div>
 
-    <div class="task-inputs" v-if="membersForTasks.length">
-      <div v-if="taskOnlyMode" style="display:flex; justify-content:flex-end; margin-bottom:8px;">
-        <el-button type="primary" @click="exitTaskOnlyMode">选择队员</el-button>
-      </div>
+  <div class="task-inputs block-section" v-if="isCreating && !isSelecting">
+    <div class="task-header">
       <h4 class="task-title">任务分工</h4>
-      <div class="group-name-row">
-        <label class="group-name-label">我的小组名称：</label>
-        <input
-            class="group-name-input"
-            type="text"
-            v-model="groupName"
-            placeholder="请输入小组名称"
-        />
-      </div>
-      <div class="task-input-row" v-for="m in membersForTasks" :key="m.id">
-          <span class="task-name">{{ m.name }}
-            <span v-if="m.id === currentUserId" class="leader-mark">组长</span>
-            <span v-else class="member-mark">组员</span>
-            ：
-          </span>
-        <input
-            class="task-text"
-            type="text"
-            v-model="tasks[m.id]"
-            :placeholder="`请输入${m.name}的任务内容`"
-        />
-      </div>
+    </div>
+    <div class="group-name-row">
+      <label class="group-name-label">我的小组名称：</label>
+      <input
+          class="group-name-input"
+          type="text"
+          v-model="groupName"
+          placeholder="请输入小组名称"
+          ref="groupNameInputRef"
+      />
+    </div>
+    <div class="task-input-row">
+      <span class="task-name">小组任务描述：</span>
+      <textarea
+          class="task-text"
+          v-model="taskDescription"
+          placeholder="请用一段话描述本小组的任务分工与目标（示例：张三-资料收集，李四-文档整理，王五-PPT与汇报）"
+          rows="3"
+      ></textarea>
     </div>
 
-    <div class="btn-row" v-if="false"></div>
+    <div class="members-chips">
+      <span class="member-chip" v-for="m in membersForTasks" :key="m.id">
+        <span class="member-name">{{ m.name }}</span>
+        <span v-if="m.id === currentUserId" class="leader-mark">组长</span>
+        <span v-else class="member-mark">组员</span>
+      </span>
+    </div>
+    <div class="btn-row block-section" v-if="isCreating && !isSelecting">
+      <button class="btn btn-yellow" data-tip="清空并重新选择组员" @click="resetSelection">重新选择</button>
+      <button class="btn btn-yellow" data-tip="继续挑选更多组员" @click="againSelect">选择队员</button>
+      <div class="tooltip" data-tip="组员最多4人，最少2人">
+        <button class="btn btn-blue" :disabled="!canSubmit || !isCreating" @click="submitGroup">
+          提交小组申请 ({{ selectedMembers.length }}/4)
+        </button>
+      </div>
+      <button class="btn btn-yellow" @click="resetAllAndExit">重置</button>
+    </div>
+  </div>
+
+  <div v-if="groupStatus !== 'none'" class="group-summary block-section">
+    <!-- <h4 class="group-summary-title">我的小组</h4> -->
+    <div class="group-summary-card">
+      <div class="group-summary-header">
+        <span class="group-summary-label">我的小组名称：</span>
+        <span>{{ createdGroup?.groupName || groupName || '—' }}</span>
+        <span class="status-chip status-pending" v-if="groupStatus==='pending'">审批中</span>
+        <span class="status-chip status-approved" v-else>已组队</span>
+      </div>
+      <div class="group-summary-members">
+        <span class="group-summary-label">成员：</span>
+        <span>{{ [createdGroup?.leaderName, ...(createdGroup?.memberNames||[])] .filter(Boolean).join('、') }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
-import { getStudentsByGrade, createStudentGroup } from '@/services/group'
+import { computed, ref, onMounted, nextTick } from 'vue'
+import { getStudentsByGrade, createStudentGroup } from '@/services/groupApi'
+import { fetchHomeCourses } from '@/services/homeCoursesApi'
 
 const allStudents = ref([])
-const grade = ref('')
+const isCreating = ref(false)
+const isSelecting = ref(false)
+const uiStateStorageKey = 'student_groups_ui_state'
+const GROUP_STATUS_KEY = 'student_group_status'
+const GROUP_INFO_KEY = 'student_group_info'
 onMounted(async () => {
   try {
-    // 自动从当前用户或本地获取班级，若无则使用示例
-    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
-    grade.value = saved?.grade || '24040301'
-  } catch { grade.value = '24040301' }
-  await loadStudents()
+    const ui = JSON.parse(localStorage.getItem(uiStateStorageKey) || 'null')
+    if (ui && typeof ui === 'object') {
+      isCreating.value = !!ui.creating
+      if (ui.creating) {
+        isSelecting.value = false
+        localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: false }))
+      } else {
+        isSelecting.value = !!ui.selecting
+      }
+    }
+  } catch {}
+  // 恢复小组状态与信息（若存在）
+  try {
+    const st = localStorage.getItem(GROUP_STATUS_KEY)
+    if (st === 'pending' || st === 'approved') {
+      groupStatus.value = st
+      const info = JSON.parse(localStorage.getItem(GROUP_INFO_KEY) || 'null')
+      if (info && typeof info === 'object') {
+        createdGroup.value = info
+        groupName.value = info.groupName || groupName.value
+      }
+    }
+  } catch (e) { console.error(e) }
+  await Promise.all([loadStudents(), cacheTeacherIdFromHome()])
 })
 
 async function loadStudents() {
   try {
-    const list = await getStudentsByGrade(grade.value)
-    // 规范化字段
+    const className =  localStorage.getItem("className")
+    const list = await getStudentsByGrade(className)
+    console.log('list', list)
     allStudents.value = (list || []).map((s, i) => ({
       id: s.id || s.studentId || s.sid || i + 1,
-      name: s.name || s.studentName || s.realName || '-',
-      sid: s.sid || s.studentNo || s.studentId || '-',
+      name: s.name ||'-',
+      sid: s.sid || s.studentId || '-',
       status: (s.grouped === true || s.status === 'grouped') ? 'unavailable' : 'available'
     }))
-  } catch {
+  } catch (e) {
+    console.error(e)
     allStudents.value = []
   }
+}
+
+// 从首页课程接口获取教师ID，缓存在本地，供分组提交使用
+async function cacheTeacherIdFromHome() {
+  try {
+    const list = await fetchHomeCourses()
+    const first = Array.isArray(list) ? list.find(Boolean) : null
+    const tid = first?.teacherId || null
+    if (tid != null) {
+      localStorage.setItem('teacherId', String(tid))
+    }
+  } catch (e) { console.error(e) }
 }
 
 const keyword = ref('')
@@ -145,10 +226,9 @@ const groupStatus = ref('none')
 const selectedIds = ref([])
 const statusFilter = ref('')
 const tasks = ref({})
+const taskDescription = ref('')
 const groupName = ref('')
-const taskOnlyMode = ref(false)
 
-// 读取左侧栏当前用户作为默认组长
 const currentUserName = ref('')
 try {
   const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
@@ -196,9 +276,41 @@ const canSubmit = computed(() => {
   return count >= 2 && count <= 4
 })
 
+// 顶部主按钮逻辑：新建小组 -> 选择组员 -> 选择完成
+function headerPrimaryAction() {
+  if (!isCreating.value) {
+    // 第一次点击：进入创建流程，展示任务分工，隐藏学生列表
+    isCreating.value = true
+    isSelecting.value = false
+    localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: false }))
+    nextTick(() => {
+      document.querySelector('.task-inputs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      if (groupNameInputRef.value && groupNameInputRef.value.focus) {
+        groupNameInputRef.value.focus()
+      }
+    })
+    return
+  }
+  if (isCreating.value && !isSelecting.value) {
+    // 第二次点击：进入选择组员模式，展示可选学生列表
+    isSelecting.value = true
+    localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: true }))
+    return
+  }
+  if (isCreating.value && isSelecting.value) {
+    // 第三次点击：完成选择，返回任务分工
+    isSelecting.value = false
+    // 固化需求：完成后仍停留在任务分工，之后跳转回来也维持任务分工
+    localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: false }))
+    nextTick(() => {
+      document.querySelector('.task-inputs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+}
+
 function toggleSelect(stu) {
   if (stu.status !== 'available') return
-  if (stu.id === currentUserId.value) return
+  if (isSelf(stu)) return
   const idx = selectedIds.value.indexOf(stu.id)
   if (idx >= 0) {
     selectedIds.value.splice(idx, 1)
@@ -218,8 +330,18 @@ function isSelected(id) {
   return selectedIds.value.includes(id)
 }
 
+function isSelf(stu) {
+  // 以学号优先比对，其次比对 id
+  try {
+    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
+    const mySid = saved?.sid || saved?.studentNo || saved?.studentId || null
+    if (mySid && stu?.sid) return String(stu.sid) === String(mySid)
+  } catch (e) { console.error(e) }
+  return stu?.id === currentUserId.value
+}
+
 function onRowClick(row) {
-  if (taskOnlyMode.value) return
+  if (!isCreating.value || !isSelecting.value) return
   toggleSelect(row)
 }
 
@@ -234,6 +356,18 @@ function resetSelection() {
   const leaderKey = currentUserId.value
   const leaderVal = tasks.value[leaderKey] || ''
   tasks.value = leaderKey != null ? { [leaderKey]: leaderVal } : {}
+  // 直接进入选择模式
+  if (isCreating.value) {
+    isSelecting.value = true
+    localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: true }))
+  }
+}
+
+// 选择队员：保留当前已选，直接进入选择模式
+function againSelect() {
+  if (!isCreating.value) return
+  isSelecting.value = true
+  localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: true }))
 }
 
 async function submitGroup() {
@@ -243,13 +377,35 @@ async function submitGroup() {
     const members = selectedMembers.value
     const payload = {
       groupName: groupName.value || `${leader?.name || '我的'}小组`,
-      leaderId: leader?.id,
+      groupLeaderId: leader?.id,
       memberIds: members.map(m => m.id),
-      grade: grade.value
+      teacherId: (() => {
+        const v = localStorage.getItem('teacherId')
+        return v ? Number(v) : undefined
+      })(),
+      taskDescription: taskDescription.value
     }
     const res = await createStudentGroup(payload)
-    groupStatus.value = 'pending'
-    alert('已提交小组申请，等待审核！')
+    const code = Number(res?.code ?? res?.status ?? 0)
+    if (code === 200) {
+      groupStatus.value = 'pending'
+      createdGroup.value = {
+        groupName: payload.groupName,
+        leaderName: leader?.name,
+        memberNames: members.map(m => m.name)
+      }
+      // 持久化当前状态与信息
+      try {
+        localStorage.setItem(GROUP_STATUS_KEY, 'pending')
+        localStorage.setItem(GROUP_INFO_KEY, JSON.stringify(createdGroup.value))
+      } catch (e) { console.error(e) }
+      isCreating.value = false
+      isSelecting.value = false
+      localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: false, selecting: false }))
+      // 固定当前页面状态，无进一步跳转
+    } else {
+      alert(`提交失败：${res?.message || code || '未知错误'}`)
+    }
   } catch (e) {
     alert('提交失败，请稍后再试')
   }
@@ -262,12 +418,23 @@ if (currentUserId.value != null && !tasks.value[currentUserId.value]) {
 function createNewGroup() {
   selectedIds.value = []
   groupName.value = ''
-  taskOnlyMode.value = true
+  isCreating.value = true
+  isSelecting.value = false
+  localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: false }))
 }
 
-function exitTaskOnlyMode() {
-  taskOnlyMode.value = false
+function resetAllAndExit() {
+  selectedIds.value = []
+  tasks.value = {}
+  groupName.value = ''
+  isCreating.value = false
+  isSelecting.value = false
+  localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: false, selecting: false }))
 }
+
+// 提交成功后用于展示的本地小组信息
+const createdGroup = ref(null)
+const groupNameInputRef = ref(null)
 </script>
 
 <style scoped>
@@ -284,6 +451,14 @@ function exitTaskOnlyMode() {
   color: #2c3e50;
 }
 
+.groups-content {
+  position: relative;
+}
+.block-section {
+  background: transparent;
+  margin-bottom: 12px;
+}
+
 .page-title {
   font-size: 24px;
   font-weight: bold;
@@ -297,6 +472,36 @@ function exitTaskOnlyMode() {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #ffffff;
+  padding: 8px 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.select-hint {
+  color: #6b7280;
+  font-size: 14px;
 }
 
 .status-chip {
@@ -388,8 +593,17 @@ function exitTaskOnlyMode() {
   background: #f8f9fa;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 16px;
-  margin-top: 4px;
+  padding: 22px;
+  margin-top: 8px;
+  position: relative;
+  z-index: 10;
+}
+.task-inputs .task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 .group-name-row {
   display: flex;
@@ -409,11 +623,25 @@ function exitTaskOnlyMode() {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
 }
-.task-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #2c3e50;
-  margin-bottom: 10px;
+.task-inputs .task-title {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 26px;
+  line-height: 1.4;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: 0.5px;
+  margin: 4px 0 18px 0;
+}
+.task-inputs .task-title::after {
+  content: '';
+  display: block;
+  width: 88px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #60a5fa 0%, #4f46e5 100%);
+  margin: 8px auto 0;
 }
 .task-input-row {
   display: flex;
@@ -421,8 +649,21 @@ function exitTaskOnlyMode() {
   gap: 10px;
   margin-bottom: 10px;
 }
+.task-input-row .task-text::placeholder {
+  color: #9ca3af;
+}
 .task-input-row:last-child {
   margin-bottom: 0;
+}
+.task-input-row textarea.task-text {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+}
+.task-empty {
+  text-align: center;
+  color: #6b7280;
+  padding: 8px 0;
 }
 .task-name {
   width: 160px;
@@ -442,6 +683,28 @@ function exitTaskOnlyMode() {
   border-radius: 6px;
 }
 
+.members-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  justify-content: center;
+}
+.member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #1f2937;
+}
+.member-chip .leader-mark, .member-chip .member-mark {
+  margin-left: 0;
+}
+
 .leader-mark {
   display: inline-block;
   background: #eef2ff;
@@ -459,6 +722,19 @@ function exitTaskOnlyMode() {
   color: #0891b2;
   border: 1px solid #a5f3fc;
   padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.self-mark {
+  display: inline-block;
+  margin-left: 6px;
+  background: #fff7ed;
+  color: #b45309;
+  border: 1px solid #fdba74;
+  padding: 2px 6px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
@@ -519,7 +795,10 @@ function exitTaskOnlyMode() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   margin-top: 20px;
+  flex-wrap: nowrap;
+  padding: 0 8px;
 }
 .btn {
   padding: 10px 20px;
@@ -581,6 +860,13 @@ function exitTaskOnlyMode() {
   gap:12px;
   margin-bottom:12px;
 }
+.filters-row .keyword-input {
+  max-width: 420px;
+  width: 100%;
+}
+.filters-row .status-select {
+  width: 160px;
+}
 .filters-row > .el-input {
   margin-right: 8px;
 }
@@ -589,6 +875,44 @@ function exitTaskOnlyMode() {
 }
 .filters-row .actions-spacer {
   flex: 1;
+}
+
+.selected-count {
+  margin-left: 12px;
+  color: #6b7280;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.full-width-table {
+  width: 100%;
+}
+
+.group-summary {
+  margin-top: 14px;
+}
+.group-summary-title {
+  margin: 0 0 8px 0;
+  color: #2c3e50;
+}
+.group-summary-card {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+}
+.group-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.group-summary-label {
+  font-weight: 600;
+}
+.group-summary-members {
+  margin-top: 8px;
+  color: #374151;
 }
 
 @media (max-width: 1200px) {

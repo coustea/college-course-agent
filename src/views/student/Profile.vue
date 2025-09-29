@@ -30,16 +30,8 @@
               <span class="info-value">{{ student.studentNumber || '-' }}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">专业</span>
-              <span class="info-value">{{ student.major || '-' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">年级</span>
-              <span class="info-value">{{ (student.grade || student.enrollmentYear) ? `${student.grade || student.enrollmentYear}级` : '-' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">手机</span>
-              <span class="info-value">{{ student.phone || '-' }}</span>
+              <span class="info-label">班级</span>
+              <span class="info-value">{{ student.className || student.class || student.clazzName || student.classroom || '-' }}</span>
             </div>
           </div>
         </div>
@@ -174,7 +166,7 @@ import { fetchHomeCourses } from '@/services/homeCoursesApi.js'
 
 const isExpanded = ref(false)
 const student = ref({})
-const avatarText = computed(() => (student.value.name ? student.value.name[0] : '学'))
+const avatarText = computed(() => (student.value.name ? student.value.name[student.value.name.length-1] : '学'))
 const myCourses = ref([])
 
 function refreshProgress() {
@@ -222,8 +214,8 @@ onMounted(() => {
   loadCoursesFromApi()
   loadStudent()
   recentSubmissions.value = getRecentWorks()
-  try { window.addEventListener('work-submitted', () => { recentSubmissions.value = getRecentWorks() }) } catch {}
-  try { window.addEventListener('work-deadline-updated', loadDeadline) } catch {}
+  try { window.addEventListener('work-submitted', () => { recentSubmissions.value = getRecentWorks() }) } catch (e) { console.error(e) }
+  try { window.addEventListener('work-deadline-updated', loadDeadline) } catch (e) { console.error(e) }
   loadDeadline()
   calcTotalTime()
 })
@@ -253,7 +245,8 @@ function loadStudent() {
   try {
     const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
     student.value = saved && Object.keys(saved).length ? saved : {}
-  } catch {
+  } catch (e) {
+    console.error(e)
     student.value = {}
   }
 }
@@ -269,22 +262,13 @@ function getRecentWorks() {
   } catch {}
   return []
 }
-
-function formatTime(dateStr) {
-  const d = new Date(dateStr)
-  const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const da = String(d.getDate()).padStart(2,'0');
-  const hh = String(d.getHours()).padStart(2,'0'); const mm = String(d.getMinutes()).padStart(2,'0')
-  return `${y}-${m}-${da} ${hh}:${mm}`
-}
-
-const totalHours = computed(() => {
+computed(() => {
   const secs = totalSeconds.value
   const hours = (secs / 3600).toFixed(1)
   return `${hours}小时`
 })
 const totalSeconds = ref(0)
 function calcTotalTime() {
-  // 历史记录模块已移除，避免无效调用导致卡顿与报错
   totalSeconds.value = 0
   videoSeconds.value = 0
   docSeconds.value = 0
@@ -309,7 +293,7 @@ function loadDeadline() {
 .profile-page {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 30px;
+  padding: 10px;
 }
 
 .header {
@@ -554,11 +538,6 @@ function loadDeadline() {
 
 .course-name {
   color: #2c3e50;
-}
-
-.course-progress {
-  color: #64748b;
-  font-size: 14px;
 }
 
 .empty-state {

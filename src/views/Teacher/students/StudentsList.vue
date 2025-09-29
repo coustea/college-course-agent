@@ -87,7 +87,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Upload } from '@element-plus/icons-vue'
-import { listStudents, insertStudent, updateStudent, deleteStudentById, importStudents, listCoursesByStudent, getCourseProgress } from '@/services/coursesApi.js'
+// import { listStudents, insertStudent, updateStudent, deleteStudentById, listCoursesByStudent, getCourseProgress } from '@/services/coursesApi.js'
 
 export default {
   name: 'StudentsList',
@@ -145,7 +145,7 @@ export default {
         const res = await listStudents()
         const body = res?.data
         students.value = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
-        try { await updateCourseCountsForStudents() } catch {}
+        try { await updateCourseCountsForStudents() } catch (e) { console.error(e) }
       } catch (e) { console.error('获取学生列表失败:', e); ElMessage.error('获取学生列表失败') }
       finally { loading.value = false }
     }
@@ -169,7 +169,7 @@ export default {
               if (pct >= 0 && pct <= 1) pct = pct * 100
             }
             list.push({ courseName: c.courseName ?? c.title ?? '课程', progress: Math.round(Math.max(0, Math.min(100, pct))), lastStudyTime: '', score: null, status: pct >= 100 ? 'completed' : 'learning' })
-          } catch {}
+          } catch (e) { console.error(e) }
         }
         learningProgress.value = list
         showProgressDialog.value = true

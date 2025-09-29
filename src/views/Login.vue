@@ -39,7 +39,6 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 
@@ -68,43 +67,34 @@ onBeforeUnmount(() => {
   if (intervalId) clearInterval(intervalId)
 })
 
-// 统一 API 基址
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
-
-// 登录方法：code=401 时停留在登录页并提示错误
+// 登录方法：必须账号/密码/角色与后端一致才跳转；不再依赖 token
 const handleLogin = async () => {
   try {
-    const url = `${API_BASE}/auth/login`
-    const res = await axios.post(url, {
+    console.log('登录请求')
+    console.log('username', username.value)
+    console.log('password', password.value)
+    const res = await axios.post('http://192.168.52.75:9999/api/user/login', {
       username: username.value,
       password: password.value,
       role: role.value
     })
-    const code = res?.data?.code
-    if (code === 200) {
+    console.log('登录信息', res?.data)
+    const ok = (res.data.code === 200) || res.status === 200
+    if (ok) {
       try {
         const user = res?.data?.data
         localStorage.setItem('currentUser', JSON.stringify(user))
-      } catch {}
-      try { localStorage.setItem('userRole', role.value) } catch {}
+        console.log('当前用户', localStorage.getItem('currentUser'))
+        localStorage.setItem('className', user.className)
+        console.log('className', localStorage.getItem('className'))
+      } catch (e) { console.error(e) }
+      try { localStorage.setItem('userRole', role.value) } catch (e) { console.error(e) }
       await router.push(role.value === 'student' ? '/home' : '/teacher')
       return
     }
-    if (code === 401) {
-      ElMessage.error(res?.data?.message || '密码错误')
-      password.value = ''
-      return
-    }
-    ElMessage.error(res?.data?.message || '登录失败，请检查账号/密码/角色')
+    alert('登录失败，请检查账号/密码/角色')
   } catch (error) {
-    const code = error?.response?.data?.code || error?.response?.status
-    const msg = error?.response?.data?.message
-    if (code === 401) {
-      ElMessage.error(msg || '密码错误')
-      password.value = ''
-      return
-    }
-    ElMessage.error(msg || '登录失败，请稍后重试')
+    alert('登录失败，请检查账号/密码/角色')
   }
 }
 </script>

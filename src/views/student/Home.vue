@@ -138,7 +138,6 @@ import { useRouter, useRoute } from 'vue-router'
 import CoursePlayer from '/src/components/CoursePlayer.vue'
 import DocumentViewer from '/src/components/DocumentViewer.vue'
 import { fetchHomeCourses } from '/src/services/homeCoursesApi'
-import { listStudents } from '/src/services/coursesApi'
 
 const searchQuery = ref('')
 const activeFilter = ref('all')
@@ -206,7 +205,7 @@ const activeCourse = ref(null)
 const openCourse = (course) => {
   if (course.type !== 'video') return
   // 教师课程列表页：进入播放前清空本地题目记录，确保会弹题
-  try { if (route.path.startsWith('/teacher/courses/list')) localStorage.removeItem('course_questions_state_v1') } catch {}
+  try { if (route.path.startsWith('/teacher/courses/list')) localStorage.removeItem('course_questions_state_v1') } catch (e) { console.error(e) }
   activeCourse.value = course
   playerVisible.value = true
 }
@@ -504,18 +503,6 @@ function ensureDocChapters(course) {
   font-weight: 600;
   margin-bottom: 10px;
   color: #2c3e50;
-}
-
-.course-description {
-  color: #64748b;
-  margin-bottom: 15px;
-  font-size: 14px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .course-category {
