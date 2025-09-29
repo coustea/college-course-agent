@@ -33,6 +33,7 @@
       <el-table :data="paginatedGroups" style="width: 100%" v-loading="loading" height="100%">
         <el-table-column type="index" label="序号" width="80" align="center"/>
         <el-table-column prop="courseName" label="所属课程" width="200" align="center"/>
+        <el-table-column prop="name" label="队伍名称" width="200" align="center"/>
         <el-table-column prop="leaderName" label="组长" width="150" align="center"/>
         <el-table-column prop="members" label="组员" width="200" align="center">
           <template #default="scope">
@@ -90,6 +91,10 @@
     >
       <div class="group-details-content">
         <el-descriptions :column="1" border>
+          <el-descriptions-item label="队伍名称">{{
+              currentGroupDetails?.name
+            }}
+          </el-descriptions-item>
           <el-descriptions-item label="所属课程">{{
               currentGroupDetails?.courseName
             }}
@@ -273,25 +278,49 @@ export default {
           const id = g.id || g.groupId || g.group_id
           const courseIdVal = g.courseId || g.course_id || g.course?.id
           const courseName = g.courseName || g.course_name || g.course?.courseName || g.course?.name || '未知课程'
-          const leader = g.leader || g.leaderInfo || null
-          const leaderName = g.leaderName || leader?.name || leader?.username || '未知'
-          const memberListRaw = g.members || g.memberList || g.students || []
-          const memberList = Array.isArray(memberListRaw)
-            ? memberListRaw.map(m => (typeof m === 'string' ? { name: m } : m))
-            : String(memberListRaw || '').split(',').filter(Boolean).map(n => ({ name: n.trim() }))
-          const members = memberList.map(m => m.name || m.username || '').filter(Boolean).join(', ')
-          const memberCount = memberList.length
-          const status = g.status || g.approvalStatus || g.state || ''
+
+          // 统一成员列表（后端字段为 groupMemberList）
+          const gmRaw = Array.isArray(g.groupMemberList) ? g.groupMemberList : (Array.isArray(g.memberList) ? g.memberList : [])
+          const memberListFromGroup = gmRaw.map(m => ({
+            id: m.studentId != null ? m.studentId : (m.id != null ? m.id : undefined),
+            name: m.studentName || m.name || m.username || '',
+            role: m.role,
+            joinStatus: m.joinStatus
+          }))
+
+          // 兼容旧字段（members/memberList 为字符串数组或逗号分隔）
+          const fallbackMemberRaw = g.members || g.memberList || g.students || []
+          const fallbackMemberList = Array.isArray(fallbackMemberRaw)
+            ? fallbackMemberRaw.map(m => (typeof m === 'string' ? { name: m } : m))
+            : String(fallbackMemberRaw || '').split(',').filter(Boolean).map(n => ({ name: n.trim() }))
+
+          const normalizedMemberList = memberListFromGroup.length > 0 ? memberListFromGroup : fallbackMemberList
+
+          // 组长与组员拆分
+          const leaderFromMembers = normalizedMemberList.find(m => m.role === 'leader')
+          const leaderIdVal = g.groupLeaderId || g.leaderId || leaderFromMembers?.id
+          const leaderName = g.leaderName || leaderFromMembers?.name || '未知'
+
+          const membersOnly = normalizedMemberList.filter(m => m.role !== 'leader')
+          const members = membersOnly.map(m => m.name || m.username || '').filter(Boolean).join(', ')
+
+          // 人数（总人数，包含组长）
+          const memberCount = normalizedMemberList.length
+
+          // 审批状态（严格使用 approvalStatus，避免误用 status: active/disbanded）
+          const approvalStatus = g.approvalStatus || g.groupApprovalStatus || g.approval_status || g.approvalstatus || ''
+          const status = approvalStatus || g.state || ''
+
           return {
             id,
             name: g.name || g.groupName || `分组#${id ?? ''}`,
             courseId: courseIdVal,
             courseName,
-            leaderId: leader?.id,
+            leaderId: leaderIdVal,
             leaderName,
-            description: g.description || g.remark || '',
+            description: g.description || g.groupDescription || g.remark || '',
             members,
-            memberList,
+            memberList: normalizedMemberList,
             memberCount,
             status,
           }
@@ -339,8 +368,9 @@ export default {
           }
         )
 
-        // 模拟API调用
-        // await api.put(`/groups/${group.id}/approve`)
+        // 调用后端接口：PUT /api/student-group/{groupId}，仅更新审批状态
+        const payload = { approvalStatus: 'approved' }
+        await api.put(`/student-group/${group.id}`, payload)
 
         // 更新本地状态
         group.status = 'approved'
@@ -374,8 +404,9 @@ export default {
           }
         )
 
-        // 模拟API调用
-        // await api.put(`/groups/${group.id}/reject`)
+        // 调用后端接口：PUT /api/student-group/{groupId}，仅更新审批状态
+        const payload = { approvalStatus: 'rejected' }
+        await api.put(`/student-group/${group.id}`, payload)
 
         // 更新本地状态
         group.status = 'rejected'

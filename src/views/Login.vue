@@ -39,6 +39,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 
@@ -67,30 +68,43 @@ onBeforeUnmount(() => {
   if (intervalId) clearInterval(intervalId)
 })
 
-// 登录方法：必须账号/密码/角色与后端一致才跳转；不再依赖 token
+// 统一 API 基址
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+
+// 登录方法：code=401 时停留在登录页并提示错误
 const handleLogin = async () => {
   try {
-    console.log('登录请求')
-    const res = await axios.post('http://192.168.52.75:9999/api/auth/login', {
+    const url = `${API_BASE}/auth/login`
+    const res = await axios.post(url, {
       username: username.value,
       password: password.value,
       role: role.value
     })
-    console.log('登录信息', res?.data)
-    const ok = (res.data.code === 200) || res.status === 200
-    if (ok) {
+    const code = res?.data?.code
+    if (code === 200) {
       try {
         const user = res?.data?.data
         localStorage.setItem('currentUser', JSON.stringify(user))
-        console.log('当前用户', localStorage.getItem('currentUser'))
       } catch {}
       try { localStorage.setItem('userRole', role.value) } catch {}
       await router.push(role.value === 'student' ? '/home' : '/teacher')
       return
     }
-    alert('登录失败，请检查账号/密码/角色')
+    if (code === 401) {
+      ElMessage.error(res?.data?.message || '密码错误')
+      password.value = ''
+      return
+    }
+    ElMessage.error(res?.data?.message || '登录失败，请检查账号/密码/角色')
   } catch (error) {
-    alert('登录失败，请检查账号/密码/角色')
+    const code = error?.response?.data?.code || error?.response?.status
+    const msg = error?.response?.data?.message
+    if (code === 401) {
+      ElMessage.error(msg || '密码错误')
+      password.value = ''
+      return
+    }
+    ElMessage.error(msg || '登录失败，请稍后重试')
   }
 }
 </script>

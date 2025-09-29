@@ -73,25 +73,26 @@
               <i class="fas fa-book-open"></i>
               <p>暂无课程</p>
             </div>
-            <div v-else class="recent-courses">
+            <div v-else class="recent-courses-grid">
               <div
                 v-for="course in recentCourses"
                 :key="course.id"
-                class="recent-course-item"
+                class="course-card"
               >
-                <div class="course-info">
-                  <h4>{{ course.title }}</h4>
-                  <p>{{ course.date }}</p>
+                <div class="course-cover">
+                  <img v-if="course.coverUrl" :src="course.coverUrl" alt="课程封面" />
+                  <div v-else class="cover-placeholder">
+                    <i class="fas fa-image"></i>
+                  </div>
+                  <div class="cover-badge">
+                    <span><i class="fas fa-user-graduate"></i>{{ course.studentCount }}</span>
+                    <span><i class="fas fa-chart-pie"></i>{{ course.completionRate }}%</span>
+                  </div>
                 </div>
-                <div class="course-stats">
-                  <span class="students-count">
-                    <i class="fas fa-user-graduate"></i>
-                    {{ course.studentCount }}
-                  </span>
-                  <span class="completion-rate">
-                    <i class="fas fa-chart-pie"></i>
-                    {{ course.completionRate }}%
-                  </span>
+                <div class="course-body">
+                  <h4 class="title" :title="course.title">{{ course.title }}</h4>
+                  <div class="meta"><i class="fas fa-calendar-alt"></i>{{ course.date }}</div>
+                  <router-link :to="`/teacher/courses/edit/${course.id}`" class="open-btn">管理</router-link>
                 </div>
               </div>
             </div>
@@ -254,23 +255,20 @@ import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { Bell } from '@element-plus/icons-vue'
 
-// 创建axios实例
-const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
-  timeout: 10000
-})
-
-// 设置请求拦截器，添加认证token
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
+// 动态后端基址 + Token 拦截（与其他页面保持一致）
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
+api.interceptors.request.use((config) => {
+  try {
+    const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+    if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  } catch {}
   return config
 })
 
 const router = useRouter()
 const teacherName = ref('')
+const teacherId = ref(null)
 
 const stats = ref({
   courseCount: 0,
@@ -321,10 +319,29 @@ const paginatedActivities = computed(() => {
   return studentActivities.value.slice(start, end)
 })
 
-// 从本地存储获取未审批数量
-const getPendingCountFromStorage = () => {
-  const count = localStorage.getItem('pendingGroupsCount')
-  return count ? parseInt(count) : 0
+// 从本地存储获取当前教师ID/姓名
+function loadCurrentTeacher() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
+    teacherId.value = saved?.id || saved?.teacherId || null
+    teacherName.value = saved?.name || saved?.username || '教师'
+  } catch {
+    teacherId.value = null
+    teacherName.value = '教师'
+  }
+}
+
+// 简单日期格式化
+function formatDate(input) {
+  try {
+    if (!input) return '-'
+    const d = new Date(input)
+    if (isNaN(d.getTime())) return '-'
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  } catch { return '-' }
 }
 
 // 分页控制
@@ -345,34 +362,69 @@ const handlePendingCountUpdate = (event) => {
   pendingApplicationsCount.value = event.detail.count
 }
 
-// 获取教师信息
+// 获取教师信息（本地）
 const fetchTeacherInfo = async () => {
-  try {
-    const response = await api.get('/teacher/profile')
-    teacherName.value = response.data.name
-  } catch (error) {
-    console.error('获取教师信息失败:', error)
-  }
+  loadCurrentTeacher()
 }
 
-// 获取统计数据
+// 获取统计数据（基于 /api/teacher/videos 与 /api/student-group/approvalStatus）
 const fetchStats = async () => {
   try {
-    const response = await api.get('/teacher/stats')
-    stats.value = response.data
+    loadCurrentTeacher()
+    const requests = []
+    if (teacherId.value) {
+      requests.push(api.get('/teacher/videos', { params: { teacherId: teacherId.value } }))
+    } else {
+      requests.push(Promise.resolve({ data: { data: { courses: [] } } }))
+    }
+    // 分组总数（全部）
+    requests.push(api.post('/student-group/approvalStatus'))
+
+    const [videosRes, groupsRes] = await Promise.all(requests)
+    const vr = videosRes?.data
+    const vdata = vr?.data || vr
+    const courses = Array.isArray(vdata?.courses) ? vdata.courses : []
+
+    const gr = groupsRes?.data
+    const groupList = Array.isArray(gr?.data) ? gr.data : (Array.isArray(gr) ? gr : [])
+
+    const courseCount = courses.length
+    const studentCount = courses.reduce((sum, c) => sum + (c?.studentCount || 0), 0)
+    const avgCompletion = courseCount === 0 ? 0 : Math.round((courses.reduce((sum, c) => sum + (c?.completionRate || 0), 0) / courseCount))
+    const groupCount = groupList.length
+
+    stats.value = {
+      courseCount,
+      studentCount,
+      completionRate: avgCompletion,
+      assignmentCount: groupCount
+    }
   } catch (error) {
     console.error('获取统计数据失败:', error)
   }
 }
 
-// 获取最近课程
+// 获取最近课程（基于 /api/teacher/videos 的 courses）
 const fetchRecentCourses = async () => {
   loading.value.recentCourses = true
   try {
-    const response = await api.get('/teacher/courses/recent')
-    recentCourses.value = response.data
+    loadCurrentTeacher()
+    if (!teacherId.value) { recentCourses.value = []; return }
+    const res = await api.get('/teacher/videos', { params: { teacherId: teacherId.value } })
+    const vr = res?.data
+    const vdata = vr?.data || vr
+    const courses = Array.isArray(vdata?.courses) ? vdata.courses : []
+    recentCourses.value = courses.slice(0, 8).map(c => ({
+      id: c.id || c.courseId,
+      title: c.title || c.courseName || '未命名课程',
+      date: formatDate(c.createTime || c.startDate || c.createdAt),
+      studentCount: c.studentCount || 0,
+      completionRate: c.completionRate || 0,
+      coverUrl: c.resourceUrl || c.image || ''
+    }))
   } catch (error) {
     console.error('获取最近课程失败:', error)
+    recentCourses.value = []
   } finally {
     loading.value.recentCourses = false
   }
@@ -393,39 +445,39 @@ const fetchStudentActivities = async () => {
   }
 }
 
-// 获取课程统计
+// 获取课程统计（复用 /api/teacher/videos 的 courses）
 const fetchCourseStats = async () => {
   loading.value.courseStats = true
   try {
-    const response = await api.get('/teacher/course-stats')
-    courseStats.value = response.data
+    loadCurrentTeacher()
+    if (!teacherId.value) { courseStats.value = []; return }
+    const res = await api.get('/teacher/videos', { params: { teacherId: teacherId.value } })
+    const vr = res?.data
+    const vdata = vr?.data || vr
+    const courses = Array.isArray(vdata?.courses) ? vdata.courses : []
+    courseStats.value = courses.map(c => ({
+      courseName: c.title || c.courseName || '未命名课程',
+      completionRate: c.completionRate || 0
+    }))
 
     // 更新图表
     updateChart()
   } catch (error) {
     console.error('获取课程统计失败:', error)
+    courseStats.value = []
   } finally {
     loading.value.courseStats = false
   }
 }
 
-// 获取待审批分组申请数量
+// 获取待审批分组申请数量（真实接口）
 const fetchPendingApplicationsCount = async () => {
   try {
-    // 先从本地存储获取，如果没有则使用默认值
-    const storedCount = getPendingCountFromStorage()
-    if (storedCount > 0) {
-      pendingApplicationsCount.value = storedCount
-    } else {
-      // 模拟数据：假设有3个待审批申请
-      pendingApplicationsCount.value = 3
-      localStorage.setItem('pendingGroupsCount', '3')
-    }
-
-    // 实际应该调用API获取真实数据
-    // const response = await api.get('/groups/pending-count')
-    // pendingApplicationsCount.value = response.data.count
-    // localStorage.setItem('pendingGroupsCount', response.data.count.toString())
+    const res = await api.post('/student-group/approvalStatus', null, { params: { approvalStatus: 'pending' } })
+    const raw = res?.data
+    const list = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : [])
+    pendingApplicationsCount.value = list.length
+    localStorage.setItem('pendingGroupsCount', String(pendingApplicationsCount.value))
   } catch (error) {
     console.error('获取待审批申请数量失败:', error)
   }
@@ -755,6 +807,118 @@ watch(courseStats, () => {
 
 .recent-course-item:last-child {
   border-bottom: none;
+}
+
+/* 最近课程：封面卡片样式 */
+.recent-courses-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .recent-courses-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .recent-courses-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.course-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.course-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+.course-cover {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  background: #f8fafc;
+}
+.course-cover img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cover-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 28px;
+}
+.cover-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 8px;
+}
+.cover-badge span {
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.course-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.course-body .title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.course-body .meta {
+  color: #6b7280;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.course-body .open-btn {
+  margin-top: 4px;
+  align-self: flex-start;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  text-decoration: none;
+}
+.course-body .open-btn:hover {
+  background: #1d4ed8;
 }
 
 .course-info h4 {
