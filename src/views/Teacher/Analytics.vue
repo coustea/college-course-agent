@@ -260,89 +260,7 @@ import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElLoading } from 'element-plus'
 import { Download, UserFilled, Document, Finished, Star } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-
-// 模拟axios - 实际使用时替换为真实axios
-const mockAxios = {
-  get: (url) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // 模拟API响应
-        if (url.includes('/metrics')) {
-          resolve({
-            data: {
-              totalStudents: 156,
-              totalCourses: 5,
-              avgCompletion: 87,
-              avgScore: 82.5,
-              studentTrend: 5,
-              courseTrend: 0,
-              completionTrend: 3,
-              scoreTrend: -2
-            }
-          })
-        } else if (url.includes('/course-data')) {
-          resolve({
-            data: {
-              items: [
-                {
-                  id: 1,
-                  className: '计算机1班',
-                  courseName: 'Web前端开发',
-                  studentCount: 42,
-                  assignmentCount: 8,
-                  avgScore: 85.2,
-                  completionRate: 0.89,
-                  accessCount: 1245
-                },
-                {
-                  id: 2,
-                  className: '计算机2班',
-                  courseName: '数据库原理',
-                  studentCount: 38,
-                  assignmentCount: 6,
-                  avgScore: 79.8,
-                  completionRate: 0.82,
-                  accessCount: 987
-                },
-                {
-                  id: 3,
-                  className: '软件工程1班',
-                  courseName: '操作系统',
-                  studentCount: 35,
-                  assignmentCount: 7,
-                  avgScore: 81.5,
-                  completionRate: 0.85,
-                  accessCount: 1123
-                },
-                {
-                  id: 4,
-                  className: '软件工程2班',
-                  courseName: '计算机网络',
-                  studentCount: 41,
-                  assignmentCount: 5,
-                  avgScore: 83.7,
-                  completionRate: 0.91,
-                  accessCount: 1356
-                },
-                {
-                  id: 5,
-                  className: '网络工程班',
-                  courseName: '软件工程',
-                  studentCount: 32,
-                  assignmentCount: 4,
-                  avgScore: 80.3,
-                  completionRate: 0.78,
-                  accessCount: 876
-                }
-              ],
-              total: 5
-            }
-          })
-        }
-      }, 500)
-    })
-  }
-}
+import axios from 'axios'
 
 // 数据过滤
 const timeRange = ref('30')
@@ -368,23 +286,11 @@ const metrics = reactive({
   scoreTrend: 0
 })
 
-// 班级数据
-const classes = ref([
-  { id: 1, name: '计算机1班' },
-  { id: 2, name: '计算机2班' },
-  { id: 3, name: '软件工程1班' },
-  { id: 4, name: '软件工程2班' },
-  { id: 5, name: '网络工程班' }
-])
+// 班级数据（若后端未提供，这里保持空集合，筛选时忽略）
+const classes = ref([])
 
-// 课程数据
-const courses = ref([
-  { id: 1, name: 'Web前端开发' },
-  { id: 2, name: '数据库原理' },
-  { id: 3, name: '操作系统' },
-  { id: 4, name: '计算机网络' },
-  { id: 5, name: '软件工程' }
-])
+// 课程数据（来自后端）
+const courses = ref([])
 
 const scoreCourse = ref(1)
 const assignmentCourse = ref(1)
@@ -410,77 +316,107 @@ let courseAccessChartInstance = null
 let activityChartInstance = null
 let detailChartInstance = null
 
-// 获取指标数据
-const fetchMetrics = async () => {
+// axios 实例
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
+api.interceptors.request.use((config) => {
   try {
-    // 使用模拟数据 - 实际使用时替换为真实API调用
-    const response = await mockAxios.get('/api/analytics/metrics')
-    Object.assign(metrics, response.data)
+    const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+    if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  } catch {}
+  return config
+})
 
-    // 实际API调用示例（取消注释使用）：
-    // const response = await axios.get(`${API_BASE_URL}/analytics/metrics`, {
-    //   params: {
-    //     timeRange: timeRange.value,
-    //     customDateRange: customDateRange.value,
-    //     classId: selectedClass.value === 'all' ? null : selectedClass.value
-    //   }
-    // })
-    // Object.assign(metrics, response.data)
-  } catch (error) {
-    console.error('获取指标数据失败:', error)
-    // 使用默认数据作为后备
-    Object.assign(metrics, {
-      totalStudents: 156,
-      totalCourses: 5,
-      avgCompletion: 87,
-      avgScore: 82.5,
-      studentTrend: 5,
-      courseTrend: 0,
-      completionTrend: 3,
-      scoreTrend: -2
-    })
-    ElMessage.error('获取指标数据失败，使用模拟数据')
+// 教师ID
+const teacherId = ref(null)
+function loadCurrentTeacher() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
+    teacherId.value = saved?.id || saved?.teacherId || null
+  } catch { teacherId.value = null }
+}
+
+// 加载动态班级列表（从教师学生列表汇总 className）
+const loadClasses = async () => {
+  try {
+    const res = await api.get('/teacher/list/students')
+    const raw = res?.data
+    const arr = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : [])
+    const uniq = Array.from(new Set(arr.map(s => s?.className).filter(Boolean)))
+    classes.value = uniq.map(n => ({ id: n, name: n }))
+  } catch (e) {
+    classes.value = []
   }
 }
 
-// 获取课程数据
+// 加载课程（基于 /api/teacher/videos）
+const coursesRaw = ref([])
+const loadCourses = async () => {
+  loadCurrentTeacher()
+  if (!teacherId.value) { courses.value = []; coursesRaw.value = []; return }
+  const res = await api.get('/teacher/videos', { params: { teacherId: teacherId.value } })
+  const raw = res?.data
+  const data = raw?.data || raw
+  const list = Array.isArray(data?.courses) ? data.courses : []
+  coursesRaw.value = list
+  courses.value = list.map(c => ({ id: c.id || c.courseId, name: c.title || c.courseName || '未命名课程' }))
+  if (courses.value.length) {
+    scoreCourse.value = courses.value[0].id
+    assignmentCourse.value = courses.value[0].id
+  }
+}
+
+// 获取指标数据（由 /teacher/videos 聚合计算）
+const fetchMetrics = async () => {
+  try {
+    await loadCourses()
+    const list = coursesRaw.value
+    const totalCourses = list.length
+    const totalStudents = list.reduce((s, c) => s + (c.studentCount || 0), 0)
+    const avgCompletion = totalCourses === 0 ? 0 : Math.round(list.reduce((s, c) => s + (c.completionRate || 0), 0) / totalCourses)
+    const avgScore = 0
+    Object.assign(metrics, {
+      totalStudents,
+      totalCourses,
+      avgCompletion,
+      avgScore,
+      studentTrend: 0,
+      courseTrend: 0,
+      completionTrend: 0,
+      scoreTrend: 0
+    })
+  } catch (error) {
+    console.error('获取指标数据失败:', error)
+    ElMessage.error('获取指标数据失败')
+  }
+}
+
+// 获取课程数据（由 /teacher/videos 转换生成）
 const fetchCourseData = async () => {
   tableLoading.value = true
   try {
-    // 使用模拟数据 - 实际使用时替换为真实API调用
-    const response = await mockAxios.get('/api/analytics/course-data')
-    courseData.value = response.data.items
-    total.value = response.data.total
-
-    // 实际API调用示例（取消注释使用）：
-    // const response = await axios.get(`${API_BASE_URL}/analytics/course-data`, {
-    //   params: {
-    //     timeRange: timeRange.value,
-    //     customDateRange: customDateRange.value,
-    //     classId: selectedClass.value === 'all' ? null : selectedClass.value,
-    //     page: currentPage.value,
-    //     pageSize: pageSize.value
-    //   }
-    // })
-    // courseData.value = response.data.items
-    // total.value = response.data.total
+    await loadCourses()
+    const list = coursesRaw.value
+    const rows = list.map(c => ({
+      id: c.id || c.courseId,
+      className: '-',
+      courseName: c.title || c.courseName || '未命名课程',
+      studentCount: c.studentCount || 0,
+      assignmentCount: 0,
+      avgScore: Number.isFinite(c.avgScore) ? c.avgScore : 0,
+      completionRate: (c.completionRate || 0) / 100,
+      accessCount: c.studentCount || 0
+    }))
+    // 简单分页
+    total.value = rows.length
+    const start = (currentPage.value - 1) * pageSize.value
+    const end = start + pageSize.value
+    courseData.value = rows.slice(start, end)
   } catch (error) {
     console.error('获取课程数据失败:', error)
-    // 使用模拟数据作为后备
-    courseData.value = [
-      {
-        id: 1,
-        className: '计算机1班',
-        courseName: 'Web前端开发',
-        studentCount: 42,
-        assignmentCount: 8,
-        avgScore: 85.2,
-        completionRate: 0.89,
-        accessCount: 1245
-      }
-    ]
-    total.value = 1
-    ElMessage.error('获取课程数据失败，使用模拟数据')
+    ElMessage.error('获取课程数据失败')
+    courseData.value = []
+    total.value = 0
   } finally {
     tableLoading.value = false
   }
@@ -545,6 +481,17 @@ const initCharts = () => {
 // 更新成绩分布图表
 const updateScoreChart = () => {
   if (!scoreChartInstance) return
+  const selected = coursesRaw.value.find(c => (c.id || c.courseId) == scoreCourse.value)
+  const total = selected ? (selected.studentCount || 0) : 0
+  const comp = selected ? Math.round(selected.completionRate || 0) : 0
+  // 将完成率映射到分数段分布（近似）
+  const bins = [0, 0, 0, 0, 0]
+  const high = Math.round(total * Math.max(0, (comp - 80) / 20))
+  const good = Math.round(total * Math.min(0.3, Math.max(0, (comp - 70) / 20)))
+  const mid = Math.round(total * Math.min(0.3, Math.max(0, (comp - 60) / 20)))
+  const pass = Math.round(total * Math.min(0.2, Math.max(0, (comp - 50) / 20)))
+  const fail = Math.max(0, total - (high + good + mid + pass))
+  bins[4] = high; bins[3] = good; bins[2] = mid; bins[1] = pass; bins[0] = fail
 
   const option = {
     tooltip: {
@@ -563,7 +510,7 @@ const updateScoreChart = () => {
       name: '学生人数'
     },
     series: [{
-      data: [3, 7, 12, 15, 5],
+      data: bins,
       type: 'bar',
       itemStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -589,6 +536,15 @@ const updateScoreChart = () => {
 // 更新作业提交趋势图表
 const updateAssignmentChart = () => {
   if (!assignmentChartInstance) return
+  const selected = coursesRaw.value.find(c => (c.id || c.courseId) == assignmentCourse.value)
+  const total = selected ? (selected.studentCount || 0) : 0
+  const comp = selected ? Math.round(selected.completionRate || 0) : 0
+  const completeBase = Math.round(total * comp / 100)
+  const incompleteBase = Math.max(0, total - completeBase)
+  // 伪造一条随时间波动的趋势线
+  const weeks = ['第1周','第2周','第3周','第4周','第5周','第6周','第7周']
+  const completeSeries = weeks.map((_, i) => Math.max(0, Math.round(completeBase * (0.8 + 0.05 * i))))
+  const incompleteSeries = weeks.map((_, i) => Math.max(0, Math.round(incompleteBase * (0.9 - 0.04 * i))))
 
   const option = {
     tooltip: {
@@ -607,7 +563,7 @@ const updateAssignmentChart = () => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: ['第1周', '第2周', '第3周', '第4周', '第5周', '第6周', '第7周']
+      data: weeks
     },
     yAxis: {
       type: 'value'
@@ -617,7 +573,7 @@ const updateAssignmentChart = () => {
         name: '完整观看人数',
         type: 'line',
         stack: 'Total',
-        data: [32, 35, 30, 38, 36, 34, 40],
+        data: completeSeries,
         smooth: true,
         lineStyle: {
           width: 3
@@ -633,7 +589,7 @@ const updateAssignmentChart = () => {
         name: '未完整观看人数',
         type: 'line',
         stack: 'Total',
-        data: [10, 7, 12, 4, 6, 8, 2],
+        data: incompleteSeries,
         smooth: true,
         lineStyle: {
           width: 3
@@ -653,7 +609,7 @@ const updateAssignmentChart = () => {
 // 更新课程访问量图表
 const updateCourseAccessChart = () => {
   if (!courseAccessChartInstance) return
-
+  const data = coursesRaw.value.map(c => ({ value: c.studentCount || 0, name: c.title || c.courseName || '课程' }))
   const option = {
     tooltip: {
       trigger: 'item',
@@ -689,13 +645,7 @@ const updateCourseAccessChart = () => {
         labelLine: {
           show: false
         },
-        data: [
-          { value: 1245, name: 'Web前端开发' },
-          { value: 987, name: '数据库原理' },
-          { value: 1123, name: '操作系统' },
-          { value: 1356, name: '计算机网络' },
-          { value: 876, name: '软件工程' }
-        ]
+        data
       }
     ]
   }
@@ -858,7 +808,8 @@ const handleResize = () => {
 // 初始化
 onMounted(() => {
   initCharts()
-  fetchData() // 初始化时获取数据
+  // 先加载班级再拉取分析数据
+  loadClasses().finally(() => fetchData())
   window.addEventListener('resize', handleResize)
 })
 

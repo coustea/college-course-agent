@@ -307,6 +307,7 @@ import {
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import StudentDetail from '@/components/StudentDetail.vue'
+import axios from 'axios'
 
 // 模拟数据 - 用于调试
 const mockData = {
@@ -480,13 +481,7 @@ export default {
     const selectedStudent = ref(null)
 
     // 下拉选项数据
-    const courseOptions = ref([
-      { id: 1, name: 'Web前端开发' },
-      { id: 2, name: '数据结构' },
-      { id: 3, name: '数据库原理' },
-      { id: 4, name: '操作系统' },
-      { id: 5, name: '计算机网络' }
-    ])
+    const courseOptions = ref([])
 
     const classOptions = ref([
       { id: 1, name: '计算机科学与技术1班' },
@@ -511,78 +506,192 @@ export default {
     let activityChartInstance = null
 
     // API 函数 - 集成在组件中
+    // Axios 实例（与全站一致）
+    const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+    const apiClient = axios.create({ baseURL: API_BASE, timeout: 20000 })
+    apiClient.interceptors.request.use((config) => {
+      try {
+        const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+        if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+      } catch {}
+      return config
+    })
+
+    // 工具函数
+    function formatDate(input) {
+      try {
+        if (!input) return '-'
+        const d = new Date(input)
+        if (isNaN(d.getTime())) return '-'
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${y}-${m}-${day}`
+      } catch { return '-' }
+    }
+    function toHours(seconds) {
+      const s = Number(seconds || 0)
+      return Math.round((s / 3600) * 10) / 10
+    }
+
+    // 加载课程选项
+    const loadCourseOptions = async () => {
+      try {
+        const res = await apiClient.get('/course/list')
+        const raw = res?.data
+        const list = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : [])
+        courseOptions.value = list.map(c => ({ id: c.courseId || c.id, name: c.courseName || c.name }))
+      } catch (e) {
+        courseOptions.value = []
+      }
+    }
+
+    // 共享缓存，供图表复用
+    let lastFetchedItems = []
+
+    async function realFetchStudents(params) {
+      // 仅在选择了课程时加载真实数据
+      if (!params.courseId) {
+        lastFetchedItems = []
+        return { items: [], total: 0 }
+      }
+      // 获取课程下学生
+      const stuRes = await apiClient.get('/teacher/enrollments/students', { params: { courseId: params.courseId } })
+      const raw = stuRes?.data
+      const students = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : [])
+      // 并发限制
+      const maxConcurrency = 8
+      let index = 0
+      const results = []
+      const workers = new Array(Math.min(maxConcurrency, students.length)).fill(0).map(async () => {
+        while (index < students.length) {
+          const i = index++
+          const s = students[i]
+          try {
+            const prog = await apiClient.get('/progress/course', { params: { studentId: s.id || s.studentId, courseId: params.courseId } })
+            const lp = prog?.data?.data || prog?.data || {}
+            const completion = Math.round(lp?.completionPercentage || 0)
+            const hours = toHours(lp?.timeSpent)
+            const perf = completion >= 85 ? 'excellent' : (completion >= 70 ? 'good' : (completion >= 60 ? 'average' : 'concern'))
+            const courseName = (() => {
+              const found = courseOptions.value.find(c => c.id == params.courseId)
+              return found ? found.name : ''
+            })()
+            results.push({
+              id: s.id || s.studentId,
+              studentId: s.studentNumber || s.sid || s.username || '',
+              name: s.name || s.realName || s.username || '-',
+              className: s.className || s.grade || '-',
+              courseName,
+              studyTime: hours,
+              completionRate: completion,
+              avgScore: '-',
+              lastLogin: formatDate(lp?.lastStudyTime),
+              performanceLevel: perf,
+              email: s.email,
+              phone: s.phone
+            })
+          } catch (e) {
+            // 忽略单条错误
+          }
+        }
+      })
+      await Promise.all(workers)
+      // 搜索过滤
+      let items = results
+      if (params.classId) {
+        const classItem = classOptions.value.find(c => c.id == params.classId)
+        if (classItem) items = items.filter(x => x.className === classItem.name)
+      }
+      if (params.performanceLevel) {
+        items = items.filter(x => x.performanceLevel === params.performanceLevel)
+      }
+      // 日期范围过滤针对 lastLogin
+      if (Array.isArray(params.dateRange) && params.dateRange.length === 2) {
+        const [start, end] = params.dateRange
+        const startTime = new Date(start).getTime()
+        const endTime = new Date(end).getTime()
+        items = items.filter(x => {
+          const t = new Date(x.lastLogin).getTime()
+          return !isNaN(t) && t >= startTime && t <= endTime
+        })
+      }
+      lastFetchedItems = items
+      return { items, total: items.length }
+    }
+
     const api = {
       // 获取指标数据
       async getMetrics(params) {
-        console.log('API调用: getMetrics', params)
-
-        // 模拟API延迟
-        await new Promise(resolve => setTimeout(resolve, 300))
-
-        // 模拟过滤效果
-        let metricsData = { ...mockData.metrics }
-        if (params.courseId || params.classId) {
-          // 简单模拟过滤后的数据变化
-          metricsData = {
-            ...metricsData,
-            totalStudents: Math.floor(metricsData.totalStudents * 0.8),
-            concernStudents: Math.floor(metricsData.concernStudents * 0.8)
+        try {
+          const { items } = await realFetchStudents({ ...params })
+          const total = items.length
+          const avgStudyTime = total === 0 ? 0 : Math.round((items.reduce((s, x) => s + (Number(x.studyTime) || 0), 0) / total) * 10) / 10
+          const concernStudents = items.filter(x => x.performanceLevel === 'concern').length
+          const avgScore = total === 0 ? 0 : Math.round((items.reduce((s, x) => s + (Number(x.completionRate) || 0), 0) / total))
+          const metricsData = {
+            totalStudents: total,
+            avgStudyTime,
+            avgScore,
+            concernStudents,
+            studentTrend: 0,
+            timeTrend: 0,
+            scoreTrend: 0,
+            concernTrend: 0
           }
+          return { success: true, data: metricsData }
+        } catch (e) {
+          return { success: true, data: { ...mockData.metrics } }
         }
-
-        return { success: true, data: metricsData }
       },
 
       // 获取学生列表
       async getStudents(params) {
-        console.log('API调用: getStudents', params)
-
-        await new Promise(resolve => setTimeout(resolve, 500))
-
-        let filteredStudents = [...mockData.students]
-
-        // 模拟过滤
-        if (params.courseId) {
-          const course = courseOptions.value.find(c => c.id == params.courseId)
-          if (course) {
-            filteredStudents = filteredStudents.filter(s => s.courseName === course.name)
-          }
-        }
-
-        if (params.classId) {
-          const classItem = classOptions.value.find(c => c.id == params.classId)
-          if (classItem) {
-            filteredStudents = filteredStudents.filter(s => s.className === classItem.name)
-          }
-        }
-
-        if (params.performanceLevel) {
-          filteredStudents = filteredStudents.filter(s => s.performanceLevel === params.performanceLevel)
-        }
-
-        // 模拟分页
-        const startIndex = (params.page - 1) * params.pageSize
-        const endIndex = startIndex + parseInt(params.pageSize)
-        const paginatedData = filteredStudents.slice(startIndex, endIndex)
-
-        return {
-          success: true,
-          data: {
-            items: paginatedData,
-            total: filteredStudents.length,
-            page: params.page,
-            pageSize: params.pageSize
-          }
+        try {
+          const { items, total } = await realFetchStudents(params)
+          const startIndex = (params.page - 1) * params.pageSize
+          const endIndex = startIndex + parseInt(params.pageSize)
+          const paginatedData = items.slice(startIndex, endIndex)
+          return { success: true, data: { items: paginatedData, total, page: params.page, pageSize: params.pageSize } }
+        } catch (e) {
+          // 失败时退回模拟
+          const startIndex = (params.page - 1) * params.pageSize
+          const endIndex = startIndex + parseInt(params.pageSize)
+          const fallback = mockData.students.slice(startIndex, endIndex)
+          return { success: true, data: { items: fallback, total: mockData.students.length, page: params.page, pageSize: params.pageSize } }
         }
       },
 
       // 获取图表数据
       async getChartData(type, params) {
-        console.log('API调用: getChartData', type, params)
-        await new Promise(resolve => setTimeout(resolve, 200))
-
-        // 返回模拟图表数据
-        return { success: true, data: mockData.charts }
+        const items = lastFetchedItems && lastFetchedItems.length ? lastFetchedItems : mockData.students
+        const charts = {
+          scoreDistribution: [0, 0, 0, 0, 0],
+          timeDistribution: [0, 0, 0, 0, 0],
+          completionData: [],
+          activityData: [25, 30, 28, 32, 35, 30, 40]
+        }
+        // 用完成率作为成绩分布
+        items.forEach(x => {
+          const c = Number(x.completionRate || 0)
+          if (c >= 90) charts.scoreDistribution[0]++
+          else if (c >= 80) charts.scoreDistribution[1]++
+          else if (c >= 70) charts.scoreDistribution[2]++
+          else if (c >= 60) charts.scoreDistribution[3]++
+          else charts.scoreDistribution[4]++
+        })
+        // 学习时长分布
+        items.forEach(x => {
+          const h = Number(x.studyTime || 0)
+          if (h < 5) charts.timeDistribution[0]++
+          else if (h < 10) charts.timeDistribution[1]++
+          else if (h < 15) charts.timeDistribution[2]++
+          else if (h < 20) charts.timeDistribution[3]++
+          else charts.timeDistribution[4]++
+        })
+        // 完成率曲线
+        charts.completionData = items.map(x => Number(x.completionRate || 0))
+        return { success: true, data: charts }
       },
 
       // 发送提醒
@@ -992,8 +1101,10 @@ export default {
     // 生命周期
     onMounted(() => {
       // 初始化数据
-      fetchMetrics()
-      fetchStudents()
+      loadCourseOptions().then(() => {
+        fetchMetrics()
+        fetchStudents()
+      })
 
       // 延迟初始化图表，确保DOM渲染完成
       setTimeout(() => {

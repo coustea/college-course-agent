@@ -87,7 +87,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Upload } from '@element-plus/icons-vue'
-// import { listStudents, insertStudent, updateStudent, deleteStudentById, listCoursesByStudent, getCourseProgress } from '@/services/coursesApi.js'
+import axios from 'axios'
 
 export default {
   name: 'StudentsList',
@@ -138,6 +138,25 @@ export default {
     const averageProgress = computed(() => { if (!learningProgress.value.length) return 0; const total = learningProgress.value.reduce((sum, c) => sum + c.progress, 0); return Math.round(total / learningProgress.value.length) })
     const averageScore = computed(() => { const arr = learningProgress.value.filter(c => c.score != null); if (!arr.length) return null; const total = arr.reduce((sum, c) => sum + c.score, 0); return Math.round(total / arr.length) })
     const progressColor = (p) => { if (p >= 90) return '#67c23a'; if (p >= 70) return '#409eff'; if (p >= 50) return '#e6a23c'; return '#f56c6c' }
+
+    // axios 实例（与全站一致的基址与 Token 拦截）
+    const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+    const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
+    api.interceptors.request.use((config) => {
+      try {
+        const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+        if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+      } catch {}
+      return config
+    })
+
+    // 后端 API 封装
+    const listStudents = () => api.get('/teacher/list/students')
+    const insertStudent = (payload) => api.post('/teacher/insert/students', payload)
+    const updateStudent = (id, payload) => api.put('/teacher/update/student', payload, { params: { id } })
+    const deleteStudentById = (id) => api.delete('/teacher/delete/student', { params: { id } })
+    const listCoursesByStudent = (studentId) => api.get('/teacher/enrollments/courses', { params: { studentId } })
+    const getCourseProgress = (studentId, courseId) => api.get('/progress/course', { params: { studentId, courseId } })
 
     const fetchStudents = async () => {
       loading.value = true
