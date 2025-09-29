@@ -155,7 +155,7 @@
 
 <script setup>
 import { computed, ref, onMounted, nextTick } from 'vue'
-import { getStudentsByGrade, createStudentGroup } from '@/services/groupApi'
+import { getStudentsByClassName, createStudentGroup } from '@/services/groupApi'
 import { fetchHomeCourses } from '@/services/homeCoursesApi'
 
 const allStudents = ref([])
@@ -195,7 +195,7 @@ onMounted(async () => {
 async function loadStudents() {
   try {
     const className =  localStorage.getItem("className")
-    const list = await getStudentsByGrade(className)
+    const list = await getStudentsByClassName(className)
     console.log('list', list)
     allStudents.value = (list || []).map((s, i) => ({
       id: s.id || s.studentId || s.sid || i + 1,
@@ -341,7 +341,12 @@ function isSelf(stu) {
 }
 
 function onRowClick(row) {
-  if (!isCreating.value || !isSelecting.value) return
+  if (row?.status !== 'available') return
+  if (!isCreating.value || !isSelecting.value) {
+    isCreating.value = true
+    isSelecting.value = true
+    try { localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: true })) } catch (e) { console.error(e) }
+  }
   toggleSelect(row)
 }
 

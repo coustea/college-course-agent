@@ -543,9 +543,6 @@ const updateCharts = () => {}
 }
 
 @media (max-width: 768px) {
-  .learning-data {
-    padding: 16px;
-  }
 
   .chart-header {
     flex-direction: column;

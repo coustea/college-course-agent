@@ -78,8 +78,9 @@ const handleLogin = async () => {
       password: password.value,
       role: role.value
     })
-    console.log('登录信息', res?.data)
-    const ok = (res.data.code === 200) || res.status === 200
+    console.log('登录信息', res.data)
+    // console.log('登录状态', res.status)
+    const ok = res.data.code === 200
     if (ok) {
       try {
         const user = res?.data?.data
@@ -94,7 +95,32 @@ const handleLogin = async () => {
     }
     alert('登录失败，请检查账号/密码/角色')
   } catch (error) {
-    alert('登录失败，请检查账号/密码/角色')
+    const status = error?.response?.status
+    if (status) {
+      switch (status) {
+        case 400:
+          alert('登录失败，请检查账号/密码/角色')
+          break
+        case 401:
+          alert('登录失败，请检查账号/密码/角色')
+          break
+        case 403:
+          alert('登录失败，请检查账号/密码/角色')
+          break
+        case 404:
+          alert('登录失败，请检查账号/密码/角色')
+          break
+        case 500:
+          alert('登录失败，请检查账号/密码/角色')
+          break
+        default:
+          alert(`登录失败(${status})：请稍后再试`)
+      }
+    } else if (error?.request) {
+      alert('网络异常：无法连接到服务器')
+    } else {
+      alert('登录失败：发生未知错误')
+    }
   }
 }
 </script>

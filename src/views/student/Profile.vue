@@ -313,7 +313,7 @@ function loadDeadline() {
   display: grid;
   grid-template-columns: 0.95fr 1.2fr 0.95fr;
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .profile-middle, .profile-left, .profile-right {
@@ -481,11 +481,11 @@ function loadDeadline() {
 }
 
 .top-card {
-  min-height: 280px;
+  height: 280px;
 }
 
 .bottom-card {
-  min-height: 260px;
+  height: 260px;
 }
 
 .progress-container {

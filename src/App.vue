@@ -6,7 +6,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed} from 'vue'
 import { useRoute } from 'vue-router'
 import StudentLayout from './components/layout/StudentLayout.vue'
 import TeacherLayout from './components/layout/TeacherLayout.vue'
@@ -22,14 +22,7 @@ const hasLayout = computed(() => {
 
 const layoutComponent = computed(() => {
   if (!hasLayout.value) return null
-
-  // 根据路径判断：以/teacher开头的路径使用教师布局
   return route.path.startsWith('/teacher') ? TeacherLayout : StudentLayout
-})
-
-// 监听路由变化，确保正确应用布局
-onMounted(() => {
-  console.log('当前路由:', route.path, '需要布局:', hasLayout.value)
 })
 </script>
 
@@ -45,7 +38,6 @@ onMounted(() => {
   --hover-bg: #f5f7fa;
 }
 
-/* 应用全局字体大小 */
 html {
   font-size: 14px;
 }
