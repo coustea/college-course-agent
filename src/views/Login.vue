@@ -31,6 +31,7 @@
         </div>
         <button type="submit" class="login-btn">登录</button>
       </form>
+      <div v-if="errorMsg" class="error-text">{{ errorMsg }}</div>
     </div>
   </div>
 </template>
@@ -45,6 +46,7 @@ const router = useRouter()
 const username = ref('')
 const password = ref('')
 const role = ref('')
+const errorMsg = ref('')
 
 // 背景图片数组
 const backgrounds = [
@@ -70,31 +72,39 @@ onBeforeUnmount(() => {
 // 登录方法：必须账号/密码/角色与后端一致才跳转；不再依赖 token
 const handleLogin = async () => {
   try {
+    errorMsg.value = ''
     console.log('登录请求')
     console.log('username', username.value)
     console.log('password', password.value)
-    const res = await axios.post('http://192.168.52.75:9999/api/user/login', {
+    const res = await axios.post('/api/auth/login', {
       username: username.value,
-      password: password.value,
-      role: role.value
+      password: password.value
     })
     console.log('登录信息', res?.data)
-    const ok = (res.data.code === 200) || res.status === 200
+    const ok = (res?.data?.code === 200)
     if (ok) {
       try {
         const user = res?.data?.data
         localStorage.setItem('currentUser', JSON.stringify(user))
         console.log('当前用户', localStorage.getItem('currentUser'))
-        localStorage.setItem('className', user.className)
-        console.log('className', localStorage.getItem('className'))
+        if (user?.className) {
+          localStorage.setItem('className', user.className)
+          console.log('className', localStorage.getItem('className'))
+        }
       } catch (e) { console.error(e) }
-      try { localStorage.setItem('userRole', role.value) } catch (e) { console.error(e) }
-      await router.push(role.value === 'student' ? '/home' : '/teacher')
+      const backendRole = (res?.data?.data?.role || '').toString().toLowerCase()
+      try { localStorage.setItem('userRole', backendRole) } catch (e) { console.error(e) }
+      const target = backendRole === 'teacher' ? '/teacher' : '/home'
+      await router.push(target)
       return
     }
-    alert('登录失败，请检查账号/密码/角色')
+    if (res?.data?.code === 401) {
+      errorMsg.value = res?.data?.message || '密码错误'
+      return
+    }
+    errorMsg.value = res?.data?.message || '登录失败，请检查账号/密码/角色'
   } catch (error) {
-    alert('登录失败，请检查账号/密码/角色')
+    errorMsg.value = error?.response?.data?.message || '登录失败，请检查账号/密码/角色'
   }
 }
 </script>
@@ -193,6 +203,16 @@ option {
 .login-btn:hover {
   background: linear-gradient(135deg, #1558a5, #185ec2);
   transform: scale(1.05);
+}
+
+.error-text {
+  margin-top: 12px;
+  color: #ffcccc;
+  background: rgba(255, 0, 0, 0.18);
+  border: 1px solid rgba(255, 0, 0, 0.35);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
 }
 
 @keyframes fadeIn {
