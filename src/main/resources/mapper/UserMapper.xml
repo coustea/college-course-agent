@@ -4,6 +4,17 @@
     <insert id="insertUser" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
     INSERT INTO users(username,password,role) VALUES(#{username},#{password},#{role})
     </insert>
+<update id="updateUser">
+    UPDATE users
+    <set>
+        <if test="username != null">username = #{username},</if>
+        <if test="password != null">password = #{password},</if>
+        <if test="role != null">role = #{role},</if>
+        <if test="token != null">token = #{token},</if>
+    </set>
+    WHERE id = #{id}
+</update>
+
     <delete id="deleteAll">
         DELETE FROM users
     </delete>
@@ -15,6 +26,7 @@
     <select id="getById" resultType="com.ccut.entity.User">
         SELECT * FROM users WHERE id = #{id}
     </select>
+
 
 
 </mapper>

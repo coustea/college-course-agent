@@ -19,7 +19,8 @@ CREATE TABLE users (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
     username VARCHAR(50) UNIQUE NOT NULL COMMENT '用户名（学号或工号）',
     password VARCHAR(255) NOT NULL COMMENT '用户密码（加密存储）',
-    role ENUM('student', 'teacher') NOT NULL COMMENT '用户角色（学生/教师/管理员）'
+    role ENUM('student', 'teacher') NOT NULL COMMENT '用户角色（学生/教师/管理员）',
+    token VARCHAR(255) COMMENT 'JWT令牌'
 ) COMMENT='用户表';
 
 -- ===============================
@@ -28,7 +29,7 @@ CREATE TABLE users (
 CREATE TABLE students (
   id BIGINT PRIMARY KEY  COMMENT '学生ID（对应 users.id）',
   student_number VARCHAR(20) UNIQUE NOT NULL COMMENT '学号',
-  name VARCHAR(100) NOT NULL COMMENT '学生姓名',
+  name VARCHAR(100)  NULL COMMENT '学生姓名',
   class_name VARCHAR(100) COMMENT '班级',
   email VARCHAR(100) COMMENT '邮箱地址',
   phone VARCHAR(20) COMMENT '联系电话',
@@ -43,8 +44,8 @@ CREATE TABLE students (
 -- ===============================
 CREATE TABLE teachers (
   id BIGINT PRIMARY KEY COMMENT '教师ID（对应 users.id）',
-  employee_number VARCHAR(20) UNIQUE NOT NULL COMMENT '员工编号',
-  name VARCHAR(100) NOT NULL COMMENT '教师姓名',
+  employee_number VARCHAR(20) UNIQUE NULL COMMENT '员工编号',
+  name VARCHAR(100)  NULL COMMENT '教师姓名',
   email VARCHAR(100) COMMENT '邮箱地址',
   phone VARCHAR(20) COMMENT '联系电话',
   department VARCHAR(100) COMMENT '所属部门',

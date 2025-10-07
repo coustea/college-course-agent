@@ -1,93 +1,70 @@
 package com.ccut.controller;
 
 import com.ccut.entity.Result;
-import com.ccut.entity.Student;
-import com.ccut.entity.Teacher;
 import com.ccut.entity.User;
-import com.ccut.mapper.StudentMapper;
-import com.ccut.mapper.TeacherMapper;
 import com.ccut.mapper.UserMapper;
+import com.ccut.utils.JWTUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/auth")
 public class AuthController {
 
     @Autowired
     private UserMapper userMapper;
-    @Autowired
-    private StudentMapper studentMapper;
-    @Autowired
-    private TeacherMapper teacherMapper;
 
+    /**
+     * 登录接口
+     */
     @PostMapping("/login")
-    public Result<Object> login(@RequestBody User login) {
+    public Result<Object> login(@RequestBody User user) {
         try {
-            if (login.getUsername() == null || login.getPassword() == null) {
+            // 基础参数验证
+            if (user.getUsername() == null || user.getUsername().isEmpty()
+                    || user.getPassword() == null || user.getPassword().isEmpty()) {
+                log.warn("用户名或密码为空");
                 return Result.error(400, "用户名和密码不能为空");
             }
-            User db = userMapper.getUserByUsername(login.getUsername());
-            if (db == null) return Result.error(401, "账号不存在");
-            if (!db.getPassword().equals(login.getPassword())) return Result.error(401, "密码错误");
 
-            // 根据角色返回所有信息
-            if (db.getRole() == User.Role.student) {
-                Student s = studentMapper.selectById(db.getId());
-                // 补齐账号信息
-                if (s != null) {
-                    s.setUsername(db.getUsername());
-                    s.setPassword(db.getPassword());
-                    s.setRole(db.getRole());
-                }
-                return Result.success(s);
-            } else if (db.getRole() == User.Role.teacher) {
-                // 查询教师档案并补齐账号信息
-                Teacher t = teacherMapper.selectById(db.getId());
-                if (t == null) {
-                    t = new Teacher();
-                    t.setId(db.getId());
-                }
-                t.setUsername(db.getUsername());
-                t.setPassword(db.getPassword());
-                t.setRole(db.getRole());
-                return Result.success(t);
-            } else {
-                return Result.success(db);
+            // 查询数据库用户
+            User dbUser = userMapper.getUserByUsername(user.getUsername());
+            if (dbUser == null) {
+                log.warn("账号不存在: {}", user.getUsername());
+                return Result.error(401, "账号不存在");
             }
+
+            //  密码校验
+            if (!dbUser.getPassword().equals(user.getPassword())) {
+                log.warn("密码错误: {}", user.getUsername());
+                return Result.error(401, "密码错误");
+            }
+
+            // 生成 Token
+            String token = JWTUtils.generateToken(dbUser.getUsername());
+            log.info("用户 {} 登录成功", dbUser.getUsername());
+
+            //返回前端的数据（用户名 + token）
+            Map<String, Object> data = new HashMap<>();
+            data.put("userId", dbUser.getId());
+            data.put("username", dbUser.getUsername());
+            data.put("token", token);
+
+
+            // 更新用户 token
+            dbUser.setToken(token);
+            userMapper.updateUser(dbUser);
+
+            return Result.success(data);
+
         } catch (Exception e) {
-            return Result.error(500, e.getMessage());
-        }
-    }
-
-    // 教师专用登录
-    @PostMapping("/teacher/login")
-    public Result<Object> teacherLogin(@RequestBody User login) {
-        try {
-            if (login.getUsername() == null || login.getPassword() == null) {
-                return Result.error(400, "用户名和密码不能为空");
-            }
-            User db = userMapper.getUserByUsername(login.getUsername());
-            if (db == null) return Result.error(401, "账号不存在");
-            if (!db.getPassword().equals(login.getPassword())) return Result.error(401, "密码错误");
-            if (db.getRole() != User.Role.teacher) return Result.error(403, "不是教师账号");
-
-            Teacher t = teacherMapper.selectById(db.getId());
-            if (t == null) {
-                t = new Teacher();
-                t.setId(db.getId());
-            }
-            t.setUsername(db.getUsername());
-            t.setPassword(db.getPassword());
-            t.setRole(db.getRole());
-            return Result.success(t);
-        } catch (Exception e) {
-            return Result.error(500, e.getMessage());
+            log.error("登录异常", e);
+            return Result.error(500, "服务器内部错误：" + e.getMessage());
         }
     }
 }
-
-
