@@ -44,8 +44,16 @@ export default {
     const router = useRouter()
     const formRef = ref()
     const token = ref('')
-    const userInfo = (() => { try { return JSON.parse(localStorage.getItem('currentUser') || '{}') } catch { return {} } })()
-    const teacherId = ref(userInfo?.id || '')
+    const teacherId = ref((() => {
+      try {
+        const tid = localStorage.getItem('teacherId')
+        if (tid) return Number(tid)
+        const role = localStorage.getItem('userRole')
+        const uid = localStorage.getItem('userId')
+        if (role === 'teacher' && uid) return Number(uid)
+      } catch {}
+      return null
+    })())
 
     const form = reactive({ title: '', description: '' })
     const imageFile = ref(null)
@@ -57,7 +65,7 @@ export default {
     onMounted(() => {
       token.value = localStorage.getItem('token') || localStorage.getItem('userToken')
       if (!token.value) { ElMessage.error('用户未登录，请先登录'); router.push('/login'); return }
-      if (!teacherId.value) { ElMessage.error('未获取到教师ID，请重新登录'); router.push('/login'); return }
+      if (!teacherId.value) { ElMessage.error('未获取到教师ID，请重新登录'); return }
     })
 
     const onImageChange = (e) => {
@@ -83,7 +91,7 @@ export default {
         formData.append('courseCode', genCourseCode())
         formData.append('courseName', form.title)
         formData.append('description', form.description)
-        formData.append('teacherId', userInfo.id)
+        formData.append('teacherId', teacherId.value)
         if (imageFile.value) formData.append('image', imageFile.value)
         const response = await axios.post(`${base}/course/insert`, formData, { headers: { Authorization: `Bearer ${token.value}` } })
         const body = response?.data
