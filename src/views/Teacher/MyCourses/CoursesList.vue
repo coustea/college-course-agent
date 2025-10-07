@@ -104,7 +104,8 @@ export default {
   setup() {
     const router = useRouter()
     const token = ref(localStorage.getItem('token') || '')
-    const backendHost = (() => { try { const p = window?.location?.port; if (p === '4173' || p === '5173') return 'http://localhost:9999' } catch {} return '' })()
+    // 通过相对路径交由 Vite 代理或 Nginx 处理，避免硬编码主机
+    const backendHost = ''
 
     const courses = ref([])
     const categories = ref([]) // 先不请求后端分类接口，保持空列表
@@ -118,7 +119,7 @@ export default {
     const loadCourses = async () => {
       loading.value = true
       try {
-        const base = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+        const base = (import.meta?.env?.VITE_API_BASE_URL || '/api')
         const res = await axios.get(`${base}/course/list`)
         const body = res?.data
         if (body && Number(body.code) === 200 && Array.isArray(body.data)) {
@@ -130,7 +131,7 @@ export default {
     }
 
     const updateStudentCounts = async () => {
-      const base = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+      const base = (import.meta?.env?.VITE_API_BASE_URL || '/api')
       const headers = token.value ? { Authorization: `Bearer ${token.value}` } : {}
       const list = courses.value
       if (!Array.isArray(list) || list.length === 0) return
@@ -206,7 +207,7 @@ export default {
       } catch (error) { console.error(error); ElMessage.error('删除失败，请稍后重试') }
     }
 
-    const normalizeUrl = (url) => { if (!url || typeof url !== 'string') return ''; if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return encodeURI(url); if (url.startsWith('/uploads/')) return encodeURI((backendHost || '') + url); return encodeURI(url) }
+    const normalizeUrl = (url) => { if (!url || typeof url !== 'string') return ''; if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return encodeURI(url); if (url.startsWith('/uploads/')) return encodeURI(url); return encodeURI(url) }
     const normalizeVideoUrl = (url) => { if (!url || typeof url !== 'string') return ''; const u = String(url); const m = u.match(/^https?:\/\/[^/]+(:\d+)?\/(uploads\/.*)$/i); if (m) return `/${m[2]}`; if (u.startsWith('/uploads/')) return u; return normalizeUrl(u) }
 
     const playerVisible = ref(false)
@@ -226,9 +227,9 @@ export default {
     const docDuration = ref('')
 
     const courseVideosCache = ref({})
-    const loadCourseVideos = async (courseId) => { try { const base = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api'; const headers = token.value ? { Authorization: `Bearer ${token.value}` } : {}; const res = await axios.get(`${base}/course/video/list`, { params: { courseId }, headers }); const body = res?.data; if (body && Number(body.code) === 200 && Array.isArray(body.data)) return body.data; return [] } catch { return [] } }
+    const loadCourseVideos = async (courseId) => { try { const base = import.meta?.env?.VITE_API_BASE_URL || '/api'; const headers = token.value ? { Authorization: `Bearer ${token.value}` } : {}; const res = await axios.get(`${base}/course/video/list`, { params: { courseId }, headers }); const body = res?.data; if (body && Number(body.code) === 200 && Array.isArray(body.data)) return body.data; return [] } catch { return [] } }
     const getCourseVideos = async (courseId) => { const key = String(courseId); const cached = courseVideosCache.value[key]; if (cached && Array.isArray(cached)) return cached; const list = await loadCourseVideos(courseId); const normalized = list.map(v => ({ ...v, videoUrl: normalizeVideoUrl(v.videoUrl || v.url || v.fileUrl || '') })) ; courseVideosCache.value[key] = normalized; return normalized }
-    const loadCourseDocs = async (courseId) => { try { const base = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api'; const headers = token.value ? { Authorization: `Bearer ${token.value}` } : {}; const res = await axios.get(`${base}/course/document/list`, { params: { courseId }, headers }); const body = res?.data; if (body && Number(body.code) === 200 && Array.isArray(body.data)) return body.data; return [] } catch { return [] } }
+    const loadCourseDocs = async (courseId) => { try { const base = import.meta?.env?.VITE_API_BASE_URL || '/api'; const headers = token.value ? { Authorization: `Bearer ${token.value}` } : {}; const res = await axios.get(`${base}/course/document/list`, { params: { courseId }, headers }); const body = res?.data; if (body && Number(body.code) === 200 && Array.isArray(body.data)) return body.data; return [] } catch { return [] } }
 
     const openVideoPicker = async (course) => {
       const cid = course.id || course.courseId; if (!cid) { ElMessage.error('缺少课程ID'); return }
@@ -255,7 +256,7 @@ export default {
 
     onMounted(() => { if (!token.value) { ElMessage.error('用户未登录，请先登录'); router.push('/login'); return } loadCourses() })
 
-    return { courses, categories, loading, searchQuery, categoryFilter, statusFilter, currentPage, pageSize, filteredCourses, paginatedCourses, progressColor, navigateToCreate, editCourse, manageMaterials, publishCourse, unpublishCourse, deleteCourse, getCategoryName, formatDate, playerVisible, playerTitle, playerCourseId, playerChapters, playerStartIndex, docVisible, docTitle, docFileUrl, docHtmlContent, docProgress, docId, docImage, docDuration, openVideoPicker, openVideoAt, videoPickerVisible, videoPickerTitle, videoPickerList, videoPickerCourse, previewCourseDocs }
+    return { courses, categories, loading, searchQuery, categoryFilter, statusFilter, currentPage, pageSize, filteredCourses, paginatedCourses, progressColor, navigateToCreate, editCourse, manageMaterials, publishCourse, unpublishCourse, deleteCourse, getCategoryName, formatDate, playerVisible, playerTitle, playerCourseId, playerChapters, playerStartIndex, docVisible, docTitle, docFileUrl, docHtmlContent, docProgress, docId, docImage, docDuration, openVideoPicker, openVideoAt, videoPickerVisible, videoPickerTitle, videoPickerList, videoPickerCourse, previewCourseDocs, viewStudents}
   }
 }
 </script>

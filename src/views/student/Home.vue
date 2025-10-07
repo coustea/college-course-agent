@@ -138,6 +138,7 @@ import { useRouter, useRoute } from 'vue-router'
 import CoursePlayer from '/src/components/CoursePlayer.vue'
 import DocumentViewer from '/src/components/DocumentViewer.vue'
 import { fetchHomeCourses } from '/src/services/homeCoursesApi'
+import { listStudents } from '/src/services/coursesApi'
 
 const searchQuery = ref('')
 const activeFilter = ref('all')

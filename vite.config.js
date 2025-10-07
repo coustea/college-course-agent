@@ -8,9 +8,9 @@ export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
     proxy: {
-      '/api': { target: 'http://localhost:9999', changeOrigin: true },
-      '/media': { target: 'http://localhost:9999', changeOrigin: true },
-      '/uploads': { target: 'http://localhost:9999', changeOrigin: true },
+      '/api': { target: 'http://192.168.52.75:9999', changeOrigin: true },
+      '/media': { target: 'http://192.168.52.75:9999', changeOrigin: true },
+      '/uploads': { target: 'http://192.168.52.75:9999', changeOrigin: true },
     },
   },
 })

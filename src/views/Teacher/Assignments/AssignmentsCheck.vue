@@ -180,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
@@ -241,6 +241,7 @@ const groups = ref([
 ])
 
 const selectedGroup = ref(null)
+const highlightedMember = ref('')
 const detailDialogVisible = ref(false)
 
 // 评分表单
@@ -324,6 +325,30 @@ const exportReport = () => {
 onMounted(() => {
   // 可以在这里根据assignmentId获取作业详情和小组提交情况
   console.log('检查项目ID:', assignmentId)
+  // 根据路由参数自动打开小组/成员详情
+  const q = route.query || {}
+  const gid = Number(q.groupId)
+  const member = (q.member || q.studentName || '').toString().trim()
+  if (member) highlightedMember.value = member
+  const tryAutoOpen = () => {
+    if (Number.isFinite(gid)) {
+      const g = (groups.value || []).find(x => Number(x.id) === gid)
+      if (g) {
+        viewGroupDetails(g)
+      }
+    }
+  }
+  // 组数据可能异步加载，监听到有数据后再尝试
+  if ((groups.value || []).length > 0) {
+    tryAutoOpen()
+  } else {
+    const stop = watch(groups, (nv) => {
+      if (Array.isArray(nv) && nv.length > 0) {
+        tryAutoOpen()
+        stop && stop()
+      }
+    }, { immediate: false })
+  }
 })
 </script>
 

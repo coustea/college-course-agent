@@ -1,20 +1,16 @@
 // 首页课程接口服务
-import axios from 'axios'
+import { api } from './coursesApi'
 
-// 将后端 resourceUrl/相对路径转换为可访问的完整 URL
-// 按需把所有相对地址统一拼上后端主机前缀
-const BACKEND_HOST = (() => {
-    try {
-        const p = window?.location?.port
-        if (p === '4173' || p === '5173') return 'http://192.168.52.75:9999'
-    } catch (e) { console.error(e) }
-    return 'http://192.168.52.75:9999'
-})()
+// 统一将相对路径转换为可访问 URL：
+// - 已是绝对地址: 原样返回
+// - 以 /uploads/ 开头: 走相对路径交给 Vite 代理或 Nginx（避免硬编码主机）
+// - 其他相对: 补上 / 作为相对路径
 const toUrl = (u) => {
     if (!u) return ''
     const s = String(u)
     if (/^(https?:|data:|blob:)/.test(s)) return s
-    return `${BACKEND_HOST.replace(/\/$/, '')}/${s.replace(/^\//, '')}`
+    if (s.startsWith('/uploads/')) return s
+    return `/${s.replace(/^\//, '')}`
 }
 
 /**
@@ -25,8 +21,8 @@ const toUrl = (u) => {
  */
 export async function fetchHomeCourses(signal) {
     try {
-        // 使用相对路径，走 Axios baseURL，便于部署与环境切换
-        const response = await axios.get('http://192.168.52.75:9999/api/course/list', { signal })
+        // 使用统一 api 实例与相对路径，便于通过 env/proxy 切换环境
+        const response = await api.get('/course/list', { signal })
         const payload = response?.data
         console.log('首页课程数据', payload)
         // 兼容两种返回：直接数组，或 { code, data: [] }

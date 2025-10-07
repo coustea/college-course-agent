@@ -78,31 +78,23 @@ const handleLogin = async () => {
     console.log('password', password.value)
     const res = await axios.post('/api/auth/login', {
       username: username.value,
-      password: password.value
+      password: password.value,
+      role: role.value
     })
     console.log('登录信息', res?.data)
-    const ok = (res?.data?.code === 200)
-    if (ok) {
-      try {
-        const user = res?.data?.data
-        localStorage.setItem('currentUser', JSON.stringify(user))
-        console.log('当前用户', localStorage.getItem('currentUser'))
-        if (user?.className) {
-          localStorage.setItem('className', user.className)
-          console.log('className', localStorage.getItem('className'))
-        }
-      } catch (e) { console.error(e) }
-      const backendRole = (res?.data?.data?.role || '').toString().toLowerCase()
-      try { localStorage.setItem('userRole', backendRole) } catch (e) { console.error(e) }
-      const target = backendRole === 'teacher' ? '/teacher' : '/home'
-      await router.push(target)
-      return
+    if (role.value === 'teacher'&& res.data.code === 200) {
+      localStorage.setItem("userId",res.data.userId)
+      localStorage.setItem("userName",res.data.userName)
+      localStorage.setItem("token",res.data.token)
+      router.push('/teacher')
+    } else if (role.value === 'student'&& res.data.code === 200) {
+      localStorage.setItem("userId",res.data.userId)
+      localStorage.setItem("userName",res.data.userName)
+      localStorage.setItem("token",res.data.token)
+      router.push('/student')
+    } else {
+      errorMsg.value = res?.data?.message || '登录失败，请检查账号/密码/角色'
     }
-    if (res?.data?.code === 401) {
-      errorMsg.value = res?.data?.message || '密码错误'
-      return
-    }
-    errorMsg.value = res?.data?.message || '登录失败，请检查账号/密码/角色'
   } catch (error) {
     errorMsg.value = error?.response?.data?.message || '登录失败，请检查账号/密码/角色'
   }
