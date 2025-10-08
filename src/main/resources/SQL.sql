@@ -208,6 +208,7 @@ CREATE TABLE group_members (
 CREATE TABLE teacher_assignments (
      assignment_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '作业ID',
      teacher_id BIGINT NOT NULL COMMENT '发布教师ID',
+     class_name VARCHAR(100) NULL COMMENT '班级',
      course_id BIGINT  NULL COMMENT '课程ID',
      assignment_name VARCHAR(200) NOT NULL COMMENT '作业名称',
      description TEXT COMMENT '作业描述',

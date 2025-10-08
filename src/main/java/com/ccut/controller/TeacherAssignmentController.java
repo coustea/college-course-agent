@@ -43,6 +43,7 @@ public class TeacherAssignmentController {
             @RequestParam Long teacherId,
             @RequestParam Long courseId,
             @RequestParam String assignmentName,
+            @RequestParam String className,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String requirements,
             @RequestParam(required = false) Boolean allowLateSubmission,
@@ -90,6 +91,7 @@ public class TeacherAssignmentController {
         teacherAssignment.setAssignmentName(assignmentName);
         teacherAssignment.setDescription(description);
         teacherAssignment.setRequirements(requirements);
+        teacherAssignment.setClassName(className);
         teacherAssignment.setAllowLateSubmission(allowLateSubmission != null ? allowLateSubmission : false);
         teacherAssignment.setAttachmentFiles(attachmentJson);
 

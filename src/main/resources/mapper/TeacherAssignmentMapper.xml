@@ -3,10 +3,10 @@
 <mapper namespace="com.ccut.mapper.TeacherAssignmentMapper">
     <insert id="insert" useGeneratedKeys="true" keyProperty="assignmentId">
         INSERT INTO teacher_assignments
-        (teacher_id, course_id, assignment_name, description,
+        (teacher_id, course_id, assignment_name, class_name, description,
          requirements, due_date, allow_late_submission, attachment_files, created_at)
         VALUES
-        (#{teacherId}, #{courseId}, #{assignmentName}, #{description},
+        (#{teacherId}, #{courseId}, #{assignmentName}, #{className}, #{description},
          #{requirements}, #{dueDate}, #{allowLateSubmission}, #{attachmentFiles},CURRENT_TIMESTAMP)
     </insert>
     <update id="update">

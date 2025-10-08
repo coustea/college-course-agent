@@ -17,6 +17,8 @@ public class TeacherAssignment {
     private Long courseId;
     // 作业名称
     private String assignmentName;
+    // 班级
+    private String className;
     // 作业描述
     private String description;
     // 作业要求
