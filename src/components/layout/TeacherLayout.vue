@@ -212,15 +212,38 @@ const toggleUserMenu = () => {
   showUserMenu.value = !showUserMenu.value
 }
 
-const logout = () => {
-  // 退出登录逻辑
+const logout = async () => {
   showUserMenu.value = false
-  // 清除用户信息
-  localStorage.removeItem('userToken')
-  localStorage.removeItem('userRole')
-  navigateTo('/')
-}
 
+  try {
+    // 获取存储的token
+    const token = localStorage.getItem('token')
+
+    // 调用后端退出登录接口
+    if (token) {
+      const res = await axios.post(`${BASE_URL}/logout`, {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (res.data.code === 200) {
+        ElMessage.success('退出登录成功')
+      } else {
+        ElMessage.error('退出登录失败')
+      }
+    }
+  } catch (error) {
+    console.error('退出登录请求失败:', error)
+    // 即使后端调用失败，我们仍然清理本地状态
+  } finally {
+    // 清理本地存储（根据登录时实际保存的数据进行清理）
+    localStorage.removeItem('userId')
+    localStorage.removeItem('userName')
+    localStorage.removeItem('token')
+    // 跳转到登录页
+    router.push('/')
+  }
+}
 const navigateToProfile = () => {
   showUserMenu.value = false
   navigateTo('/teacher/profile')

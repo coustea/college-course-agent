@@ -219,9 +219,6 @@ const logout = async () => {
     console.error('退出登录请求失败:', error)
     // 即使后端调用失败，我们仍然清理本地状态
   } finally {
-    // 清理本地存储
-    localStorage.removeItem('userRole')
-    localStorage.removeItem('currentUser')
     // 清理小组持久化状态
     try {
       localStorage.removeItem('student_group_status')
