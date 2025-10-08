@@ -10,7 +10,7 @@ public interface StudentService {
 
     int insert(Student student);
     Student getStudentByStudentNumber(String studentNumber);
-    int update(Student student);
+    int updateById(Student student);
     int deleteById(Long id);
     List<Student> selectAll();
     Student selectById(Long id);

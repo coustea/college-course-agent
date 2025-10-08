@@ -37,6 +37,17 @@ public class UserController {
         return Result.error(500, "添加失败");
     }
 
+    @PutMapping("/{id}")
+    public Result<String> updateUser(@PathVariable("id") Long id,@RequestBody User user) {
+        user.setId(id);
+        int res = userService.updateUser(user);
+        if (res <= 0) {
+            log.error("更新用户失败：{}", user);
+            return Result.error(500, "更新用户失败");
+        }
+        return Result.success("更新成功");
+    }
+
     @PostMapping("/excel")
     public Result<String> insertByExcel(@RequestParam("file") MultipartFile file) throws Exception {
         if (file.isEmpty()) {
@@ -131,4 +142,7 @@ public class UserController {
         int res = userService.deleteAll();
         return Result.success("删除成功");
     }
+
+
+
 }

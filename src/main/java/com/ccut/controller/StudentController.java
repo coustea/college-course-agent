@@ -36,6 +36,22 @@ public class StudentController {
         }
     }
 
+    @PostMapping("/by-id")
+    public Result<Student> selectById(@RequestParam("userId") Long userId) {
+        try {
+            if (userId == null) {
+                return Result.error(400, "userId 不能为空");
+            }
+            Student student = studentService.selectById(userId);
+            if (student == null) {
+                return Result.error(404, "未找到该学生");
+            }
+            return Result.success(student);
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
+
     @PostMapping
     public Result<Student> insert(@RequestBody Student student) {
         int res = studentService.insert(student);
@@ -57,6 +73,8 @@ public class StudentController {
             return Result.error(500, e.getMessage());
         }
     }
+
+
 }
 
 
