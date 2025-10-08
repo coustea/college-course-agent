@@ -240,7 +240,7 @@ watch(() => route.path, (newPath) => {
   isSubMenuOpen.value = newPath.startsWith('/courses')
 }, { immediate: true })
 
-// 修改密码对话框逻辑
+
 const passwordDialogVisible = ref(false)
 const changingPassword = ref(false)
 const passwordFormRef = ref()
@@ -461,8 +461,6 @@ const changePassword = async () => {
   font-size:12px;
   font-weight:700;
 }
-.chip-ok { background:#e8f5e9; color:#2e7d32; }
-.chip-none { background:#ffebee; color:#c62828; }
 
 .user-info .fa-chevron-up {
   transition: transform 0.3s ease;
@@ -526,7 +524,6 @@ const changePassword = async () => {
   transition: margin-left 0.3s ease;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
   .sidebar {
     width: 70px;
