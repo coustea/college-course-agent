@@ -111,10 +111,11 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted,getCurrentInstance,onActivated} from 'vue'
 import { ElMessage } from 'element-plus'
 import { updateStudentPassword } from '@/services/changePasswordApi'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter, useRoute,onBeforeRouteUpdate} from 'vue-router'
+import axios from "axios";
 
 const router = useRouter()
 const route = useRoute()
@@ -130,6 +131,31 @@ const avatar = computed(() => {
 const workStatus = ref('none')
 const workStatusLabel = computed(() => workStatus.value === 'submitted' ? '作业已提交' : '有新的作业')
 const workStatusClass = computed(() => workStatus.value === 'submitted' ? 'chip-ok' : 'chip-none')
+
+const {proxy} = getCurrentInstance()
+const BASE_URL = proxy.$baseUrl
+
+
+const getStudentById = async () => {
+  console.log('getStudentById called')
+  try {
+    const userId = localStorage.getItem('userId')
+    console.log(userId)
+    const res = await axios.post(`${BASE_URL}/student/by-id`, { userId }, {
+      headers: {
+        'content-type': 'multipart/form-data',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    console.log(res.data)
+    if (res.data.code === 200) {
+      console.log(res.data.data)
+      userName.value = res.data.data.name
+    }
+  } catch (error) {
+    console.error('获取学生信息失败:', error)
+  }
+}
 
 function refreshWorkStatus() {
   try {
@@ -150,9 +176,20 @@ function loadUserFromStorage() {
 onMounted(() => {
   loadUserFromStorage()
   refreshWorkStatus()
+  getStudentById()
   try { window.addEventListener('storage', refreshWorkStatus) } catch (e) { console.error(e) }
   try { window.addEventListener('work-status-updated', refreshWorkStatus) } catch (e) { console.error(e) }
 })
+// 当页面被 keep-alive 缓存后重新激活时执行
+onActivated(() => {
+  getStudentById()
+})
+
+// 当路由更新时重新获取学生信息
+onBeforeRouteUpdate(() => {
+  getStudentById()
+})
+
 
 const toggleUserMenu = () => {
   showUserMenu.value = !showUserMenu.value

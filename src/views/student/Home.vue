@@ -133,12 +133,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, computed, onMounted, onActivated, getCurrentInstance } from 'vue'
+import { useRouter, useRoute, onBeforeRouteUpdate } from 'vue-router'
 import CoursePlayer from '/src/components/CoursePlayer.vue'
 import DocumentViewer from '/src/components/DocumentViewer.vue'
 import { fetchHomeCourses } from '/src/services/homeCoursesApi'
 import { listStudents } from '/src/services/coursesApi'
+import axios from 'axios'
 
 const searchQuery = ref('')
 const activeFilter = ref('all')
@@ -147,8 +148,32 @@ const loading = ref(false)
 const userName = ref('同学')
 const router = useRouter()
 const route = useRoute()
+const { proxy } = getCurrentInstance()
+const BASE_URL = proxy.$baseUrl
 
-// 日期的格式化，将后端传递的只时间展示前端所需
+
+const getStudentById = async () => {
+  console.log('getStudentById called')
+  try {
+    const userId = localStorage.getItem('userId')
+    console.log(userId)
+    const res = await axios.post(`${BASE_URL}/student/by-id`, { userId }, {
+      headers: {
+        'content-type': 'multipart/form-data',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    console.log(res.data)
+    if (res.data.code === 200) {
+      console.log(res.data.data)
+      userName.value = res.data.data.name
+    }
+  } catch (error) {
+    console.error('获取学生信息失败:', error)
+  }
+}
+
+// 日期格式化
 const formatDate = (input) => {
   if (!input) return '-'
   const s = String(input)
@@ -170,9 +195,9 @@ const filteredCourses = computed(() => {
   const byFilter = activeFilter.value === 'all' ? list : list.filter((c) => c.type === activeFilter.value)
   if (!text) return byFilter
   return byFilter.filter((c) =>
-      [c.title, c.description, c.category]
-          .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(text))
+    [c.title, c.description, c.category]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(text))
   )
 })
 
@@ -193,19 +218,26 @@ const loadCourses = async () => {
   }
 }
 
+// === 页面进入逻辑 ===
 onMounted(() => {
   loadCourses()
-  try {
-    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
-    userName.value = saved?.name || '同学'
-  } catch { userName.value = '同学' }
+  getStudentById()
+})
+
+// 当页面被 keep-alive 缓存后重新激活时执行
+onActivated(() => {
+  getStudentById()
+})
+
+// 当路由更新时重新获取学生信息
+onBeforeRouteUpdate(() => {
+  getStudentById()
 })
 
 const playerVisible = ref(false)
 const activeCourse = ref(null)
 const openCourse = (course) => {
   if (course.type !== 'video') return
-  // 教师课程列表页：进入播放前清空本地题目记录，确保会弹题
   try { if (route.path.startsWith('/teacher/courses/list')) localStorage.removeItem('course_questions_state_v1') } catch (e) { console.error(e) }
   activeCourse.value = course
   playerVisible.value = true
@@ -229,10 +261,9 @@ const onCardClick = (course) => {
 }
 
 const filterCourses = () => {}
-// 教师课程列表页面判定
 const isTeacherCoursesPage = computed(() => route.path.startsWith('/teacher/courses/list'))
 
-// 学生管理（选入课程）
+// 学生管理
 const studentManagerVisible = ref(false)
 const studentLoading = ref(false)
 const studentList = ref([])
@@ -296,21 +327,18 @@ const enrollSelectedStudents = async () => {
   }
 }
 
-// 修改课程（跳编辑页）
 const editCourse = (course) => {
   const id = course.id || course.courseId
   if (!id) return
   router.push(`/teacher/courses/edit/${id}`)
 }
 
-// 进入课程内容管理
 const editCourseMaterials = (course) => {
   const id = course.id || course.courseId
   if (!id) return
   router.push(`/teacher/courses/${id}/materials`)
 }
 
-// 删除课程（旧版逻辑）
 const deleteCourse = async (course) => {
   try {
     const ok = window.confirm(`确定要删除课程 “${course.title || ''}” 吗？此操作不可恢复。`)
@@ -329,7 +357,6 @@ const deleteCourse = async (course) => {
   }
 }
 
-// 如果后端没有给文档课程章节，但提供了多个 url 字段，自动构造章节
 function ensureDocChapters(course) {
   if (!course) return course
   if (course.type !== 'document') return course
@@ -351,6 +378,7 @@ function ensureDocChapters(course) {
   return { ...course, chapters: urls }
 }
 </script>
+
 
 <style scoped>
 .content {

@@ -14,6 +14,9 @@ app.use(pinia)
 app.use(ElementPlus)
 app.use(router)
 
+// === 全局 BASE_URL ===
+app.config.globalProperties.$baseUrl = 'http://localhost:9999/api'
+
 // 初始化全局设置
 const settingsStore = useSettingsStore()
 settingsStore.initializeSettings()
