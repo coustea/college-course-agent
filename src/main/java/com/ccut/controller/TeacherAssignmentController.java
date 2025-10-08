@@ -41,11 +41,6 @@ public class TeacherAssignmentController {
 
     @PostMapping("/byClassName")
     public Result<List<TeacherAssignment>> getAssignmentsByClassName(@RequestParam String className) {
-
-        if(!StringUtils.hasText(className)){
-            log.error("参数错误，className is null");
-            return Result.error(400, "参数错误");
-        }
         List<TeacherAssignment> teacherAssignments = teacherAssignmentService.selectByClassName(className);
         if(teacherAssignments == null){
             log.error("未找到，className is {}", className);
