@@ -241,7 +241,7 @@ const getCourseProgress = (studentId, courseId) =>
 const fetchStudents = async () => {
   loading.value = true
   try {
-    const res = await axios.get(BASE_URL + '/teacher/list/students',{
+    const res = await api.get(`${BASE_URL}/teacher/list/students`,{
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
       }
