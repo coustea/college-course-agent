@@ -278,30 +278,51 @@ const cancelPasswordChange = () => {
 
 const changePassword = async () => {
   if (!passwordFormRef.value) return
+
   await passwordFormRef.value.validate(async (valid) => {
     if (!valid) return
+
     if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
       ElMessage.error('两次输入的密码不一致')
       return
     }
+
     try {
       changingPassword.value = true
-      const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null')
-      const studentId = currentUser?.id ?? 10 // 后备ID=10，或从登录信息取
-      await updateStudentPassword(studentId, {
-        currentPassword: passwordForm.value.currentPassword,
-        newPassword: passwordForm.value.newPassword
+
+      const userId = localStorage.getItem('userId')
+      if (!userId) {
+        ElMessage.error('未找到用户 ID，请重新登录')
+        return
+      }
+
+      // 只提交要更新的字段（这里仅更新密码）
+      const payload = {
+        password: passwordForm.value.newPassword
+      }
+
+      const res = await axios.put(`${BASE_URL}/user/${userId}`, payload, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
       })
-      ElMessage.success('密码修改成功')
-      passwordDialogVisible.value = false
-      resetPasswordForm()
+
+      if (res.data.code === 200) {
+        ElMessage.success('密码修改成功')
+        passwordDialogVisible.value = false
+        resetPasswordForm()
+      } else {
+        ElMessage.error(res.data.message || '密码修改失败')
+      }
     } catch (e) {
+      console.error(e)
       ElMessage.error('密码修改失败，请稍后重试')
     } finally {
       changingPassword.value = false
     }
   })
 }
+
 </script>
 
 <style scoped>
