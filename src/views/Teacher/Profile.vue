@@ -316,16 +316,18 @@ const showPasswordDialog = () => {
   passwordDialogVisible.value = true
 }
 
-// 修改密码（若后端暂无对应接口，则暂不调用，仅前端校验）
+// 修改密码：调用后端 /teacher/update/teacher（与资料更新一致），按 id 传参
 const changePassword = async () => {
   try {
     changingPassword.value = true
     await passwordFormRef.value.validate()
-    ElMessage.success('已校验表单（后端密码修改接口未接入）')
+    if (!teacherId.value) { ElMessage.error('未获取到教师ID'); return }
+    await api.put(`/teacher/update/teacher`, { password: passwordForm.newPassword }, { params: { id: teacherId.value } })
+    ElMessage.success('密码修改成功')
     passwordDialogVisible.value = false
   } catch (error) {
     console.error('修改密码失败:', error)
-    ElMessage.error('请检查密码填写是否正确')
+    ElMessage.error('修改密码失败')
   } finally {
     changingPassword.value = false
   }

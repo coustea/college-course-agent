@@ -243,8 +243,22 @@ async function loadCoursesFromApi() {
 
 function loadStudent() {
   try {
-    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
-    student.value = saved && Object.keys(saved).length ? saved : {}
+    const raw = localStorage.getItem('profile')
+    if (raw) {
+      const p = JSON.parse(raw)
+      if (p && typeof p === 'object') {
+        student.value = p
+        return
+      }
+    }
+    const name = localStorage.getItem('userName') || ''
+    const studentId = localStorage.getItem('studentId') || ''
+    student.value = {
+      name: name || '',
+      studentNumber: '',
+      className: '',
+      id: studentId ? Number(studentId) : undefined
+    }
   } catch (e) {
     console.error(e)
     student.value = {}

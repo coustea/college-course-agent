@@ -43,7 +43,8 @@ export function clearAuthSession() {
   }
 }
 
-// 获取携带 token 的请求头，适用于临时 axios 调用或 fetch
+// 返回包含 Authorization: Bearer <token> 的请求头
+// 用于需要手动传 headers 的场景（例如临时 axios/fetch 调用）
 export function getAuthHeaders(extra = {}) {
   const token = localStorage.getItem('token') || localStorage.getItem('userToken')
   return token

@@ -83,7 +83,6 @@
               size="small"
               type="primary"
               @click="checkAssignment(scope.row)"
-              :disabled="scope.row.submittedCount === 0"
             >
               检查情况
             </el-button>
