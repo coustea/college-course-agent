@@ -17,9 +17,10 @@
         WHERE student_id = #{studentId}
         AND group_id = #{groupId}
     </delete>
-
-
-
+    <select id="selectById" resultType="com.ccut.entity.GroupMember">
+        SELECT * FROM group_members
+        WHERE student_id = #{studentId}
+    </select>
 
 
 </mapper>

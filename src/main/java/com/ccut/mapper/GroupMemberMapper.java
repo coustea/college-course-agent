@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface GroupMemberMapper {
-
+    GroupMember selectById(Long id);
     int insertMember(GroupMember groupMember);
     int deleteMember(@Param("studentId") Long studentId, @Param("groupId") Long groupId);
 }

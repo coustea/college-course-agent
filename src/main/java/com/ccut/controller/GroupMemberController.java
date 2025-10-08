@@ -19,6 +19,21 @@ public class GroupMemberController {
     @Autowired
     private StudentServiceImpl studentService;
 
+    @PostMapping("/getById")
+    public Result<GroupMember> getGroupMember(@RequestParam Long studentId) {
+        System.out.println(studentId);
+        if(studentId == null){
+            log.error("参数错误，studentId is null");
+            return Result.error(400, "参数错误");
+        }
+        GroupMember groupMember = groupMemberService.selectById(studentId);
+        if(groupMember == null){
+            log.error("未找到，studentId is {}", studentId);
+            return Result.error(404, "未找到");
+        }
+        return Result.success(groupMember);
+    }
+
     @PostMapping
     public Result<GroupMember> insert(@RequestBody GroupMember groupMember) {
         if(groupMember == null){

@@ -18,6 +18,11 @@ public class GroupMemberServiceImpl implements GroupMemberService {
     }
 
     @Override
+    public GroupMember selectById(Long id) {
+        return groupMemberMapper.selectById(id);
+    }
+
+    @Override
     public int insertMember(GroupMember groupMember) {
         return groupMemberMapper.insertMember(groupMember);
     }

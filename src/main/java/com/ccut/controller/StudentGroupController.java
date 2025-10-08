@@ -34,6 +34,23 @@ public class StudentGroupController {
     @Autowired
     private TeacherServiceImpl teacherService;
 
+
+
+    @PostMapping("/getByGroupId")
+    public Result<StudentGroup> getGroup(@RequestParam Long groupId) {
+        if(groupId == null){
+            log.error("参数错误，groupId is null");
+            return Result.error(400, "参数错误");
+        }
+        StudentGroup studentGroup = studentGroupService.selectByGroupId(groupId);
+        if(studentGroup == null){
+            log.error("未找到，groupId is {}", groupId);
+            return Result.error(404, "未找到");
+        }
+        return Result.success(studentGroup);
+    }
+
+
     @PostMapping
     public Result<StudentGroup> create(@RequestParam String groupName,
                                        @RequestParam Long groupLeaderId,
@@ -161,6 +178,9 @@ public class StudentGroupController {
             return Result.error(500, "系统异常，请稍后重试");
         }
     }
+
+
+
 
     @DeleteMapping("/{id}")                                                                                                                         
     public Result<String> delete(@PathVariable("id") Long id) {
