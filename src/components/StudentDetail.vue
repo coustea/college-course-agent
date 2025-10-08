@@ -74,125 +74,116 @@
   </div>
 </template>
 
-<script>
+<script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 
-export default {
-  name: 'StudentDetail',
-  props: {
-    student: Object
-  },
-  setup(props) {
-    const trendChart = ref(null)
-    let trendChartInstance = null
+// === props ===
+const props = defineProps({
+  student: Object
+})
 
-    // 获取状态类型和文本
-    const getStatusType = (student) => {
-      if (student.avgScore >= 90 && student.completionRate >= 90) return 'success'
-      if (student.avgScore < 70 || student.completionRate < 60) return 'danger'
-      return 'warning'
-    }
+// === 状态 ===
+const trendChart = ref(null)
+let trendChartInstance = null
 
-    const getStatusText = (student) => {
-      if (student.avgScore >= 90 && student.completionRate >= 90) return '优秀'
-      if (student.avgScore < 70 || student.completionRate < 60) return '需关注'
-      return '良好'
-    }
-
-    const getPerformanceText = (level) => {
-      const texts = {
-        excellent: '优秀',
-        good: '良好',
-        average: '一般',
-        concern: '需关注'
-      }
-      return texts[level] || '未知'
-    }
-
-    // 初始化趋势图表
-    const initTrendChart = () => {
-      if (!trendChart.value) return
-
-      trendChartInstance = echarts.init(trendChart.value)
-
-      const option = {
-        tooltip: {
-          trigger: 'axis'
-        },
-        legend: {
-          data: ['成绩趋势', '学习时长']
-        },
-        grid: {
-          left: '3%',
-          right: '4%',
-          bottom: '3%',
-          containLabel: true
-        },
-        xAxis: {
-          type: 'category',
-          boundaryGap: false,
-          data: ['第1周', '第2周', '第3周', '第4周', '第5周', '第6周', '第7周']
-        },
-        yAxis: [
-          {
-            type: 'value',
-            name: '成绩',
-            max: 100
-          },
-          {
-            type: 'value',
-            name: '时长(h)'
-          }
-        ],
-        series: [
-          {
-            name: '成绩趋势',
-            type: 'line',
-            yAxisIndex: 0,
-            data: [65, 70, 75, 80, 82, 85, 88],
-            smooth: true,
-            lineStyle: {
-              width: 3,
-              color: '#5470c6'
-            }
-          },
-          {
-            name: '学习时长',
-            type: 'line',
-            yAxisIndex: 1,
-            data: [8, 10, 12, 14, 13, 15, 16],
-            smooth: true,
-            lineStyle: {
-              width: 3,
-              color: '#91cc75'
-            }
-          }
-        ]
-      }
-
-      trendChartInstance.setOption(option)
-    }
-
-    onMounted(() => {
-      if (props.student) {
-        nextTick(() => {
-          setTimeout(() => {
-            initTrendChart()
-          }, 300)
-        })
-      }
-    })
-
-    return {
-      trendChart,
-      getStatusType,
-      getStatusText,
-      getPerformanceText
-    }
-  }
+// === 获取状态类型和文本 ===
+const getStatusType = (student) => {
+  if (student.avgScore >= 90 && student.completionRate >= 90) return 'success'
+  if (student.avgScore < 70 || student.completionRate < 60) return 'danger'
+  return 'warning'
 }
+
+const getStatusText = (student) => {
+  if (student.avgScore >= 90 && student.completionRate >= 90) return '优秀'
+  if (student.avgScore < 70 || student.completionRate < 60) return '需关注'
+  return '良好'
+}
+
+const getPerformanceText = (level) => {
+  const texts = {
+    excellent: '优秀',
+    good: '良好',
+    average: '一般',
+    concern: '需关注'
+  }
+  return texts[level] || '未知'
+}
+
+// === 初始化趋势图表 ===
+const initTrendChart = () => {
+  if (!trendChart.value) return
+
+  trendChartInstance = echarts.init(trendChart.value)
+
+  const option = {
+    tooltip: {
+      trigger: 'axis'
+    },
+    legend: {
+      data: ['成绩趋势', '学习时长']
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: ['第1周', '第2周', '第3周', '第4周', '第5周', '第6周', '第7周']
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: '成绩',
+        max: 100
+      },
+      {
+        type: 'value',
+        name: '时长(h)'
+      }
+    ],
+    series: [
+      {
+        name: '成绩趋势',
+        type: 'line',
+        yAxisIndex: 0,
+        data: [65, 70, 75, 80, 82, 85, 88],
+        smooth: true,
+        lineStyle: {
+          width: 3,
+          color: '#5470c6'
+        }
+      },
+      {
+        name: '学习时长',
+        type: 'line',
+        yAxisIndex: 1,
+        data: [8, 10, 12, 14, 13, 15, 16],
+        smooth: true,
+        lineStyle: {
+          width: 3,
+          color: '#91cc75'
+        }
+      }
+    ]
+  }
+
+  trendChartInstance.setOption(option)
+}
+
+onMounted(() => {
+  if (props.student) {
+    nextTick(() => {
+      setTimeout(() => {
+        initTrendChart()
+      }, 300)
+    })
+  }
+})
 </script>
 
 <style scoped>
