@@ -9,6 +9,8 @@ public interface StudentPersonalSubmissionMapper {
     int insert(StudentPersonalSubmission submission);
 
     int upsert(StudentPersonalSubmission submission);
+
+    int grade(Long assignmentId, Long studentId, Integer score, String feedback, Long gradedBy);
 }
 
 

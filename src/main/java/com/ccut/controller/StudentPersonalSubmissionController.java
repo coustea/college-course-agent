@@ -93,6 +93,27 @@ public class StudentPersonalSubmissionController {
             return Result.error(500, e.getMessage());
         }
     }
+
+    // 教师评分接口：按 assignmentId + studentId 评分并反馈
+    @PostMapping("/grade")
+    public Result<String> grade(
+            @RequestParam("assignmentId") Long assignmentId,
+            @RequestParam("studentId") Long studentId,
+            @RequestParam("score") Integer score,
+            @RequestParam(value = "feedback", required = false) String feedback,
+            @RequestParam("gradedBy") Long gradedBy
+    ){
+        try {
+            if (assignmentId == null || studentId == null) return Result.error(400, "assignmentId 与 studentId 不能为空");
+            if (score == null) return Result.error(400, "score 不能为空");
+            int n = mapper.grade(assignmentId, studentId, score, feedback, gradedBy);
+            if (n > 0) return Result.success("评分成功");
+            return Result.error(404, "未找到该提交");
+        } catch (Exception e){
+            return Result.error(500, e.getMessage());
+        }
+    }
 }
+
 
 

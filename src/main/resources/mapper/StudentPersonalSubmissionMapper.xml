@@ -22,6 +22,17 @@
         status = VALUES(status),
         updated_at = CURRENT_TIMESTAMP
     </insert>
+
+    <update id="grade">
+        UPDATE student_personal_submissions
+        SET score = #{param3},
+            feedback = #{param4},
+            graded_at = CURRENT_TIMESTAMP,
+            graded_by = #{param5},
+            status = 'graded',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE assignment_id = #{param1} AND student_id = #{param2}
+    </update>
 </mapper>
 
 

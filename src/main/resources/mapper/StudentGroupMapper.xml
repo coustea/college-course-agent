@@ -27,9 +27,6 @@
     <update id="update" parameterType="com.ccut.entity.StudentGroup">
         UPDATE student_groups
         <set>
-        <if test="courseId != null">
-            course_id = #{courseId},
-        </if>
         <if test="groupName != null and groupName != ''">
             group_name = #{groupName},
         </if>
