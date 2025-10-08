@@ -6,7 +6,6 @@ import com.ccut.entity.Teacher;
 import com.ccut.service.Impl.StudentServiceImpl;
 import com.ccut.service.Impl.TeacherServiceImpl;
 import com.ccut.mapper.EnrollmentMapper;
-import com.ccut.mapper.StudentMapper;
 import com.ccut.mapper.CourseMapper;
 import com.ccut.mapper.LearningProgressMapper;
 import com.ccut.mapper.CourseDocumentMapper;
@@ -30,8 +29,7 @@ public class TeacherController {
     private TeacherServiceImpl teacherService;
     @Autowired
     private EnrollmentMapper enrollmentMapper;
-    @Autowired
-    private StudentMapper studentMapper;
+    // private StudentMapper studentMapper; // 未使用
     @Autowired
     private CourseMapper courseMapper;
     @Autowired
@@ -107,6 +105,19 @@ public class TeacherController {
     public Result<List<Student>> listStudents(){
         try {
             return Result.success(studentService.selectAll());
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    @PutMapping("/update/student")
+    public Result<String> updateStudent(@RequestParam("id") Long id, @RequestBody Student student) {
+        try {
+            if (id == null) return Result.error(400, "id 不能为空");
+            student.setId(id);
+            int n = studentService.updateById(student);
+            if (n > 0) return Result.success("更新成功");
+            return Result.error(404, "未找到或未变更");
         } catch (Exception e) {
             return Result.error(500, e.getMessage());
         }

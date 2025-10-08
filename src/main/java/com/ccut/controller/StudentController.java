@@ -25,7 +25,7 @@ public class StudentController {
     private StudentServiceImpl studentService;
 
     @GetMapping("/by-grade")
-    public Result<java.util.List<Student>> listByGrade(@RequestParam("grade") String grade) {
+    public Result<List<Student>> listByGrade(@RequestParam("grade") String grade) {
         try {
             if (grade == null || grade.trim().isEmpty()) {
                 return Result.error(400, "grade 不能为空");

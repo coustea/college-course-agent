@@ -37,7 +37,7 @@ public class UserController {
         return Result.error(500, "添加失败");
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/api/user")
     public Result<String> updateUser(@PathVariable("id") Long id,@RequestBody User user) {
         user.setId(id);
         int res = userService.updateUser(user);
