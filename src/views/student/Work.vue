@@ -1,29 +1,49 @@
 <template>
-  <div class="work-page">
+  <div class="page-container">
     <div class="header">
       <h1 class="page-title">作品提交</h1>
     </div>
-
     <div class="content">
-      <div class="submission-form">
-        <h3 class="form-title">提交新作品</h3>
-        <div class="requirements-box" v-if="requirements">
-          <div>作品要求：</div>
-          <ul>
-            <li v-if="requirements.titleRequired">需要填写作品标题</li>
-            <li v-if="requirements.descriptionRequired">需要填写作品描述<span v-if="requirements.descriptionMaxLen">（不超过 {{ requirements.descriptionMaxLen }} 字）</span></li>
-            <li v-if="requirements.maxFiles">最多上传 {{ requirements.maxFiles }} 个文件</li>
-            <li v-if="requirements.maxFileSizeMB">单个文件不超过 {{ requirements.maxFileSizeMB }}MB</li>
-            <li v-if="(requirements.allowedExtensions && requirements.allowedExtensions.length)
-                       || (requirements.allowedMimeTypes && requirements.allowedMimeTypes.length)">
-              允许的类型：
-              <span v-if="requirements.allowedExtensions && requirements.allowedExtensions.length">{{ requirements.allowedExtensions.join(', ') }}</span>
-              <span v-if="requirements.allowedMimeTypes && requirements.allowedMimeTypes.length">（{{ requirements.allowedMimeTypes.join(', ') }}）</span>
-            </li>
-            <li v-if="requirements.extraNotes">{{ requirements.extraNotes }}</li>
-          </ul>
-        </div>
+      <!-- 列表模式 -->
+      <div v-if="mode === 'list'" class="assignment-list">
+        <el-empty description="暂无作业" v-if="assignments.length === 0" />
+        <el-table v-else :data="assignments" border stripe style="width: 100%">
+          <el-table-column prop="title" label="作业标题" min-width="220" />
+          <el-table-column prop="course" label="课程" min-width="180" />
+          <el-table-column prop="deadline" label="截止时间" width="180" />
+          <el-table-column prop="teacher" label="发布教师" width="140" />
+          <el-table-column label="操作" width="120" align="center">
+            <template #default="{ row }">
+              <el-button type="primary" size="small" @click="openDetail(row)">查看详情</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <!-- 详情模式：沿用原提交流程 -->
+      <div v-else class="submission-form">
+        <el-page-header title="返回" @back="backToList" :content="currentAssignment?.title || '提交新作品'" />
+        <el-card class="detail-card" shadow="never" style="margin-top: 12px">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="作业标题">{{ currentAssignment?.title || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="课程">{{ currentAssignment?.course || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="截止时间">{{ currentAssignment?.deadline || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="发布教师">{{ currentAssignment?.teacher || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="说明" :span="2">{{ currentAssignment?.description || '—' }}</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
         <el-form :model="submissionForm" label-width="100px">
+          <div class="form-row">
+            <el-form-item label="提交身份">
+              <div class="submit-scope">
+                <el-radio-group v-model="submitScope">
+                  <el-radio-button label="individual">个人</el-radio-button>
+                  <el-radio-button label="group" :disabled="groupStatus !== 'approved'">小组</el-radio-button>
+                </el-radio-group>
+                <span class="status-chip" :class="`st-${groupStatus}`">{{ groupStatusText }}</span>
+              </div>
+            </el-form-item>
+          </div>
           <div class="form-row">
             <el-form-item label="作品标题">
               <el-input v-model="submissionForm.title" placeholder="请输入作品标题" />
@@ -70,14 +90,28 @@
               </el-upload>
             </el-form-item>
           </div>
-
         </el-form>
+        <div class="requirements-box" v-if="requirements">
+          <div>作品要求：</div>
+          <ul>
+            <li v-if="requirements.titleRequired">需要填写作品标题</li>
+            <li v-if="requirements.descriptionRequired">需要填写作品描述<span v-if="requirements.descriptionMaxLen">（不超过 {{ requirements.descriptionMaxLen }} 字）</span></li>
+            <li v-if="requirements.maxFiles">最多上传 {{ requirements.maxFiles }} 个文件</li>
+            <li v-if="requirements.maxFileSizeMB">单个文件不超过 {{ requirements.maxFileSizeMB }}MB</li>
+            <li v-if="(requirements.allowedExtensions && requirements.allowedExtensions.length)
+                       || (requirements.allowedMimeTypes && requirements.allowedMimeTypes.length)">
+              允许的类型：
+              <span v-if="requirements.allowedExtensions && requirements.allowedExtensions.length">{{ requirements.allowedExtensions.join(', ') }}</span>
+              <span v-if="requirements.allowedMimeTypes && requirements.allowedMimeTypes.length">（{{ requirements.allowedMimeTypes.join(', ') }}）</span>
+            </li>
+            <li v-if="requirements.extraNotes">{{ requirements.extraNotes }}</li>
+          </ul>
+        </div>
         <div class="form-bottom-bar">
           <div class="deadline-text">{{ deadlineText }}</div>
           <el-button type="primary" :loading="submitting" @click="submitWork">提交作品</el-button>
         </div>
       </div>
-
     </div>
   </div>
 </template>
@@ -87,10 +121,26 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getWorkSidebarStatus, submitWork as submitWorkApi } from '@/services/workApi'
 
+const mode = ref('list')
+const assignments = ref([])
+const currentAssignment = ref(null)
+
 const submissionForm = ref({
   title: '',
   description: '',
   files: []
+})
+
+// 组队状态（来自“学习分组”页的本地持久化）
+const GROUP_STATUS_KEY = 'student_group_status'
+const GROUP_INFO_KEY = 'student_group_info'
+const groupStatus = ref('none') // none | pending | approved
+const groupInfo = ref(null)
+const submitScope = ref('individual') // individual | group
+const groupStatusText = computed(() => {
+  if (groupStatus.value === 'approved') return '已组队'
+  if (groupStatus.value === 'pending') return '审批中'
+  return '未组队'
 })
 
 const deadlineText = ref('截止时间：2025-12-31 23:59')
@@ -126,11 +176,38 @@ onMounted(async () => {
       deadlineText.value = text.startsWith('截止') ? text : `截止时间：${text}`
     }
     try { applyRequirements(data || {}) } catch (e) { console.error(e) }
+    // 如后端返回了作业列表，优先使用
+    try {
+      const serverAssignments = normalizeAssignments(data || {})
+      if (serverAssignments.length > 0) assignments.value = serverAssignments
+    } catch {}
     try {
       localStorage.setItem('work_sidebar_status', JSON.stringify(data || {}))
       window.dispatchEvent(new CustomEvent('work-sidebar-updated', { detail: data || {} }))
     } catch (e) { console.error(e) }
   } catch (e) { console.error(e) }
+
+  // 初始化作业列表（从 sidebar 或本地兜底）
+  try {
+    const raw = localStorage.getItem('work_sidebar_status')
+    const cached = raw ? JSON.parse(raw) : {}
+    assignments.value = normalizeAssignments(cached)
+  } catch {
+    assignments.value = []
+  }
+  // 若仍为空，则填充虚拟作业，保证列表可用
+  if (!Array.isArray(assignments.value) || assignments.value.length === 0) {
+    assignments.value = getMockAssignments()
+  }
+
+  // 读取组队状态，决定提交身份默认值
+  try {
+    const st = localStorage.getItem(GROUP_STATUS_KEY)
+    if (st === 'pending' || st === 'approved' || st === 'none') groupStatus.value = st
+    const info = JSON.parse(localStorage.getItem(GROUP_INFO_KEY) || 'null')
+    if (info && typeof info === 'object') groupInfo.value = info
+  } catch {}
+  submitScope.value = groupStatus.value === 'approved' ? 'group' : 'individual'
 })
 
 
@@ -257,6 +334,56 @@ function applyRequirements(data) {
   }
 }
 
+function normalizeAssignments(data) {
+  const list = []
+  const arr = Array.isArray(data?.assignments) ? data.assignments : []
+  for (const item of arr) {
+    list.push({
+      id: item.id ?? item.assignmentId ?? `${item.title || '作业'}`,
+      title: item.title || item.name || '作业',
+      description: item.description || item.content || '',
+      deadline: item.deadline || item.endTime || '',
+      course: item.courseName || item.course || '',
+      teacher: item.teacherName || item.teacher || ''
+    })
+  }
+  return list
+}
+
+function addDays(base, days) {
+  const d = new Date(base)
+  d.setDate(d.getDate() + days)
+  return d
+}
+function formatDateTime(dt) {
+  const p = (n) => String(n).padStart(2, '0')
+  const y = dt.getFullYear()
+  const m = p(dt.getMonth() + 1)
+  const d = p(dt.getDate())
+  const h = p(dt.getHours())
+  const mi = p(dt.getMinutes())
+  return `${y}-${m}-${d} ${h}:${mi}`
+}
+function getMockAssignments() {
+  const now = new Date()
+  return [
+    { id: 'mock-1', title: '思想道德修养期中报告', course: '思想道德修养与法律基础', deadline: formatDateTime(addDays(now, 7)), teacher: '李老师', description: '围绕社会主义核心价值观撰写2000字分析报告，PDF提交。' },
+    { id: 'mock-2', title: '中国近现代史人物小传', course: '中国近现代史纲要', deadline: formatDateTime(addDays(now, 10)), teacher: '王老师', description: '任选一个近现代历史人物，完成不少于1500字人物小传。' },
+    { id: 'mock-3', title: '形势与政策热点研判', course: '形势与政策', deadline: formatDateTime(addDays(now, 5)), teacher: '张老师', description: '围绕近期时政热点，完成PPT+讲稿并录制5分钟讲解视频。' },
+    { id: 'mock-4', title: '毛泽东思想读书笔记', course: '毛泽东思想和中国特色社会主义理论体系概论', deadline: formatDateTime(addDays(now, 12)), teacher: '赵老师', description: '指定篇目阅读，提交不少于8页读书笔记（图片或PDF）。' },
+    { id: 'mock-5', title: '马克思主义原理思维导图', course: '马克思主义基本原理', deadline: formatDateTime(addDays(now, 3)), teacher: '刘老师', description: '用思维导图工具梳理“实践与认识”的核心概念与关系。' }
+  ]
+}
+
+function openDetail(a) {
+  currentAssignment.value = a
+  mode.value = 'detail'
+}
+
+function backToList() {
+  mode.value = 'list'
+}
+
 function submitWork() {
   // 标题/描述校验
   if (requirements.value.titleRequired && !submissionForm.value.title) {
@@ -288,7 +415,10 @@ function submitWork() {
       await submitWorkApi({
         title: submissionForm.value.title,
         description: submissionForm.value.description,
-        files: submissionForm.value.files
+        files: submissionForm.value.files,
+        submitType: submitScope.value,
+        groupStatus: groupStatus.value,
+        groupInfo: submitScope.value === 'group' ? (groupInfo.value || {}) : null
       })
       ElMessage.success('作品提交成功！')
       submissionForm.value = { title: '', description: '', files: [] }
@@ -308,6 +438,7 @@ function submitWork() {
 
 <style scoped>
 .work-page { width: 100%; }
+.page-container { max-width: 1200px; margin: 0 auto; padding: 10px; }
 .header {
   display: flex;
   align-items: center;
@@ -321,7 +452,50 @@ function submitWork() {
 }
 
 .content {
-  width: 70%;
+  width: 100%;
+}
+
+.assignment-list { 
+  background:#fff; 
+  border:1px solid #e5e7eb; 
+  border-radius:12px; 
+  padding:22px; 
+  margin-bottom:16px; 
+  box-shadow: 0 2px 6px rgba(0,0,0,.04); 
+}
+.assignment-items { 
+  display:flex; 
+  flex-direction:column; 
+  gap:12px; 
+}
+.assignment-item { 
+  display:flex; 
+  justify-content:space-between;
+  align-items:flex-start; 
+  border:1px solid #eef2f7; 
+  border-radius:10px; 
+  padding:12px; 
+}
+.assignment-main { 
+  max-width: 60%; 
+}
+.assignment-title { 
+  font-weight:600; 
+  color:#1e293b; 
+  margin-bottom:6px; 
+}
+.assignment-desc { 
+  color:#64748b; 
+  font-size:13px; 
+}
+.assignment-meta { 
+  display:flex; 
+  gap:10px; 
+  align-items:center; 
+}
+.assignment-meta .deadline { 
+  color:#6b7280; 
+  font-size:12px; 
 }
 
 .submission-form {
@@ -330,6 +504,20 @@ function submitWork() {
   border-radius: 12px;
   padding: 22px;
   margin-bottom: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.04);
+}
+.detail-header { 
+  display:flex; 
+  align-items:center; 
+  justify-content:space-between;
+  margin-bottom:8px; 
+}
+.detail-title { 
+  font-weight:600; 
+  color:#1e293b; 
+}
+.submission-form .el-form { 
+  margin: 16px 0; 
 }
 .form-title {
   font-size: 18px;
@@ -339,7 +527,9 @@ function submitWork() {
   padding-bottom: 10px;
   border-bottom: 2px solid #f1f5f9;
 }
-.form-row { margin-bottom: 14px; }
+.form-row { 
+  margin-bottom: 14px; 
+}
 
 .form-bottom-bar {
   display: flex;
@@ -364,7 +554,19 @@ function submitWork() {
   color: #334155;
   font-size: 13px;
 }
-.requirements-box ul { margin: 6px 0 0 18px; }
-.requirements-box li { line-height: 1.8; }
+.requirements-box ul { 
+  margin: 6px 0 0 18px; 
+  padding: 0;
+  list-style: none;
+}
+.requirements-box li { 
+  line-height: 1.8; 
+}
+
+.submit-scope { display:flex; align-items:center; gap:12px; }
+.status-chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
+.st-none { background:#ffebee; color:#c62828; }
+.st-pending { background:#fff7ed; color:#b45309; }
+.st-approved { background:#e8f5e9; color:#2e7d32; }
 
 </style>

@@ -25,7 +25,6 @@ export async function fetchHomeCourses(signal) {
         const response = await api.get('/course/list', { signal })
         const payload = response?.data
         console.log('首页课程数据', payload)
-        // 兼容两种返回：直接数组，或 { code, data: [] }
         const list = Array.isArray(payload)
             ? payload
             : (Array.isArray(payload?.data) ? payload.data : null)
@@ -34,7 +33,7 @@ export async function fetchHomeCourses(signal) {
             const result = []
             for (const c of list) {
                 const base = {
-                    id: c.courseId ?? c.id,
+                    id: c.courseId,
                     title: c.courseName ?? c.title ?? '未命名课程',
                     description: c.description ?? '',
                     image: toUrl(c.resourceUrl)  || 'https://images.unsplash.com/photo-1501504905252-473c47e087f8?auto=format&fit=crop&w=1200&q=80',
@@ -42,7 +41,7 @@ export async function fetchHomeCourses(signal) {
                     endDate: c.endDate || '',
                     teacher: (c?.teacher?.name) || c.teacherName || c.teacher || '无',
                     teacherId: (c?.teacher?.id) || c.teacherId || null,
-                    category: c.courseCode || c.category || '',
+                    category: c.courseCode,
                 }
 
                 const videos = Array.isArray(c.videos) ? c.videos : []

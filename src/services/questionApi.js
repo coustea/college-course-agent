@@ -1,6 +1,17 @@
 // 简易问题接口与本地缓存
 import axios from 'axios'
 
+// 统一后端 BASE，并为题目相关请求自动附带 Authorization
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999' : ''))
+const qa = axios.create({ baseURL: API_BASE, timeout: 20000 })
+qa.interceptors.request.use((config) => {
+    try {
+        const token = localStorage.getItem('token')
+        if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+    } catch {}
+    return config
+})
+
 //防止出现重复题目
 const LS_KEY = 'course_questions_state_v1'
 function readLS() {
@@ -64,7 +75,7 @@ function addShownId(courseId, nodeKey, qid) {
  * @returns {Promise<Array>} 标准化题目数组
  */
 export async function generateQuestions(payload) {
-    const url = `http://192.168.1.101:9999/api/aiexam/generate`
+    const url = `/api/aiexam/generate`
     const body = {
         courseId: payload?.courseId,
         studentId: payload?.studentId,
@@ -72,7 +83,7 @@ export async function generateQuestions(payload) {
         judgeCount: Math.max(0, Number(payload?.judgeCount || 0))
     }
     try {
-        const res = await axios.post(url, body)
+        const res = await qa.post(url, body)
         const raw = res?.data
         // 兼容多种后端返回：
         // 1) 直接数组
@@ -94,7 +105,7 @@ export async function generateQuestions(payload) {
 
 // 返回 exam 与标准化题目
 export async function generateExamAndQuestions(payload) {
-    const url = `http://192.168.52.75:9999/api/aiexam/generate`
+    const url = `/api/aiexam/generate`
     const body = {
         courseId: payload?.courseId,
         studentId: payload?.studentId,
@@ -102,7 +113,7 @@ export async function generateExamAndQuestions(payload) {
         judgeCount: Math.max(0, Number(payload?.judgeCount || 0))
     }
     try {
-        const res = await axios.post(url, body)
+        const res = await qa.post(url, body)
         const raw = res?.data
         const exam = raw?.data?.exam || null
         const questionsRaw = Array.isArray(raw)
@@ -274,7 +285,7 @@ export async function submitExamAnswers(courseId, nodeKey, questions, answersMap
     if (!examId) {
         try {
             for (const a of answers) {
-                await axios.post(`${API}/api/aiexam/submit`, {
+                await qa.post(`/api/aiexam/submit`, {
                     node: nodeKey,
                     questionId: a.questionId,
                     answer: a.answer
@@ -289,7 +300,7 @@ export async function submitExamAnswers(courseId, nodeKey, questions, answersMap
 
     // 按后端新格式批量提交
     try {
-        const res = await axios.post(`${API}/api/aiexam/submit`, {
+        const res = await qa.post(`/api/aiexam/submit`, {
             examId,
             studentId,
             answers

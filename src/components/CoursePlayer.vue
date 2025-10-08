@@ -228,7 +228,7 @@ const currentSrc = computed(() => {
 
 // 错误切换候选源，尽量自愈播放路径
 const triedSources = ref(new Set())
-const UPLOADS_ORIGIN = (import.meta?.env?.VITE_UPLOADS_ORIGIN || import.meta?.env?.VITE_BACKEND_ORIGIN || 'http://localhost:9999')
+const UPLOADS_ORIGIN = ( 'http://localhost:9999' || import.meta?.env?.VITE_BACKEND_ORIGIN || 'http://localhost:9999')
 function buildAltSources(src) {
   const list = []
   const s = String(src || '')
