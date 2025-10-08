@@ -1,10 +1,23 @@
 import axios from "axios"
+// import {getCurrentInstance} from "vue";
 
-const BASE = 'http://192.168.1.101:9999'
+const BASE = 'http://192.168.52.75:9999'
 
 const http = axios.create({
     baseURL: BASE,
     timeout: 15000
+})
+
+http.interceptors.request.use((config) => {
+    try {
+        const token = localStorage.getItem('token')
+        if (token) {
+            config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+        }
+    } catch (e) {
+        alert(`读取登录信息失败：${e?.message || e}`)
+    }
+    return config
 })
 
 function toUrl(u) {

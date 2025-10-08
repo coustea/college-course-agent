@@ -33,6 +33,31 @@
               <span class="info-label">班级</span>
               <span class="info-value">{{ student.className || student.class || student.clazzName || student.classroom || '-' }}</span>
             </div>
+            <div class="info-item">
+              <span class="info-label">手机号</span>
+              <template v-if="!editing">
+                <span class="info-value">{{ student.phone || '-' }}</span>
+              </template>
+              <template v-else>
+                <input class="info-input" type="tel" v-model="editPhone" placeholder="请输入手机号" />
+              </template>
+            </div>
+            <div class="info-item">
+              <span class="info-label">邮箱</span>
+              <template v-if="!editing">
+                <span class="info-value">{{ student.email || '-' }}</span>
+              </template>
+              <template v-else>
+                <input class="info-input" type="email" v-model="editEmail" placeholder="请输入邮箱" />
+              </template>
+            </div>
+          </div>
+          <div class="profile-actions">
+            <button v-if="!editing" class="edit-btn" @click="startEdit"><i class="fas fa-edit"></i> 编辑个人信息</button>
+            <div v-else class="edit-actions">
+              <button class="save-btn" @click="saveEdit">保存</button>
+              <button class="cancel-btn" @click="cancelEdit">取消</button>
+            </div>
           </div>
         </div>
       </div>
@@ -163,9 +188,57 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getOverallProgress } from '@/services/progressApi.js'
 import { fetchHomeCourses } from '@/services/homeCoursesApi.js'
+import { getCurrentInstance } from 'vue'
+import axios from 'axios'
 
 const isExpanded = ref(false)
 const student = ref({})
+// 编辑状态与表单
+const editing = ref(false)
+const editPhone = ref('')
+const editEmail = ref('')
+
+function startEdit() {
+  editing.value = true
+  editPhone.value = student.value.phone || ''
+  editEmail.value = student.value.email || ''
+}
+
+function cancelEdit() {
+  editing.value = false
+}
+
+async function saveEdit() {
+  try {
+    const phone = String(editPhone.value || '暂无').trim()
+    const email = String(editEmail.value || '暂无').trim()
+    if (phone && !/^\d{6,20}$/.test(phone)) { alert('手机号格式不正确'); return }
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) { alert('邮箱格式不正确'); return }
+
+    // 优先调用后端保存；若没有后端则落地到本地存储
+    const { proxy } = getCurrentInstance()
+    const BASE_URL = proxy.$baseUrl
+    console.log(BASE_URL)
+    const token = localStorage.getItem('token')
+    const userId = localStorage.getItem('userId')
+    let ok = false
+    try {
+      if (userId && token) {
+        const res = await axios.put(`${BASE_URL}/user/${userId}`, { phone, email }, { 
+          headers: { Authorization: `Bearer ${token}` } })
+        ok = Number(res?.data?.code) === 200
+      }
+    } catch {}
+    if (!ok) {
+      const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
+      const merged = { ...saved, phone, email }
+      try { localStorage.setItem('currentUser', JSON.stringify(merged)) } catch {}
+    }
+    student.value = { ...student.value, phone, email }
+    editing.value = false
+    alert('已保存')
+  } catch (e) { alert(`保存失败：${e?.message || e}`) }
+}
 const avatarText = computed(() => (student.value.name ? student.value.name[student.value.name.length-1] : '学'))
 const myCourses = ref([])
 
@@ -214,8 +287,8 @@ onMounted(() => {
   loadCoursesFromApi()
   loadStudent()
   recentSubmissions.value = getRecentWorks()
-  try { window.addEventListener('work-submitted', () => { recentSubmissions.value = getRecentWorks() }) } catch (e) { console.error(e) }
-  try { window.addEventListener('work-deadline-updated', loadDeadline) } catch (e) { console.error(e) }
+  try { window.addEventListener('work-submitted', () => { recentSubmissions.value = getRecentWorks() }) } catch (e) { alert(`注册作品提交事件失败：${e?.message || e}`) }
+  try { window.addEventListener('work-deadline-updated', loadDeadline) } catch (e) { alert(`注册作品截止时间事件失败：${e?.message || e}`) }
   loadDeadline()
   calcTotalTime()
 })
@@ -238,29 +311,29 @@ async function loadCoursesFromApi() {
       return { ...c, progress }
     })
   } catch (e) {
+    alert(`加载课程列表失败：${e?.message || e}`)
   }
 }
 
 function loadStudent() {
   try {
-    const raw = localStorage.getItem('profile')
-    if (raw) {
-      const p = JSON.parse(raw)
-      if (p && typeof p === 'object') {
-        student.value = p
-        return
-      }
-    }
-    const name = localStorage.getItem('userName') || ''
-    const studentId = localStorage.getItem('studentId') || ''
-    student.value = {
-      name: name || '',
-      studentNumber: '',
-      className: '',
-      id: studentId ? Number(studentId) : undefined
-    }
+    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
+    const filled = saved && Object.keys(saved).length ? saved : {}
+    try {
+      const sName = localStorage.getItem('studentName')
+      const cName = localStorage.getItem('className')
+      const sNo = localStorage.getItem('studentNumber')
+      const phone = localStorage.getItem('studentPhone') || saved.phone
+      const email = localStorage.getItem('studentEmail') || saved.email
+      if (sName) filled.name = sName
+      if (cName) filled.className = cName
+      if (sNo) filled.studentNumber = sNo
+      if (phone) filled.phone = phone
+      if (email) filled.email = email
+    } catch (e) { alert(`读取本地学生信息失败：${e?.message || e}`) }
+    student.value = filled
   } catch (e) {
-    console.error(e)
+    alert(`解析本地用户信息失败：${e?.message || e}`)
     student.value = {}
   }
 }
@@ -273,7 +346,7 @@ function getRecentWorks() {
     const raw = localStorage.getItem('work_submissions_v1') || '[]'
     const arr = JSON.parse(raw)
     if (Array.isArray(arr)) return arr.slice(0, 3)
-  } catch {}
+  } catch (e) { alert(`读取最近作品失败：${e?.message || e}`) }
   return []
 }
 computed(() => {
@@ -299,7 +372,7 @@ function loadDeadline() {
   try {
     const v = localStorage.getItem('work_deadline_v1') || ''
     workDeadline.value = v ? v.replace('T', ' ') : '未设置'
-  } catch { workDeadline.value = '未设置' }
+  } catch (e) { workDeadline.value = '未设置'; alert(`读取作品截止时间失败：${e?.message || e}`) }
 }
 </script>
 
@@ -430,6 +503,18 @@ function loadDeadline() {
   font-weight: 500;
 }
 
+.profile-actions { margin-top: 12px; display: flex; gap: 8px; }
+.edit-btn, .save-btn, .cancel-btn {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #e1e8ef;
+  background: #fff;
+  cursor: pointer;
+}
+.save-btn { background: #2563eb; color: #fff; border: none; }
+.cancel-btn { background: #f8fafc; }
+.info-input { width: 60%; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 6px; }
+
 .action-btn i {
   width: 20px;
   color: #64748b;
@@ -495,11 +580,11 @@ function loadDeadline() {
 }
 
 .top-card {
-  height: 280px;
+  min-height: 280px;
 }
 
 .bottom-card {
-  height: 260px;
+  min-height: 260px;
 }
 
 .progress-container {

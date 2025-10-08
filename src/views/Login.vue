@@ -31,7 +31,7 @@
         </div>
         <button type="submit" class="login-btn">登录</button>
       </form>
-      <div v-if="errorMsg" class="error-text">{{ errorMsg }}</div>
+      <!-- <div v-if="errorMsg" class="error-text">{{ errorMsg }}</div> -->
     </div>
   </div>
 </template>
@@ -68,33 +68,33 @@ onBeforeUnmount(() => {
   if (intervalId) clearInterval(intervalId)
 })
 
-// 登录方法：必须账号/密码/角色与后端一致才跳转；不再依赖 token
 const handleLogin = async () => {
   try {
-    errorMsg.value = ''
-    const res = await axios.post('/api/auth/login', {
+    const BASE = 'http://192.168.52.75:9999'
+    const res = await axios.post(`${BASE}/api/auth/login`, {
       username: username.value,
       password: password.value,
       role: role.value
     })
-    console.log('登录信息', res.data.data.token)
+    console.log('登录信息1', res.data)
+    console.log('登录信息2', res.data.data)
     if (role.value === 'teacher'&& res.data.code === 200) {
       localStorage.setItem("userId",res.data.data.userId)
       localStorage.setItem("userName",res.data.data.username)
       localStorage.setItem("token",res.data.data.token)
       console.log('token', res.data.data.token)
-      router.push('/teacher')
+      await router.push('/teacher')
     } else if (role.value === 'student'&& res.data.code === 200) {
       localStorage.setItem("userId",res.data.data.userId)
       localStorage.setItem("userName",res.data.data.username)
       localStorage.setItem("token",res.data.data.token)
       console.log('token', res.data.data.token)
-      router.push('/student')
+      await router.push('/student')
     } else {
-      errorMsg.value = res?.data?.message || '登录失败，请检查账号/密码/角色'
+      alert('登录失败，请检查账号/密码/角色')
     }
   } catch (error) {
-    errorMsg.value = error?.response?.data?.message || '登录失败，请检查账号/密码/角色'
+    alert('登录失败，请检查账号/密码/角色')
   }
 }
 </script>

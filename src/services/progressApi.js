@@ -7,7 +7,9 @@ api.interceptors.request.use((config) => {
         if (token) {
             config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
         }
-    } catch {}
+    } catch (e) {
+        // alert(`读取登录信息失败：${e?.message || e}`)
+    }
     return config
 })
 /**
@@ -23,7 +25,8 @@ export async function getVideoProgress(courseId, chapterIndex) {
     try {
         const res = await api.get(`/progress/${encodeURIComponent(courseId)}`)
         return res?.data?.videos?.[chapterIndex] ?? 0
-    } catch {
+    } catch (e) {
+        // alert(`获取视频进度失败：${e?.message || e}`)
         return 0
     }
 }
@@ -34,7 +37,8 @@ export async function setVideoProgress(courseId, chapterIndex, progress) {
             progress
         })
         return res?.data?.overall ?? 0
-    } catch {
+    } catch (e) {
+        // alert(`设置视频进度失败：${e?.message || e}`)
         return 0
     }
 }
@@ -43,7 +47,8 @@ export async function getOverallProgress(courseId) {
     try {
         const res = await api.get(`/progress/${encodeURIComponent(courseId)}`)
         return res?.data?.overall ?? 0
-    } catch {
+    } catch (e) {
+        // alert(`获取课程总进度失败：${e?.message || e}`)
         return 0
     }
 }
@@ -52,7 +57,8 @@ export async function getAllCoursesSummary() {
     try {
         const res = await api.get(`/progress`)
         return Array.isArray(res?.data) ? res.data : []
-    } catch {
+    } catch (e) {
+        // alert(`获取课程汇总失败：${e?.message || e}`)
         return []
     }
 }
@@ -60,7 +66,9 @@ export async function getAllCoursesSummary() {
 export async function resetCourseProgress(courseId) {
     try {
         await api.delete(`/progress/${encodeURIComponent(courseId)}`)
-    } catch (e) { console.error(e) }
+    } catch (e) {
+        // alert(`重置课程进度失败：${e?.message || e}`)
+    }
 }
 
 /**
@@ -78,7 +86,9 @@ export async function reportLearningHeartbeat(payload, signal) {
             durationSec: payload.durationSec,
         }
         await api.post(`/progress/course/heartbeat`, body, { signal })
-    } catch (e) { console.error(e) }
+    } catch (e) {
+        // alert(`上报学习心跳失败：${e?.message || e}`)
+    }
 }
 
 /**
@@ -92,7 +102,8 @@ export async function getCourseCompletion(courseId, signal) {
             return value > 1 ? Math.min(1, Math.max(0, value / 100)) : Math.min(1, Math.max(0, value))
         }
         return 0
-    } catch {
+    } catch (e) {
+        // alert(`获取课程完成度失败：${e?.message || e}`)
         return 0
     }
 }
@@ -110,7 +121,7 @@ export async function getTimeDistribution(range = '7d', signal) {
         if (Array.isArray(d.days) && Array.isArray(d.video) && Array.isArray(d.doc)) {
             return d
         }
-    } catch (e) { console.error(e) }
+    } catch (e) { alert(`获取学习时间分布失败：${e?.message || e}`) }
     // 本地兜底：生成等长的轻量数据，避免空图
     const length = range === '30d' ? 30 : 7
     const days = Array.from({ length }, (_, i) => {

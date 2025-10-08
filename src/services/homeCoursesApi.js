@@ -34,14 +34,14 @@ export async function fetchHomeCourses(signal) {
             const result = []
             for (const c of list) {
                 const base = {
-                    id: c.courseId,
-                    title: c.courseName ?? '未命名课程',
+                    id: c.courseId ?? c.id,
+                    title: c.courseName ?? c.title ?? '未命名课程',
                     description: c.description ?? '',
                     image: toUrl(c.resourceUrl)  || 'https://images.unsplash.com/photo-1501504905252-473c47e087f8?auto=format&fit=crop&w=1200&q=80',
                     startDate: c.startDate || '',
                     endDate: c.endDate || '',
-                    teacher: c.teacher.name || '无',
-                    teacherId: c.teacher.id || null,
+                    teacher: (c?.teacher?.name) || c.teacherName || c.teacher || '无',
+                    teacherId: (c?.teacher?.id) || c.teacherId || null,
                     category: c.courseCode || c.category || '',
                 }
 

@@ -151,6 +151,9 @@ const getStudentById = async () => {
     if (res.data.code === 200) {
       console.log(res.data.data)
       userName.value = res.data.data.name
+      localStorage.setItem('studentName', res.data.data.name)
+      localStorage.setItem('className', res.data.data.className)
+      localStorage.setItem('studentNumber', res.data.data.studentNumber)
     }
   } catch (error) {
     console.error('获取学生信息失败:', error)

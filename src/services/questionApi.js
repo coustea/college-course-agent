@@ -4,7 +4,7 @@ import axios from 'axios'
 //防止出现重复题目
 const LS_KEY = 'course_questions_state_v1'
 function readLS() {
-    try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}') } catch { return {} }
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}') } catch (e) { alert(`读取题目缓存失败：${e?.message || e}`); return {} }
 }
 
 function writeLS(state) {
@@ -64,7 +64,7 @@ function addShownId(courseId, nodeKey, qid) {
  * @returns {Promise<Array>} 标准化题目数组
  */
 export async function generateQuestions(payload) {
-    const url = `http://192.168.52.75:9999/api/aiexam/generate`
+    const url = `http://192.168.1.101:9999/api/aiexam/generate`
     const body = {
         courseId: payload?.courseId,
         studentId: payload?.studentId,
@@ -87,7 +87,7 @@ export async function generateQuestions(payload) {
                     : []))
         return normalizeBackendQuestions(list)
     } catch (e) {
-        console.warn('生成题目失败，使用本地占位', e)
+        alert(`生成题目失败，使用本地占位：${e?.message || e}`)
         return []
     }
 }
@@ -115,7 +115,7 @@ export async function generateExamAndQuestions(payload) {
         const questions = normalizeBackendQuestions(questionsRaw)
         return { exam, questions }
     } catch (e) {
-        console.warn('生成试卷失败', e)
+        alert(`生成试卷失败：${e?.message || e}`)
         return { exam: null, questions: [] }
     }
 }
@@ -208,7 +208,7 @@ export async function fetchQuestions(courseId, nodeKey) {
             }
             return []
         }
-    } catch {}
+    } catch (e) { alert(`获取题目失败，使用本地占位：${e?.message || e}`) }
     // 本地占位
     {
         const local = [
@@ -257,7 +257,7 @@ export async function submitExamAnswers(courseId, nodeKey, questions, answersMap
             const n = Number(saved)
             if (Number.isFinite(n) && n > 0) studentId = n
         }
-    } catch {}
+    } catch (e) { alert(`读取学生ID失败：${e?.message || e}`) }
 
     const examId = getExamId(courseId, nodeKey)
 
@@ -282,7 +282,7 @@ export async function submitExamAnswers(courseId, nodeKey, questions, answersMap
             }
             return { answers, attempt: null }
         } catch (e) {
-            console.warn('逐题回退上报失败', e)
+            alert(`逐题回退上报失败：${e?.message || e}`)
             return { answers: [], attempt: null }
         }
     }
@@ -301,7 +301,7 @@ export async function submitExamAnswers(courseId, nodeKey, questions, answersMap
             attempt: data.attempt || null
         }
     } catch (e) {
-        console.warn('批量提交失败', e)
+        alert(`批量提交失败：${e?.message || e}`)
         return { answers: [], attempt: null }
     }
 }

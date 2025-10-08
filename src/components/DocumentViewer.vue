@@ -449,7 +449,6 @@ watch(readProgress, (r) => {
 .dv-aside-item.active { background: #e1ebff; color: #1a56db; font-weight: 600; }
 .dv-aside-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
 .dv-view { flex: 1; }
-/* 仅全屏时让内容自适应剩余空间，确保底部在最下方 */
 .dv-modal:fullscreen .dv-body {
   height: auto;
   flex: 1;
@@ -469,18 +468,15 @@ watch(readProgress, (r) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px; /* 增大底部内边距，提高按钮间距 */
+  padding: 14px 18px;
   background: #f6f8fb;
-  gap: 16px; /* pill 与 actions 之间的间隔 */
+  gap: 16px;
 }
-/* 全屏时保持底部工具栏固定在底部，尺寸不改变 */
+
 .dv-modal:fullscreen .dv-footer {
   padding: 14px 18px;
 }
-.dv-progress {
-  color: #64748b;
-  font-size: 14px;
-}
+
 .dv-pill {
   padding: 6px 12px;
   background: #eef2ff;

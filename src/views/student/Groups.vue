@@ -137,7 +137,6 @@
   </div>
 
   <div v-if="groupStatus !== 'none'" class="group-summary block-section">
-    <!-- <h4 class="group-summary-title">我的小组</h4> -->
     <div class="group-summary-card">
       <div class="group-summary-header">
         <span class="group-summary-label">我的小组名称：</span>
@@ -176,7 +175,9 @@ onMounted(async () => {
         isSelecting.value = !!ui.selecting
       }
     }
-  } catch {}
+  } catch (e) {
+    alert(`读取分组界面UI状态失败：${e?.message || e}`)
+  }
   // 恢复小组状态与信息（若存在）
   try {
     const st = localStorage.getItem(GROUP_STATUS_KEY)
@@ -188,7 +189,7 @@ onMounted(async () => {
         groupName.value = info.groupName || groupName.value
       }
     }
-  } catch (e) { console.error(e) }
+  } catch (e) { alert(`恢复小组信息失败：${e?.message || e}`) }
   await Promise.all([loadStudents(), cacheTeacherIdFromHome()])
 })
 
@@ -204,7 +205,7 @@ async function loadStudents() {
       status: (s.grouped === true || s.status === 'grouped') ? 'unavailable' : 'available'
     }))
   } catch (e) {
-    console.error(e)
+    alert(`加载学生列表失败：${e?.message || e}`)
     allStudents.value = []
   }
 }
@@ -218,7 +219,7 @@ async function cacheTeacherIdFromHome() {
     if (tid != null) {
       localStorage.setItem('teacherId', String(tid))
     }
-  } catch (e) { console.error(e) }
+  } catch (e) { alert(`缓存教师ID失败：${e?.message || e}`) }
 }
 
 const keyword = ref('')
@@ -231,9 +232,8 @@ const groupName = ref('')
 
 const currentUserName = ref('')
 try {
-  const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
-  currentUserName.value = saved?.name || ''
-} catch { currentUserName.value = '' }
+  currentUserName.value = localStorage.getItem('studentName')
+} catch (e) { alert(`读取学生姓名失败：${e?.message || e}`); currentUserName.value = '' }
 
 const filteredStudents = computed(() => {
   const k = keyword.value.trim()
@@ -336,7 +336,7 @@ function isSelf(stu) {
     const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
     const mySid = saved?.sid || saved?.studentNo || saved?.studentId || null
     if (mySid && stu?.sid) return String(stu.sid) === String(mySid)
-  } catch (e) { console.error(e) }
+  } catch (e) { alert(`读取本地用户信息失败：${e?.message || e}`) }
   return stu?.id === currentUserId.value
 }
 
@@ -345,7 +345,7 @@ function onRowClick(row) {
   if (!isCreating.value || !isSelecting.value) {
     isCreating.value = true
     isSelecting.value = true
-    try { localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: true })) } catch (e) { console.error(e) }
+    try { localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: true })) } catch (e) { alert(`保存界面状态失败：${e?.message || e}`) }
   }
   toggleSelect(row)
 }
@@ -390,6 +390,7 @@ async function submitGroup() {
       })(),
       taskDescription: taskDescription.value
     }
+    console.log('提交小组信息', payload)
     const res = await createStudentGroup(payload)
     const code = Number(res?.code ?? res?.status ?? 0)
     if (code === 200) {
@@ -444,21 +445,6 @@ const groupNameInputRef = ref(null)
 
 <style scoped>
 
-.groups-page
-.groups-page  {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.welcome {
-  font-size: 18px;
-  font-weight: bold;
-  color: #2c3e50;
-}
-
-.groups-content {
-  position: relative;
-}
 .block-section {
   background: transparent;
   margin-bottom: 12px;
@@ -469,19 +455,6 @@ const groupNameInputRef = ref(null)
   font-weight: bold;
   color: #2c3e50;
   margin-bottom: 0;
-}
-
-.title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: #ffffff;
-  padding: 8px 0;
 }
 
 .header {
@@ -526,15 +499,6 @@ const groupNameInputRef = ref(null)
   outline: none;
 }
 
-.search-box {
-  display: flex;
-  align-items: center;
-  background: #e6efff;
-  border: 1px solid #c7d2fe;
-  border-radius: 10px;
-  padding: 12px 16px;
-  margin-bottom: 20px;
-}
 .search-box i {
   color: #2563eb;
   font-size: 20px;
@@ -567,32 +531,48 @@ const groupNameInputRef = ref(null)
   color: #c62828;
 }
 
-.student-list {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin: 20px 0;
+.student-table table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.student-table thead th {
+  text-align: left;
+  background: #f3f4f6;
+  color: #6b7280;
+  padding: 14px 16px;
+  font-weight: 600;
+  border-bottom: 1px solid #e5e7eb;
+}
+.student-table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  color: #4b5563;
 }
 
-.student-table {
-  margin: 20px 0;
+.student-table tbody tr:hover {
+  background: #f9fafb;
+  cursor: pointer;
 }
-.student-table table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
-.student-table thead th { text-align: left; background: #f3f4f6; color: #6b7280; padding: 14px 16px; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
-.student-table tbody td { padding: 14px 16px; border-bottom: 1px solid #e5e7eb; color: #4b5563; }
-.student-table tbody td.col-index { color:#9ca3af; }
-.student-table tbody td.col-sid { color:#1f2937; font-weight:600; }
-.student-table tbody td.col-name { color:#1f2937; font-weight:600; }
-.student-table tbody td.col-status { color:#4b5563; }
-.student-table tbody td.col-phone { color:#374151; }
-.student-table tbody td.col-email { color:#2563eb; }
-.student-table tbody tr:hover { background: #f9fafb; cursor: pointer; }
-.student-table tbody tr.selected { background: #eef2ff; }
-.student-table tbody tr.disabled { color: #9ca3af; cursor: not-allowed; }
-.status-chip { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.chip-red { background: #fee2e2; color: #b91c1c; }
-.chip-green { background: #dcfce7; color: #15803d; }
-.empty-cell { text-align: center; color: #9ca3af; padding: 20px 0; }
+
+.status-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.chip-red {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.chip-green {
+  background: #dcfce7;
+  color: #15803d;
+}
 
 .task-inputs {
   background: #f8f9fa;
@@ -665,11 +645,7 @@ const groupNameInputRef = ref(null)
   min-height: 84px;
   resize: vertical;
 }
-.task-empty {
-  text-align: center;
-  color: #6b7280;
-  padding: 8px 0;
-}
+
 .task-name {
   width: 160px;
   text-align: right;
@@ -744,56 +720,6 @@ const groupNameInputRef = ref(null)
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
-}
-
-.student-card {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 16px;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 140px;
-  background: #fff;
-}
-
-.student-card:hover {
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}
-.student-card.selected {
-  border-color: #3498db;
-  background: #ebf5fb;
-}
-.student-card.unavailable {
-  opacity: 0.6;
-  background: #f5f5f5;
-  cursor: not-allowed;
-}
-.student-name {
-  font-weight: bold;
-  color: #2c3e50;
-  margin-bottom: 5px;
-}
-.student-id {
-  color: #7f8c8d;
-  font-size: 14px;
-}
-.student-status {
-  font-size: 13px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  display: inline-block;
-  margin-top: 8px;
-}
-.status-available {
-  background: #e8f5e9;
-  color: #2e7d32;
-}
-.status-unavailable {
-  background: #ffebee;
-  color: #c62828;
 }
 
 .btn-row {
@@ -872,12 +798,7 @@ const groupNameInputRef = ref(null)
 .filters-row .status-select {
   width: 160px;
 }
-.filters-row > .el-input {
-  margin-right: 8px;
-}
-.filters-row > .el-select {
-  margin-right: 8px;
-}
+
 .filters-row .actions-spacer {
   flex: 1;
 }
@@ -896,10 +817,7 @@ const groupNameInputRef = ref(null)
 .group-summary {
   margin-top: 14px;
 }
-.group-summary-title {
-  margin: 0 0 8px 0;
-  color: #2c3e50;
-}
+
 .group-summary-card {
   background: #f8fafc;
   border: 1px solid #e5e7eb;
@@ -921,19 +839,10 @@ const groupNameInputRef = ref(null)
 }
 
 @media (max-width: 1200px) {
-  .student-list {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 @media (max-width: 900px) {
-  .student-list {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 @media (max-width: 600px) {
-  .student-list {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
 

@@ -7,6 +7,17 @@ const http = axios.create({
   timeout: 15000
 })
 
+http.interceptors.request.use((config) => {
+    try {
+        const token = localStorage.getItem('token')
+        if (token) {
+            config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+        }
+    } catch (e) {
+        alert(`读取登录信息失败：${e?.message || e}`)
+    }
+    return config
+})
 function toUrl(u) {
   if (!u) return ''
   const s = String(u)
@@ -17,9 +28,9 @@ function toUrl(u) {
 // 获取左侧栏绑定状态（例如：待提交数量、截止时间等）
 // params 可携带 userId/classId/courseId 等筛选维度
 export async function getWorkSidebarStatus(params = {}, signal) {
-  const url = toUrl('/api/work/sidebar-status')
-  const resp = await http.get(url, { params, signal })
-  // 兼容 { data: {...} } 或直接返回对象
+  const className = localStorage.getItem('className')
+  const url = toUrl(`/api/teacherAssignments/${className}`)
+  const resp = await http.post(url, { params, signal })
   return resp?.data?.data ?? resp?.data ?? {}
 }
 

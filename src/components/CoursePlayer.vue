@@ -167,7 +167,7 @@
 <script setup>
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getVideoProgress, setVideoProgress, getOverallProgress, reportLearningHeartbeat } from '../services/progressApi'
-import { fetchQuestions, submitExamAnswers, hasQuestionShown, markQuestionShown } from '@/services/questionApi'
+import { fetchQuestions, submitExamAnswers, hasQuestionShown, markQuestionShown, generateExamAndQuestions } from '@/services/questionApi'
 import Question from '@/components/Question.vue'
 
 
@@ -444,6 +444,8 @@ function togglePlay() {
   if (el.paused) {
     el.play()
     isPlaying.value = true
+    // 首次播放预取本节试题：后台生成并保存，后续 40%/80% 时直接取用
+    startExamPrefetch()
   } else {
     el.pause()
     isPlaying.value = false
@@ -467,6 +469,25 @@ function startHeartbeatTicker() {
       }
     }, 1000)
   }
+}
+
+// 预取当前集的试题与试卷，避免到达 40%/80% 时首次调用延迟
+const prefetchedKeys = new Set()
+async function startExamPrefetch() {
+  try {
+    const key = `${props.courseId}-${currentIndex.value}`
+    if (prefetchedKeys.has(key)) return
+    prefetchedKeys.add(key)
+    let studentId = undefined
+    try {
+      const v = localStorage.getItem('studentId') || localStorage.getItem('userId')
+      if (v != null) {
+        const n = Number(v)
+        if (Number.isFinite(n) && n > 0) studentId = n
+      }
+    } catch {}
+    await generateExamAndQuestions({ courseId: props.courseId, studentId, choiceCount: 0, judgeCount: 2 })
+  } catch {}
 }
 
 function flushHeartbeat(eventType) {
