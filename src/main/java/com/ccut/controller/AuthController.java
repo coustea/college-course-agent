@@ -2,7 +2,11 @@ package com.ccut.controller;
 
 import com.ccut.entity.Result;
 import com.ccut.entity.User;
+import com.ccut.entity.Teacher;
+import com.ccut.entity.Student;
 import com.ccut.mapper.UserMapper;
+import com.ccut.mapper.TeacherMapper;
+import com.ccut.mapper.StudentMapper;
 import com.ccut.utils.JWTUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +23,12 @@ public class AuthController {
     @Autowired
     private UserMapper userMapper;
 
+    @Autowired
+    private TeacherMapper teacherMapper;
+
+    @Autowired
+    private StudentMapper studentMapper;
+
     /**
      * 登录接口
      */
@@ -34,6 +44,7 @@ public class AuthController {
 
             // 查询数据库用户
             User dbUser = userMapper.getUserByUsername(user.getUsername());
+            log.info("userId,{}", dbUser.getId());
             if (dbUser == null) {
                 log.warn("账号不存在: {}", user.getUsername());
                 return Result.error(401, "账号不存在");
@@ -49,11 +60,47 @@ public class AuthController {
             String token = JWTUtils.generateToken(dbUser.getUsername());
             log.info("用户 {} 登录成功", dbUser.getUsername());
 
-            //返回前端的数据（用户名 + token）
+            //返回前端的数据（用户名 + token + role + 角色信息）
             Map<String, Object> data = new HashMap<>();
             data.put("userId", dbUser.getId());
             data.put("username", dbUser.getUsername());
             data.put("token", token);
+            try {
+                // 将后端枚举角色转为前端可用的小写字符串：teacher/student
+                String roleStr = dbUser.getRole().toString().toLowerCase();
+                data.put("role", roleStr);
+
+                // 附带角色详细信息（不返回敏感字段）
+                Map<String, Object> profile = new HashMap<>();
+                if ("teacher".equals(roleStr)) {
+                    Teacher teacher = teacherMapper.selectById(dbUser.getId());
+                    if (teacher != null) {
+                        data.put("teacherId", teacher.getId());
+                        profile.put("employeeNumber", teacher.getEmployeeNumber());
+                        profile.put("name", teacher.getName());
+                        profile.put("email", teacher.getEmail());
+                        profile.put("phone", teacher.getPhone());
+                        profile.put("department", teacher.getDepartment());
+                        profile.put("title", teacher.getTitle());
+                    }
+                } else if ("student".equals(roleStr)) {
+                    Student student = studentMapper.selectById(dbUser.getId());
+
+                    System.out.println(student);
+                    if (student != null) {
+                        data.put("studentId", student.getId());
+                        profile.put("studentNumber", student.getStudentNumber());
+                        profile.put("name", student.getName());
+                        profile.put("className", student.getClassName());
+                        profile.put("email", student.getEmail());
+                        profile.put("phone", student.getPhone());
+                        profile.put("major", student.getMajor());
+                        profile.put("grade", student.getGrade());
+                        profile.put("enrollmentYear", student.getEnrollmentYear());
+                    }
+                }
+                data.put("profile", profile);
+            } catch (Exception ignore) {}
 
 
             // 更新用户 token

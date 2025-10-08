@@ -45,4 +45,16 @@
     <select id="selectByTeacherId" resultMap="teacherAssignmentsRM">
         SELECT * FROM teacher_assignments WHERE teacher_id = #{teacherId}
     </select>
+
+    <select id="selectByCourseId" resultMap="teacherAssignmentsRM">
+        SELECT * FROM teacher_assignments WHERE course_id = #{courseId}
+    </select>
+
+    <select id="selectByTeacherIdAndCourseId" resultMap="teacherAssignmentsRM">
+        SELECT * FROM teacher_assignments WHERE teacher_id = #{teacherId} AND course_id = #{courseId}
+    </select>
+
+    <select id="selectAll" resultMap="teacherAssignmentsRM">
+        SELECT * FROM teacher_assignments ORDER BY created_at DESC
+    </select>
 </mapper>

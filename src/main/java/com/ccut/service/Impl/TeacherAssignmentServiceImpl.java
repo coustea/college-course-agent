@@ -32,4 +32,19 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     public List<TeacherAssignment> selectByTeacherId(Long teacherId) {
         return teacherAssignmentMapper.selectByTeacherId(teacherId);
     }
+
+    @Override
+    public List<TeacherAssignment> selectByCourseId(Long courseId) {
+        return teacherAssignmentMapper.selectByCourseId(courseId);
+    }
+
+    @Override
+    public List<TeacherAssignment> selectByTeacherIdAndCourseId(Long teacherId, Long courseId) {
+        return teacherAssignmentMapper.selectByTeacherIdAndCourseId(teacherId, courseId);
+    }
+
+    @Override
+    public List<TeacherAssignment> selectAll() {
+        return teacherAssignmentMapper.selectAll();
+    }
 }

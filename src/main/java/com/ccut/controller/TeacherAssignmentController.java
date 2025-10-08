@@ -144,6 +144,47 @@ public class TeacherAssignmentController {
         return Result.success(responseList);
     }
 
+    /**
+     * 新增：按课程ID查询教师发布的作品/作业
+     * 示例：GET /api/teacherAssignments/by-course/40
+     */
+    @GetMapping("/by-course/{courseId}")
+    public Result<List<Map<String, Object>>> selectByCourseId(@PathVariable Long courseId) {
+        try {
+            List<TeacherAssignment> list = teacherAssignmentService.selectByCourseId(courseId);
+            List<Map<String, Object>> resp = new ArrayList<>();
+            for (TeacherAssignment assignment : list) {
+                List<Map<String, Object>> attachmentList = new ArrayList<>();
+                String attachmentJson = assignment.getAttachmentFiles();
+                if (attachmentJson != null && !attachmentJson.isEmpty()) {
+                    try {
+                        attachmentList = objectMapper.readValue(
+                                attachmentJson,
+                                new TypeReference<List<Map<String, Object>>>() {}
+                        );
+                    } catch (Exception e) {
+                        log.error("解析附件JSON失败: {}", attachmentJson, e);
+                    }
+                }
+                Map<String, Object> map = new HashMap<>();
+                map.put("assignmentId", assignment.getAssignmentId());
+                map.put("teacherId", assignment.getTeacherId());
+                map.put("courseId", assignment.getCourseId());
+                map.put("assignmentName", assignment.getAssignmentName());
+                map.put("description", assignment.getDescription());
+                map.put("requirements", assignment.getRequirements());
+                map.put("dueDate", assignment.getDueDate());
+                map.put("allowLateSubmission", assignment.getAllowLateSubmission());
+                map.put("attachments", attachmentList);
+                resp.add(map);
+            }
+            return Result.success(resp);
+        } catch (Exception e) {
+            log.error("按课程查询作品失败, courseId: {}", courseId, e);
+            return Result.error(500, "查询失败");
+        }
+    }
+
     @PutMapping("/{assignmentId}")
     public Result<TeacherAssignment> update(
             @PathVariable Long assignmentId,
@@ -178,6 +219,47 @@ public class TeacherAssignmentController {
         } catch (Exception e) {
             log.error("删除失败,assignmentId: {},e: {}",assignmentId,e);
             return Result.error(500, "删除失败");
+        }
+    }
+
+    /**
+     * 获取全部作品/作业列表
+     * 示例：GET /api/teacherAssignments
+     */
+    @GetMapping
+    public Result<List<Map<String, Object>>> selectAll() {
+        try {
+            List<TeacherAssignment> list = teacherAssignmentService.selectAll();
+            List<Map<String, Object>> resp = new ArrayList<>();
+            for (TeacherAssignment assignment : list) {
+                List<Map<String, Object>> attachmentList = new ArrayList<>();
+                String attachmentJson = assignment.getAttachmentFiles();
+                if (attachmentJson != null && !attachmentJson.isEmpty()) {
+                    try {
+                        attachmentList = objectMapper.readValue(
+                                attachmentJson,
+                                new TypeReference<List<Map<String, Object>>>() {}
+                        );
+                    } catch (Exception e) {
+                        log.error("解析附件JSON失败: {}", attachmentJson, e);
+                    }
+                }
+                Map<String, Object> map = new HashMap<>();
+                map.put("assignmentId", assignment.getAssignmentId());
+                map.put("teacherId", assignment.getTeacherId());
+                map.put("courseId", assignment.getCourseId());
+                map.put("assignmentName", assignment.getAssignmentName());
+                map.put("description", assignment.getDescription());
+                map.put("requirements", assignment.getRequirements());
+                map.put("dueDate", assignment.getDueDate());
+                map.put("allowLateSubmission", assignment.getAllowLateSubmission());
+                map.put("attachments", attachmentList);
+                resp.add(map);
+            }
+            return Result.success(resp);
+        } catch (Exception e) {
+            log.error("查询全部作品失败", e);
+            return Result.error(500, "查询失败");
         }
     }
 }
