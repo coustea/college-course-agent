@@ -114,4 +114,45 @@ public class AuthController {
             return Result.error(500, "服务器内部错误：" + e.getMessage());
         }
     }
+
+
+    /**
+     * 退出登录接口
+     */
+    @PostMapping("/logout")
+    public Result<Object> logout(@RequestHeader("Authorization") String authorizationHeader) {
+        try {
+            // 从Authorization头中提取token
+            if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+                return Result.error(400, "无效的Authorization头");
+            }
+
+            String token = authorizationHeader.substring(7);
+
+            // 验证token有效性
+            if (!JWTUtils.validateToken(token)) {
+                return Result.error(401, "无效的token");
+            }
+
+            // 从token中解析用户名
+            String username = JWTUtils.getUsernameFromToken(token);
+
+            // 查询数据库用户
+            User dbUser = userMapper.getUserByUsername(username);
+            if (dbUser == null) {
+                return Result.error(404, "用户不存在");
+            }
+
+            // 清除用户的token
+            dbUser.setToken(null);
+            userMapper.updateUser(dbUser);
+
+            log.info("用户 {} 退出登录成功", username);
+            return Result.success("退出登录成功");
+
+        } catch (Exception e) {
+            log.error("退出登录异常", e);
+            return Result.error(500, "服务器内部错误：" + e.getMessage());
+        }
+    }
 }
