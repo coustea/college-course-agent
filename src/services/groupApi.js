@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const BASE = 'http://192.168.52.75:9999'
+const BASE = 'http://192.168.1.101:9999'
 
 const http = axios.create({
     baseURL: BASE,
@@ -14,7 +14,7 @@ function toUrl(u) {
     return `${BASE.replace(/\/$/, '')}/${s.replace(/^\//, '')}`
 }
 
-export async function getStudentsByGrade(className, signal) {
+export async function getStudentsByClassName(className, signal) {
     console.log('className', className)
     const url = toUrl(`/api/student/class/${className}`)
     const resp = await http.get(url, { params: { className }, signal })
@@ -30,6 +30,6 @@ export async function createStudentGroup(payload, signal) {
 }
 
 export default {
-    getStudentsByGrade,
+    getStudentsByClassName,
     createStudentGroup
 }
