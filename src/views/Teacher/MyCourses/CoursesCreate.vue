@@ -1,4 +1,4 @@
-<template>
+  <template>
   <div class="course-create">
     <div class="page-header">
       <h2>创建新课程</h2>
