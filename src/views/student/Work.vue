@@ -128,9 +128,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed,getCurrentInstance} from 'vue'
 import { ElMessage } from 'element-plus'
 import { getWorkSidebarStatus, submitWork as submitWorkApi } from '@/services/workApi'
+import axios from "axios";
+
+const { proxy } = getCurrentInstance()
+const BASE_URL = proxy.$baseUrl
 
 const mode = ref('list')
 const assignments = ref([])
@@ -181,10 +185,16 @@ const accept = computed(() => {
 
 onMounted(async () => {
   try {
-    const data = await getWorkSidebarStatus()
-    if (data && data.deadline) {
-      const text = String(data.deadline)
+    // const data = await getWorkSidebarStatus()
+    const data = await getTeachAssignments()
+    console.log(data)
+    if (data?.code === 200 && Array.isArray(data?.data) && data.data.length > 0) {
+      const first = data.data[0] || {}
+      const dl = first.deadline || first.endTime || first.dueTime || first.dueDate
+      if (dl) {
+        const text = String(dl)
       deadlineText.value = text.startsWith('截止') ? text : `截止时间：${text}`
+      }
     }
     try { applyRequirements(data || {}) } catch (e) { console.error(e) }
     // 如后端返回了作业列表，优先使用
@@ -205,7 +215,7 @@ onMounted(async () => {
   } catch {
     assignments.value = []
   }
-  // 若仍为空，则填充虚拟作业，保证列表可用
+
   if (!Array.isArray(assignments.value) || assignments.value.length === 0) {
     assignments.value = getMockAssignments()
   }
@@ -220,6 +230,25 @@ onMounted(async () => {
   try { window.addEventListener('student-group-updated', onGroupUpdated) } catch {}
   try { window.addEventListener('storage', onStorageChanged) } catch {}
 })
+
+
+const getTeachAssignments = async () =>{
+  try{
+    const className = localStorage.getItem('className')
+    console.log(className)
+    const res = await axios.post(`${BASE_URL}/teacherAssignments/byClassName`, { className },{
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    console.log(res.data)
+    if (res.data.code === 200) {
+      return res.data
+    }
+  } catch (e) { console.error(e) }
+}
+
 
 function onGroupUpdated(e) {
   try {
@@ -368,20 +397,33 @@ function applyRequirements(data) {
 
 function normalizeAssignments(data) {
   const list = []
-  const arr = Array.isArray(data?.assignments) ? data.assignments : []
+  const arr = Array.isArray(data?.assignments) ? data.assignments : (Array.isArray(data?.data) ? data.data : [])
   for (const item of arr) {
-    const rawAtt = Array.isArray(item?.attachments) ? item.attachments : (Array.isArray(item?.files) ? item.files : (Array.isArray(item?.materials) ? item.materials : []))
-    const attachments = Array.isArray(rawAtt) ? rawAtt.map((a, i) => ({
-      name: a?.name || a?.fileName || a?.title || `附件${i + 1}`,
-      url: a?.url || a?.fileUrl || a?.resourceUrl || a?.path || ''
-    })).filter(x => !!x.url) : []
+    // 兼容 attachmentFiles（数组或JSON字符串）
+    let attachments = []
+    try {
+      const raw = item?.attachmentFiles ?? item?.attachments ?? []
+      const arrA = typeof raw === 'string' ? (JSON.parse(raw || '[]') || []) : raw
+      if (Array.isArray(arrA)) {
+        attachments = arrA.map((a, i) => {
+          if (typeof a === 'string') {
+            const name = a.split('/').pop() || `附件${i + 1}`
+            return { name, url: a }
+          }
+          return {
+            name: a?.name || a?.fileName || a?.title || `附件${i + 1}`,
+            url: a?.url || a?.fileUrl || a?.resourceUrl || a?.path || ''
+          }
+        }).filter(x => !!x.url)
+      }
+    } catch {}
     list.push({
-      id: item.id ?? item.assignmentId ?? `${item.title || '作业'}`,
-      title: item.title || item.name || '作业',
-      description: item.description || item.content || '',
-      deadline: item.deadline || item.endTime || '',
-      course: item.courseName || item.course || '',
-      teacher: item.teacherName || item.teacher || '',
+      id: item.id ?? item.assignmentId ?? `${item.assignmentName || item.title || '作业'}`,
+      title: item.assignmentName || item.title || item.name || '作业',
+      description: item.description || item.content || item.assignmentDescription || '',
+      deadline: item.deadline || item.endTime || item.dueTime || item.dueDate || '',
+      course: item.courseName || item.course || String(item.courseId ?? ''),
+      teacher: item.teacherName || item.teacher || String(item.teacherId ?? ''),
       attachments
     })
   }
@@ -463,12 +505,12 @@ function submitWork() {
   ;(async () => {
     try {
       await submitWorkApi({
-        title: submissionForm.value.title,
-        description: submissionForm.value.description,
+        // title: submissionForm.value.title,
+        // description: submissionForm.value.description,
         files: submissionForm.value.files,
-        submitType: submitScope.value,
-        groupStatus: groupStatus.value,
-        groupInfo: submitScope.value === 'group' ? (groupInfo.value || {}) : null
+        // submitType: submitScope.value,
+        // groupStatus: groupStatus.value,
+        // groupInfo: submitScope.value === 'group' ? (groupInfo.value || {}) : null
       })
       ElMessage.success('作品提交成功！')
       submissionForm.value = { title: '', description: '', files: [] }

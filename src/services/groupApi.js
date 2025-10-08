@@ -1,7 +1,7 @@
 import axios from "axios"
 // import {getCurrentInstance} from "vue";
 
-const BASE = 'http://192.168.1.106:9999'
+const BASE = 'http://39.96.172.21:9999'
 
 const http = axios.create({
     baseURL: BASE,

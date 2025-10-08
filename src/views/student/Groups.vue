@@ -565,7 +565,6 @@ function resetAllAndExit() {
   localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: false, selecting: false }))
 }
 
-// 提交成功后用于展示的本地小组信息
 const createdGroup = ref(null)
 const groupNameInputRef = ref(null)
 </script>

@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const BASE = 'http://192.168.1.106:9999'
+const BASE = 'http://39.96.172.21:9999'
 
 const http = axios.create({
   baseURL: BASE,
@@ -27,17 +27,32 @@ function toUrl(u) {
 
 // 获取左侧栏绑定状态（例如：待提交数量、截止时间等）
 // params 可携带 userId/classId/courseId 等筛选维度
-export async function getWorkSidebarStatus(params = {}, signal) {
-  const className = localStorage.getItem('className')
-  const url = toUrl(`/api/teacherAssignments/${className}`)
-  const resp = await http.post(url, { params, signal })
+export async function getWorkSidebarStatus(signal) {
+  const profile = localStorage.getItem('profile')
+  const className = profile?.className
+  const url = toUrl(`api/teacherAssignments/byClassName`)
+  const resp = await http.post(url, { className, signal })
+  console.log("作品作业的列表",resp.data)
   return resp?.data?.data ?? resp?.data ?? {}
 }
 
 // 提交作品
 // payload: { title, description, files?: UploadFile[] | File[] }
 export async function submitWork(payload = {}, signal) {
-  const url = toUrl('/api/work/submit')
+  // 根据提交身份选择后端接口（个人/小组）
+  const resolveSubmitUrl = () => {
+    const t = String(stype || '').toLowerCase()
+    if (t === 'group' || t === 'team') return 'http://192.168.1.106:9999/api/group-submission/upload'
+    return 'http://192.168.1.106:9999/api/personal-submission/upload'
+  }
+  const userId  = localStorage.getItem('userId')
+  const res = await axios .post(resolveSubmitUrl(), {userId,...payload},{
+      headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+  })
+  console.log("个人提交作品的状态",res.data)
   const files = Array.isArray(payload?.files) ? payload.files : []
 
   // 判定是否包含二进制文件（Element Plus UploadFile.raw 或 File）
