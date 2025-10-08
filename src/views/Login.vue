@@ -40,8 +40,6 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { setAuthSession } from '../services/auth'
-
 const router = useRouter()
 
 const username = ref('')
@@ -79,18 +77,19 @@ const handleLogin = async () => {
       password: password.value,
       role: role.value
     })
-    const code = res?.data?.code
-    const payload = res?.data?.data || {}
-    if (code === 200) {
-      const respRole = payload.role || role.value
-      setAuthSession(payload)
-      if (respRole === 'teacher') {
-        router.push('/teacher')
-      } else if (respRole === 'student') {
-        router.push('/student')
-      } else {
-        router.push('/')
-      }
+    console.log('登录信息', res.data.data.token)
+    if (role.value === 'teacher'&& res.data.code === 200) {
+      localStorage.setItem("userId",res.data.data.userId)
+      localStorage.setItem("userName",res.data.data.username)
+      localStorage.setItem("token",res.data.data.token)
+      console.log('token', res.data.data.token)
+      router.push('/teacher')
+    } else if (role.value === 'student'&& res.data.code === 200) {
+      localStorage.setItem("userId",res.data.data.userId)
+      localStorage.setItem("userName",res.data.data.username)
+      localStorage.setItem("token",res.data.data.token)
+      console.log('token', res.data.data.token)
+      router.push('/student')
     } else {
       errorMsg.value = res?.data?.message || '登录失败，请检查账号/密码/角色'
     }
