@@ -13,4 +13,5 @@ public interface TeacherAssignmentService {
     List<TeacherAssignment> selectByCourseId(Long courseId);
     List<TeacherAssignment> selectByTeacherIdAndCourseId(Long teacherId, Long courseId);
     List<TeacherAssignment> selectAll();
+    List<TeacherAssignment> selectByClassName(String className);
 }

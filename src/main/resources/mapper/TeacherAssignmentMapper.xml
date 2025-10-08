@@ -57,4 +57,7 @@
     <select id="selectAll" resultMap="teacherAssignmentsRM">
         SELECT * FROM teacher_assignments ORDER BY created_at DESC
     </select>
+    <select id="selectByClassName" resultType="com.ccut.entity.TeacherAssignment">
+        SELECT * FROM teacher_assignments WHERE class_name = #{className}
+    </select>
 </mapper>

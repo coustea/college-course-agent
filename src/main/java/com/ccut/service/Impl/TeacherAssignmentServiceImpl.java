@@ -47,4 +47,9 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     public List<TeacherAssignment> selectAll() {
         return teacherAssignmentMapper.selectAll();
     }
+
+    @Override
+    public List<TeacherAssignment> selectByClassName(String className) {
+        return teacherAssignmentMapper.selectByClassName(className);
+    }
 }
