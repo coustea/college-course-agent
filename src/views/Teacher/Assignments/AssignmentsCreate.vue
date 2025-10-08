@@ -124,7 +124,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, getCurrentInstance } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
@@ -132,15 +132,9 @@ import axios from 'axios'
 const router = useRouter()
 const formRef = ref()
 const submitting = ref(false)
-const { proxy } = getCurrentInstance()
-const BASE_URL = proxy.$baseUrl
 
 // === axios实例 ===
-const API_BASE =
-  import.meta?.env?.VITE_API_BASE_URL ||
-  (window?.location?.port === '4173'
-    ? 'http://192.168.52.75:9999/api'
-    : '/api')
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -292,12 +286,7 @@ const fetchClasses = async (teacherId) => {
       return
     }
 
-    const res = await axios.get(`${BASE_URL}/teacher/classNames`, {
-      params: { teacherId },
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
-    })
+    const res = await api.get('/teacher/classNames', { params: { teacherId } })
 
     if (res.data.code === 200 && Array.isArray(res.data.data)) {
       classes.value = res.data.data.map((className) => ({
@@ -356,11 +345,8 @@ const submitForm = async () => {
       formData.append('files', file)
     })
 
-    const response = await axios.post(`${BASE_URL}/teacherAssignments`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
+    const response = await api.post('/teacherAssignments', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
     })
 
     if (Number(response?.data?.code) === 200) {

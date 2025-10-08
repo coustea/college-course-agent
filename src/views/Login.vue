@@ -70,8 +70,8 @@ onBeforeUnmount(() => {
 
 const handleLogin = async () => {
   try {
-    const BASE = 'http://192.168.1.106:9999'
-    const res = await axios.post(`${BASE}/api/auth/login`, {
+    const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
+    const res = await axios.post(`${API_BASE}/auth/login`, {
       username: username.value,
       password: password.value,
       role: role.value

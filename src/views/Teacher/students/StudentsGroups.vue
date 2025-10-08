@@ -32,7 +32,7 @@
     <div class="table-container">
       <el-table :data="paginatedGroups" style="width: 100%" v-loading="loading" height="100%">
         <el-table-column type="index" label="序号" width="80" align="center"/>
-        <el-table-column prop="courseName" label="所属课程" width="200" align="center"/>
+        
         <el-table-column prop="name" label="队伍名称" width="200" align="center"/>
         <el-table-column prop="leaderName" label="组长" width="150" align="center"/>
         <el-table-column prop="members" label="组员" width="200" align="center">
@@ -95,10 +95,7 @@
               currentGroupDetails?.name
             }}
           </el-descriptions-item>
-          <el-descriptions-item label="所属课程">{{
-              currentGroupDetails?.courseName
-            }}
-          </el-descriptions-item>
+          
           <el-descriptions-item label="组长">{{
               currentGroupDetails?.leaderName
             }}
@@ -358,6 +355,8 @@ export default {
     // 同意分组申请
     const approveGroup = async (group) => {
       try {
+        const gid = group?.id || group?.groupId || group?.group_id
+        if (!gid) { ElMessage.error('缺少分组ID'); return }
         await ElMessageBox.confirm(
           `确定要同意"${group.name}"的分组申请吗？`,
           '确认操作',
@@ -370,7 +369,7 @@ export default {
 
         // 调用后端接口：PUT /api/student-group/{groupId}，仅更新审批状态
         const payload = { approvalStatus: 'approved' }
-        await api.put(`/student-group/${group.id}`, payload)
+        await api.put(`/student-group/${gid}`, payload, { headers: { 'Content-Type': 'application/json' } })
 
         // 更新本地状态
         group.status = 'approved'
@@ -394,6 +393,8 @@ export default {
     // 驳回分组申请
     const rejectGroup = async (group) => {
       try {
+        const gid = group?.id || group?.groupId || group?.group_id
+        if (!gid) { ElMessage.error('缺少分组ID'); return }
         await ElMessageBox.confirm(
           `确定要驳回"${group.name}"的分组申请吗？`,
           '确认操作',
@@ -406,7 +407,7 @@ export default {
 
         // 调用后端接口：PUT /api/student-group/{groupId}，仅更新审批状态
         const payload = { approvalStatus: 'rejected' }
-        await api.put(`/student-group/${group.id}`, payload)
+        await api.put(`/student-group/${gid}`, payload, { headers: { 'Content-Type': 'application/json' } })
 
         // 更新本地状态
         group.status = 'rejected'

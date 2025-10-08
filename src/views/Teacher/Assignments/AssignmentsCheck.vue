@@ -101,6 +101,46 @@
         </el-table>
       </div>
 
+      <!-- 个人提交列表 -->
+      <div class="groups-list" style="margin-top:24px;">
+        <h3>个人提交情况</h3>
+        <el-table :data="personalSubmissions" style="width: 100%" stripe>
+          <el-table-column prop="studentId" label="学生ID" width="120" align="center" />
+          <el-table-column prop="submittedAt" label="提交时间" width="180" align="center">
+            <template #default="scope">
+              {{ scope.row.submittedAt ? formatDateTime(scope.row.submittedAt) : '未提交' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="status" label="提交状态" width="120" align="center">
+            <template #default="scope">
+              <el-tag :type="scope.row.status === 'submitted' ? 'success' : (scope.row.status === 'graded' ? 'primary' : 'info')">
+                {{ scope.row.status || '—' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="score" label="评分" width="100" align="center">
+            <template #default="scope">
+              {{ scope.row.score != null ? scope.row.score : '未评分' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="附件" min-width="240" align="left">
+            <template #default="scope">
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <el-tag v-for="(f,idx) in scope.row.files" :key="idx" size="small" type="info">
+                  <a :href="normalizeFileUrl(f.url)" target="_blank" style="text-decoration:none;color:inherit;">{{ f.name }}</a>
+                </el-tag>
+                <span v-if="!scope.row.files || scope.row.files.length === 0">—</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="140" align="center">
+            <template #default="scope">
+              <el-button size="small" @click="viewPersonalDetails(scope.row)">查看详情</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
       <!-- 检查详情对话框 -->
       <el-dialog
         v-model="detailDialogVisible"
@@ -175,6 +215,61 @@
           <el-button type="primary" @click="submitCheck">提交检查</el-button>
         </template>
       </el-dialog>
+
+      <!-- 个人提交详情对话框 -->
+      <el-dialog
+        v-model="personalDialogVisible"
+        :title="`个人提交详情 - 学生ID: ${selectedPersonal?.studentId || ''}`"
+        width="60%"
+        top="80px"
+      >
+        <div v-if="selectedPersonal">
+          <el-descriptions title="基本信息" border>
+            <el-descriptions-item label="学生ID">{{ selectedPersonal.studentId }}</el-descriptions-item>
+            <el-descriptions-item label="提交时间">{{ formatDateTime(selectedPersonal.submittedAt) }}</el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag :type="selectedPersonal.status === 'submitted' ? 'success' : (selectedPersonal.status === 'graded' ? 'primary' : 'info')">
+                {{ selectedPersonal.status || '—' }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="评分">{{ selectedPersonal.score != null ? selectedPersonal.score : '未评分' }}</el-descriptions-item>
+          </el-descriptions>
+
+          <div class="content-preview" style="margin-top: 20px;">
+            <h4>提交内容：</h4>
+            <div class="content-preview">
+              <p v-if="!selectedPersonal.submissionContent">无</p>
+              <p v-else>{{ selectedPersonal.submissionContent }}</p>
+            </div>
+            <h4>附件：</h4>
+            <div class="attachments">
+              <div v-for="(file, index) in selectedPersonal.files" :key="index" class="attachment-item">
+                <i class="fas fa-file"></i>
+                <span>{{ file.name }}</span>
+                <el-button link type="primary" @click="downloadFile(file)">下载</el-button>
+              </div>
+              <p v-if="!selectedPersonal.files || selectedPersonal.files.length === 0">无</p>
+            </div>
+          </div>
+
+          <div class="grading-form" style="margin-top: 20px;">
+            <h4>个人评分</h4>
+            <el-form :model="personalGrading" label-width="80px">
+              <el-form-item label="得分">
+                <el-input-number v-model="personalGrading.score" :min="0" :max="100" placeholder="请输入得分" />
+                <span class="score-total">/ 100</span>
+              </el-form-item>
+              <el-form-item label="评语">
+                <el-input v-model="personalGrading.feedback" type="textarea" :rows="3" placeholder="请输入评语" />
+              </el-form-item>
+            </el-form>
+          </div>
+        </div>
+        <template #footer>
+          <el-button @click="personalDialogVisible = false">关闭</el-button>
+          <el-button type="primary" @click="submitPersonalGrade">提交评分</el-button>
+        </template>
+      </el-dialog>
     </div>
   </div>
 </template>
@@ -183,62 +278,33 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import axios from 'axios'
 
 const route = useRoute()
 const router = useRouter()
 const assignmentId = route.params.id
 
-// 作业信息
-const assignmentTitle = ref('期中作品进度检查')
-const courseName = ref('Web前端开发班')
-const deadline = ref('2023-12-15')
-const submittedCount = ref(8)
-const totalGroups = ref(10)
+// axios 实例
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
+const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
+api.interceptors.request.use((config) => {
+  try {
+    const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+    if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  } catch {}
+  return config
+})
 
-// 小组数据
-const groups = ref([
-  {
-    id: 1,
-    groupName: '第一组',
-    leaderName: '张三',
-    members: ['张三', '李四', '王五'],
-    submitTime: '2023-12-10 14:30:25',
-    status: '已提交',
-    checkStatus: '已检查',
-    score: 85,
-    content: '我们小组已经完成了项目的基本框架搭建，主要功能模块开发完成80%。',
-    attachments: [
-      { name: '项目进度报告.pdf', url: '#' },
-      { name: '源代码.zip', url: '#' }
-    ]
-  },
-  {
-    id: 2,
-    groupName: '第二组',
-    leaderName: '赵六',
-    members: ['赵六', '钱七', '孙八'],
-    submitTime: '2023-12-12 09:15:47',
-    status: '已提交',
-    checkStatus: '待检查',
-    score: null,
-    content: '项目完成度较高，主要功能已实现，正在进行细节优化。',
-    attachments: [
-      { name: '项目文档.docx', url: '#' }
-    ]
-  },
-  {
-    id: 3,
-    groupName: '第三组',
-    leaderName: '周九',
-    members: ['周九', '吴十'],
-    submitTime: null,
-    status: '未提交',
-    checkStatus: '未提交',
-    score: null,
-    content: '',
-    attachments: []
-  }
-])
+// 作业信息（动态）
+const assignmentTitle = ref('')
+const courseName = ref('') // 用于展示班级名称
+const deadline = ref('')
+const submittedCount = ref(0)
+const totalGroups = ref(0)
+const currentCourseId = ref(null)
+
+// 小组数据（动态）
+const groups = ref([])
 
 const selectedGroup = ref(null)
 const highlightedMember = ref('')
@@ -250,6 +316,12 @@ const gradingForm = reactive({
   comment: '',
   result: '通过'
 })
+
+// 个人提交数据
+const personalSubmissions = ref([])
+const personalDialogVisible = ref(false)
+const selectedPersonal = ref(null)
+const personalGrading = reactive({ score: null, feedback: '' })
 
 // 计算属性
 const completedCount = computed(() => {
@@ -296,9 +368,32 @@ const checkGroupWork = (group) => {
   viewGroupDetails(group)
 }
 
-const downloadFile = (file) => {
-  ElMessage.info(`下载文件: ${file.name}`)
-  // 实现文件下载逻辑
+const downloadFile = async (file) => {
+  try {
+    const url = normalizeFileUrl(file.url || file)
+    const filename = file.name || (url ? url.split('/').pop() : '') || 'download'
+    // 优先使用 a[download]
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.target = '_blank'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  } catch (e) {
+    try {
+      const url = normalizeFileUrl(file.url || file)
+      const resp = await axios.get(url, { responseType: 'blob' })
+      const blobUrl = window.URL.createObjectURL(resp.data)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = file.name || 'download'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(blobUrl)
+    } catch {}
+  }
 }
 
 const submitCheck = () => {
@@ -322,9 +417,158 @@ const exportReport = () => {
   // 实现导出逻辑
 }
 
-onMounted(() => {
-  // 可以在这里根据assignmentId获取作业详情和小组提交情况
-  console.log('检查项目ID:', assignmentId)
+const normalizeFileUrl = (u) => {
+  if (!u) return ''
+  const s = String(u)
+  if (/^https?:\/\//i.test(s) || s.startsWith('data:') || s.startsWith('blob:')) return s
+  if (s.startsWith('/uploads/')) return s
+  if (s.startsWith('uploads/')) return `/${s}`
+  return s
+}
+
+const viewPersonalDetails = (row) => {
+  selectedPersonal.value = row
+  personalGrading.score = row.score != null ? row.score : null
+  personalGrading.feedback = ''
+  personalDialogVisible.value = true
+}
+
+const submitPersonalGrade = async () => {
+  try {
+    if (!selectedPersonal.value) return
+    if (personalGrading.score == null) { ElMessage.error('请先输入分数'); return }
+    const teacherId = Number(localStorage.getItem('teacherId') || localStorage.getItem('userId') || 0)
+    const form = new URLSearchParams()
+    form.append('assignmentId', String(assignmentId))
+    form.append('studentId', String(selectedPersonal.value.studentId))
+    form.append('score', String(personalGrading.score))
+    if (personalGrading.feedback) form.append('feedback', personalGrading.feedback)
+    if (teacherId) form.append('gradedBy', String(teacherId))
+    await api.post('/personal-submission/grade', form)
+    // 更新本地
+    selectedPersonal.value.score = Number(personalGrading.score)
+    selectedPersonal.value.status = 'graded'
+    const idx = personalSubmissions.value.findIndex(p => Number(p.studentId) === Number(selectedPersonal.value.studentId))
+    if (idx >= 0) personalSubmissions.value[idx] = { ...personalSubmissions.value[idx], score: Number(personalGrading.score), status: 'graded' }
+    ElMessage.success('评分成功')
+    personalDialogVisible.value = false
+  } catch (e) {
+    ElMessage.error('评分失败')
+  }
+}
+
+// 拉取作业详情
+const fetchAssignment = async () => {
+  try {
+    const res = await api.get('/teacherAssignments')
+    const raw = res?.data
+    const list = Array.isArray(raw?.data) ? raw.data : []
+    const found = list.find(a => Number(a.assignmentId) === Number(assignmentId))
+    if (found) {
+      assignmentTitle.value = found.assignmentName || '作品检查'
+      deadline.value = found.dueDate || ''
+      courseName.value = found.className || ''
+      currentCourseId.value = found.courseId || null
+    }
+  } catch (e) {
+    ElMessage.error('获取检查信息失败')
+  }
+}
+
+// 拉取分组列表（按课程）
+const fetchGroups = async () => {
+  if (!currentCourseId.value) { groups.value = []; totalGroups.value = 0; submittedCount.value = 0; return }
+  try {
+    const params = { courseId: currentCourseId.value }
+    // 后端该接口为 POST，直接使用 POST 以避免 405
+    const resp = await api.post('/student-group/approvalStatus', params)
+    const raw = resp?.data
+    const list = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : [])
+    const normalized = list.map(g => {
+      const id = g.id || g.groupId || g.group_id
+      const name = g.name || g.groupName || `分组#${id ?? ''}`
+      const gmRaw = Array.isArray(g.groupMemberList) ? g.groupMemberList : (Array.isArray(g.memberList) ? g.memberList : [])
+      const members = (gmRaw.length > 0 ? gmRaw.map(m => m.studentName || m.name || m.username || '') : []).filter(Boolean)
+      const leader = gmRaw.find(m => m.role === 'leader')
+      const leaderName = g.leaderName || (leader?.name) || (leader?.studentName) || '未知'
+      return {
+        id,
+        groupName: name,
+        leaderName,
+        members,
+        submitTime: null,      // 尚未接入分组提交接口，先置空
+        status: '未提交',
+        checkStatus: '未提交',
+        score: null,
+        content: '',
+        attachments: []
+      }
+    })
+    groups.value = normalized
+    totalGroups.value = normalized.length
+    submittedCount.value = normalized.filter(g => g.submitTime).length
+  } catch (e) {
+    groups.value = []
+    totalGroups.value = 0
+    submittedCount.value = 0
+  }
+}
+
+onMounted(async () => {
+  await fetchAssignment()
+  await fetchGroups()
+  // 拉取个人提交
+  try {
+    const res = await api.get('/personal-submission/by-assignment', { params: { assignmentId }, headers: {} })
+    const raw = res?.data
+    const list = Array.isArray(raw?.data) ? raw.data : []
+    // 解析 JSON 数组字段 submissionFiles，映射为 {name,url}
+    personalSubmissions.value = list.map(it => {
+      let files = []
+      try {
+        if (it.submissionFiles) {
+          const arr = JSON.parse(it.submissionFiles)
+          if (Array.isArray(arr)) files = arr.map((p) => ({ name: p.split('/').pop(), url: p }))
+        }
+      } catch {}
+      return {
+        studentId: it.studentId,
+        submittedAt: it.submittedAt,
+        status: it.status,
+        score: it.score,
+        submissionContent: it.submissionContent,
+        files
+      }
+    })
+  } catch (e) {
+    // 尝试使用绝对后端基址作为降级
+    try {
+      const fallbackBase = (window?.location?.port === '5173' || window?.location?.port === '4173') ? 'http://localhost:9999/api' : API_BASE
+      const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
+      const res2 = await axios.get(`${fallbackBase}/personal-submission/by-assignment`, { params: { assignmentId }, headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      const raw2 = res2?.data
+      const list2 = Array.isArray(raw2?.data) ? raw2.data : []
+      personalSubmissions.value = list2.map(it => {
+        let files = []
+        try {
+          if (it.submissionFiles) {
+            const arr = JSON.parse(it.submissionFiles)
+            if (Array.isArray(arr)) files = arr.map((p) => ({ name: p.split('/').pop(), url: p }))
+          }
+        } catch {}
+        return {
+          studentId: it.studentId,
+          submittedAt: it.submittedAt,
+          status: it.status,
+          score: it.score,
+          submissionContent: it.submissionContent,
+          files
+        }
+      })
+    } catch {
+      personalSubmissions.value = []
+    }
+  }
   // 根据路由参数自动打开小组/成员详情
   const q = route.query || {}
   const gid = Number(q.groupId)
@@ -333,20 +577,13 @@ onMounted(() => {
   const tryAutoOpen = () => {
     if (Number.isFinite(gid)) {
       const g = (groups.value || []).find(x => Number(x.id) === gid)
-      if (g) {
-        viewGroupDetails(g)
-      }
+      if (g) viewGroupDetails(g)
     }
   }
-  // 组数据可能异步加载，监听到有数据后再尝试
-  if ((groups.value || []).length > 0) {
-    tryAutoOpen()
-  } else {
+  if ((groups.value || []).length > 0) tryAutoOpen()
+  else {
     const stop = watch(groups, (nv) => {
-      if (Array.isArray(nv) && nv.length > 0) {
-        tryAutoOpen()
-        stop && stop()
-      }
+      if (Array.isArray(nv) && nv.length > 0) { tryAutoOpen(); stop && stop() }
     }, { immediate: false })
   }
 })

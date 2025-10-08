@@ -15,7 +15,7 @@
     <div class="filter-bar">
       <el-input
         v-model="searchQuery"
-        placeholder="搜索检查标题或班级..."
+        placeholder="搜索检查标题或课程名称..."
         :prefix-icon="Search"
         style="width: 400px; margin-right: 16px;"
         clearable
@@ -48,7 +48,7 @@
       >
         <el-table-column prop="title" label="检查标题" min-width="200" align="center">
         </el-table-column>
-        <el-table-column prop="courseName" label="课程" min-width="150" align="center">
+        <el-table-column prop="courseName" label="课程名称" min-width="150" align="center">
         </el-table-column>
         <el-table-column prop="deadline" label="截止日期" width="120" align="center">
           <template #default="scope">
@@ -348,11 +348,20 @@ export default {
       try {
         const res = await api.get('/course/list')
         const body = res?.data
-        const arr = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
+        let arr = []
+        if (body && Array.isArray(body.data)) arr = body.data
+        else if (Array.isArray(body)) arr = body
+        else if (body && Array.isArray(body.list)) arr = body.list
+        // 部分后端未返回 code=200，这里放宽判断
         const m = new Map()
         for (const c of arr) {
-          const id = Number(c.courseId || c.id)
-          if (Number.isFinite(id)) m.set(id, c.courseName || c.title || '')
+          const rawId = (c.courseId ?? c.id ?? c.course_id ?? c.cid ?? c.courseID)
+          const idNum = Number(rawId)
+          const name = (c.courseName || c.title || c.name || c.courseTitle || c.course_name || c.className || c.class_name || '').toString()
+          if (rawId != null && name) {
+            m.set(String(rawId), name)
+            if (Number.isFinite(idNum)) m.set(idNum, name)
+          }
         }
         return m
       } catch {
@@ -387,8 +396,8 @@ export default {
           return {
             id: it.assignmentId,
             title: it.assignmentName || '未命名检测',
-            courseId: it.courseId || it.course_id,
-            courseName: it.courseName || it.course_name || (it.courseId ? `课程#${it.courseId}` : '—'),
+            courseId: (it.courseId || it.course_id || it.cid || (it.course && (it.course.courseId || it.course.id || it.course.course_id))),
+            courseName: (it.courseName || it.course_name || (it.course && (it.course.courseName || it.course.course_name || it.course.title || it.course.name)) || it.className || it.class_name || it.courseTitle || it.title || it.name || '—'),
             deadline: deadline,
             submittedCount: 0,
             totalGroups: 0,
@@ -400,8 +409,8 @@ export default {
         try {
           const courseMap = await buildCourseNameMap()
           assignments.value = assignments.value.map(a => {
-            const name = courseMap.get(Number(a.courseId))
-            return { ...a, courseName: name || a.courseName || (a.courseId ? `课程#${a.courseId}` : '—') }
+            const name = courseMap.get(Number(a.courseId)) || courseMap.get(String(a.courseId))
+            return { ...a, courseName: (name || a.courseName || (a.courseId ? `课程#${a.courseId}` : '—')) }
           })
         } catch {}
         // 如果后端给的是 LocalDateTime（不带秒），补零再解析
