@@ -33,6 +33,18 @@
             updated_at = CURRENT_TIMESTAMP
         WHERE assignment_id = #{param1} AND student_id = #{param2}
     </update>
+
+    <select id="listByAssignment" parameterType="long" resultType="com.ccut.entity.StudentPersonalSubmission">
+        SELECT * FROM student_personal_submissions WHERE assignment_id = #{assignmentId} ORDER BY submitted_at DESC
+    </select>
+
+    <select id="listByStudent" parameterType="long" resultType="com.ccut.entity.StudentPersonalSubmission">
+        SELECT * FROM student_personal_submissions WHERE student_id = #{studentId} ORDER BY submitted_at DESC
+    </select>
+
+    <select id="findOne" resultType="com.ccut.entity.StudentPersonalSubmission">
+        SELECT * FROM student_personal_submissions WHERE assignment_id = #{param1} AND student_id = #{param2} LIMIT 1
+    </select>
 </mapper>
 
 

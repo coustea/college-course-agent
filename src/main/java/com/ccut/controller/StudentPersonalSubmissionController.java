@@ -113,6 +113,42 @@ public class StudentPersonalSubmissionController {
             return Result.error(500, e.getMessage());
         }
     }
+
+    // 按作业ID查询个人提交列表
+    @GetMapping("/by-assignment")
+    public Result<java.util.List<StudentPersonalSubmission>> listByAssignment(@RequestParam("assignmentId") Long assignmentId){
+        try {
+            if (assignmentId == null) return Result.error(400, "assignmentId 不能为空");
+            return Result.success(mapper.listByAssignment(assignmentId));
+        } catch (Exception e){
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    // 按学生ID查询其所有个人提交
+    @GetMapping("/by-student")
+    public Result<java.util.List<StudentPersonalSubmission>> listByStudent(@RequestParam("studentId") Long studentId){
+        try {
+            if (studentId == null) return Result.error(400, "studentId 不能为空");
+            return Result.success(mapper.listByStudent(studentId));
+        } catch (Exception e){
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    // 查询某次作业的某个学生的单条提交
+    @GetMapping("/detail")
+    public Result<StudentPersonalSubmission> findOne(@RequestParam("assignmentId") Long assignmentId,
+                                                     @RequestParam("studentId") Long studentId){
+        try {
+            if (assignmentId == null || studentId == null) return Result.error(400, "assignmentId 与 studentId 不能为空");
+            StudentPersonalSubmission s = mapper.findOne(assignmentId, studentId);
+            if (s == null) return Result.error(404, "未找到提交记录");
+            return Result.success(s);
+        } catch (Exception e){
+            return Result.error(500, e.getMessage());
+        }
+    }
 }
 
 
