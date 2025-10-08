@@ -166,7 +166,6 @@
 
 <script setup>
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { getVideoProgress, setVideoProgress, getOverallProgress, reportLearningHeartbeat } from '../services/progressApi'
 import { fetchQuestions, submitExamAnswers, hasQuestionShown, markQuestionShown, generateExamAndQuestions } from '@/services/questionApi'
 import Question from '@/components/Question.vue'
 
@@ -319,11 +318,7 @@ function selectEpisode(i) {
 }
 
 const currentProgress = ref(0)
-const overallProgress = computed(() => {
-  const v = Number(getOverallProgress(props.courseId))
-  if (!Number.isFinite(v)) return 0
-  return Math.max(0, Math.min(1, v))
-})
+const overallProgress = computed(() => 0)
 
 
 const isTheatre = ref(false)
@@ -412,9 +407,8 @@ function seekBy(deltaSec) {
   el.currentTime = Math.max(0, Math.min(el.duration, target))
 }
 
+// 移除实时学习进度上报（心跳/暂停/结束）。
 let timeTicker = null
-let lastTick = 0
-let accumulatedHeartbeatSec = 0
 const questionVisible = ref(false)
 const questionList = ref([])
 const questionNodeKey = ref('')
@@ -453,23 +447,7 @@ function togglePlay() {
 
 }
 
-function startHeartbeatTicker() {
-  lastTick = Date.now()
-  if (!timeTicker) {
-    timeTicker = setInterval(() => {
-      const now = Date.now()
-      const delta = Math.floor((now - lastTick) / 1000)
-      if (delta > 0) {
-        accumulatedHeartbeatSec += delta
-        lastTick = now
-        if (accumulatedHeartbeatSec >= 5) {
-          try { reportLearningHeartbeat({ courseId: props.courseId, deltaSec: accumulatedHeartbeatSec, eventType: 'heartbeat', videoIndex: currentIndex.value, currentTimeSec: player.value?.currentTime, durationSec: player.value?.duration }) } catch (e) { console.error(e) }
-          accumulatedHeartbeatSec = 0
-        }
-      }
-    }, 1000)
-  }
-}
+function startHeartbeatTicker() {}
 
 // 预取当前集的试题与试卷，避免到达 40%/80% 时首次调用延迟
 const prefetchedKeys = new Set()
@@ -490,34 +468,9 @@ async function startExamPrefetch() {
   } catch {}
 }
 
-function flushHeartbeat(eventType) {
-  const now = Date.now()
-  const delta = Math.floor((now - lastTick) / 1000)
-  if (delta > 0) {
-    accumulatedHeartbeatSec += delta
-    lastTick = now
-  }
-  if (accumulatedHeartbeatSec > 0) {
-    try {
-      reportLearningHeartbeat({
-        courseId: props.courseId,
-        deltaSec: accumulatedHeartbeatSec,
-        eventType: eventType || 'pause',
-        videoIndex: currentIndex.value,
-        currentTimeSec: player.value?.currentTime,
-        durationSec: player.value?.duration
-      }) } catch (e) { console.error(e) }
-    accumulatedHeartbeatSec = 0
-  }
-}
+function flushHeartbeat(eventType) {}
 
-function stopTickerAndFlush(eventType) {
-  if (timeTicker) {
-    clearInterval(timeTicker)
-    timeTicker = null
-  }
-  flushHeartbeat(eventType)
-}
+function stopTickerAndFlush(eventType) { if (timeTicker) { clearInterval(timeTicker); timeTicker = null } }
 
 function syncPlayState() {
   const el = player.value
@@ -703,22 +656,17 @@ function onTrackDown(e, which) {
 }
 
 function onLoaded() {
-  const p = getVideoProgress(props.courseId, currentIndex.value)
-  if (p > 0 && player.value?.duration) {
-    player.value.currentTime = p * player.value.duration
-  } else {
-    try {
-      const key = `video_resume_${props.courseId}_${currentIndex.value}`
-      const raw = localStorage.getItem(key)
-      if (raw) {
-        const saved = JSON.parse(raw)
-        const pct = Number(saved?.p)
-        if (Number.isFinite(pct) && pct > 0 && pct < 1 && player.value?.duration) {
-          player.value.currentTime = pct * player.value.duration
-        }
+  try {
+    const key = `video_resume_${props.courseId}_${currentIndex.value}`
+    const raw = localStorage.getItem(key)
+    if (raw) {
+      const saved = JSON.parse(raw)
+      const pct = Number(saved?.p)
+      if (Number.isFinite(pct) && pct > 0 && pct < 1 && player.value?.duration) {
+        player.value.currentTime = pct * player.value.duration
       }
-    } catch (e) { console.error(e) }
-  }
+    }
+  } catch (e) { console.error(e) }
   try {
     if (!hudTicker) {
       hudTicker = setInterval(() => { hudNow.value = Date.now() }, 200)
@@ -740,7 +688,6 @@ async function onTimeUpdate() {
   if (!player.value?.duration) return
   const progress = player.value.currentTime / player.value.duration
   currentProgress.value = progress
-  setVideoProgress(props.courseId, currentIndex.value, progress)
   // 本地持久化，保证退出回来继续播放
   try {
     const key = `video_resume_${props.courseId}_${currentIndex.value}`
@@ -812,22 +759,17 @@ function next() {
 
 function nextTickSeekSaved() {
   requestAnimationFrame(() => {
-    const p = getVideoProgress(props.courseId, currentIndex.value)
-    if (player.value?.duration && p > 0) {
-      player.value.currentTime = p * player.value.duration
-    } else {
-      try {
-        const key = `video_resume_${props.courseId}_${currentIndex.value}`
-        const raw = localStorage.getItem(key)
-        if (raw) {
-          const saved = JSON.parse(raw)
-          const pct = Number(saved?.p)
-          if (Number.isFinite(pct) && pct > 0 && pct < 1 && player.value?.duration) {
-            player.value.currentTime = pct * player.value.duration
-          }
+    try {
+      const key = `video_resume_${props.courseId}_${currentIndex.value}`
+      const raw = localStorage.getItem(key)
+      if (raw && player.value?.duration) {
+        const saved = JSON.parse(raw)
+        const pct = Number(saved?.p)
+        if (Number.isFinite(pct) && pct > 0 && pct < 1) {
+          player.value.currentTime = pct * player.value.duration
         }
-      } catch (e) { console.error(e) }
-    }
+      }
+    } catch (e) { console.error(e) }
   })
 }
 

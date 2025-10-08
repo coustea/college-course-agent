@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const BASE = 'http://192.168.52.75:9999'
+const BASE = 'http://192.168.1.106:9999'
 
 const http = axios.create({
   baseURL: BASE,
@@ -50,6 +50,7 @@ export async function submitWork(payload = {}, signal) {
     const form = new FormData()
     if (payload.title != null) form.append('title', String(payload.title))
     if (payload.description != null) form.append('description', String(payload.description))
+    if (payload.submitType != null) form.append('submitType', String(payload.submitType))
     files.forEach((f, idx) => {
       const raw = f?.raw ?? f
       if (raw) form.append('files', raw, raw.name || `file_${idx + 1}`)
@@ -62,7 +63,8 @@ export async function submitWork(payload = {}, signal) {
   const resp = await http.post(url, {
     title: payload?.title ?? '',
     description: payload?.description ?? '',
-    files: files.map(f => ({ name: f?.name || '', type: f?.type || 'file' }))
+    files: files.map(f => ({ name: f?.name || '', type: f?.type || 'file' })),
+    submitType: payload?.submitType ?? 'individual'
   }, { signal })
   return resp?.data
 }

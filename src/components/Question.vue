@@ -142,7 +142,6 @@ function handleClose() {
 }
 
 const canExit = computed(() => {
-  // 只有题目解答完（全部题已作答并已提交）才可以退出
   const allAnswered = Object.keys(answers.value || {}).length >= (props.questions?.length || 0)
   return submitted.value && allAnswered
 })
@@ -225,9 +224,6 @@ function optionClass(q, value) {
 .q-option { display: flex; gap: 10px; align-items: flex-start; }
 .q-option input { margin-top: 3px; }
 .q-option-label { line-height: 1.6; }
-
-.q-option.opt-correct { background: #ecfdf5; border-radius: 6px; padding: 6px 8px; }
-.q-option.opt-wrong { background: #fff1f2; border-radius: 6px; padding: 6px 8px; }
 
 .q-result { margin-top: 10px; font-size: 14px; }
 .q-result .ok { color: #10b981; }

@@ -142,20 +142,38 @@
         <span class="group-summary-label">我的小组名称：</span>
         <span>{{ createdGroup?.groupName || groupName || '—' }}</span>
         <span class="status-chip status-pending" v-if="groupStatus==='pending'">审批中</span>
-        <span class="status-chip status-approved" v-else>已组队</span>
+        <span class="status-chip status-approved" v-if="groupStatus==='approved'">已组队</span>
+        <span class="status-chip status-none" v-if="groupStatus==='rejected'">未组队</span>
       </div>
       <div class="group-summary-members">
         <span class="group-summary-label">成员：</span>
-        <span>{{ [createdGroup?.leaderName, ...(createdGroup?.memberNames||[])] .filter(Boolean).join('、') }}</span>
+        <span class="member-chip" v-if="createdGroup?.leaderName">
+          <span class="member-name">{{ createdGroup.leaderName }}</span>
+          <span class="leader-mark">组长</span>
+        </span>
+        <span
+          class="member-chip"
+          v-for="(n, i) in (createdGroup?.memberNames || [])"
+          :key="i"
+        >
+          <span class="member-name">{{ n }}</span>
+          <span class="member-mark">组员</span>
+        </span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick } from 'vue'
-import { getStudentsByClassName, createStudentGroup } from '@/services/groupApi'
+import { computed, ref, onMounted, nextTick,getCurrentInstance,onActivated } from 'vue'
+import { getStudentsByClassName, createStudentGroup} from '@/services/groupApi'
 import { fetchHomeCourses } from '@/services/homeCoursesApi'
+import {onBeforeRouteUpdate} from "vue-router"
+import axios from "axios";
+
+const {proxy} = getCurrentInstance()
+const BASE_URL = proxy.$baseUrl
+
 
 const allStudents = ref([])
 const isCreating = ref(false)
@@ -163,9 +181,11 @@ const isSelecting = ref(false)
 const uiStateStorageKey = 'student_groups_ui_state'
 const GROUP_STATUS_KEY = 'student_group_status'
 const GROUP_INFO_KEY = 'student_group_info'
+const StudentGroup = ref()
 onMounted(async () => {
   try {
     const ui = JSON.parse(localStorage.getItem(uiStateStorageKey) || 'null')
+    console.log(ui)
     if (ui && typeof ui === 'object') {
       isCreating.value = !!ui.creating
       if (ui.creating) {
@@ -180,9 +200,12 @@ onMounted(async () => {
   }
   // 恢复小组状态与信息（若存在）
   try {
-    const st = localStorage.getItem(GROUP_STATUS_KEY)
+    const group = await getStudentGroup()
+    console.log(group)
+    const st = group.approvalStatus
     if (st === 'pending' || st === 'approved') {
       groupStatus.value = st
+      console.log(groupStatus.value)
       const info = JSON.parse(localStorage.getItem(GROUP_INFO_KEY) || 'null')
       if (info && typeof info === 'object') {
         createdGroup.value = info
@@ -193,11 +216,77 @@ onMounted(async () => {
   await Promise.all([loadStudents(), cacheTeacherIdFromHome()])
 })
 
+onActivated(() => {
+  getStudentGroup()
+})
+
+onBeforeRouteUpdate(() => {
+  getStudentGroup()
+})
+// const BASE_URL = proxy.$baseUrl
+// const StudentGroup = ref(null)
+
+const getStudentGroup = async () => {
+  try {
+    const userId = localStorage.getItem('userId')
+    if (!userId) return null
+
+    const token = localStorage.getItem('token')
+    const headers = {
+      'Authorization':  `Bearer ${token}` ,
+      'Content-Type': 'multipart/form-data'
+    }
+
+    const fd1 = new FormData()
+    fd1.append('studentId', userId)
+
+    const res = await axios.post(
+        `${BASE_URL}/groupMember/getById`,
+        fd1,
+        { headers }
+    )
+    console.log(res)
+    if (!(res?.data?.code === 200) || !res?.data?.data?.groupId) {
+      StudentGroup.value = null
+      return null
+    }
+
+    const groupId = res.data.data.groupId
+    const fd2 = new FormData()
+    fd2.append('groupId', groupId)
+
+    const response = await axios.post(
+        `${BASE_URL}/student-group/getByGroupId`,
+        fd2,
+        { headers }
+    )
+    console.log(response)
+    if (response?.data?.code === 200 && response?.data?.data) {
+      StudentGroup.value = response.data.data
+      return response.data.data
+    }
+
+    StudentGroup.value = null
+    return null
+  } catch (error) {
+    console.error('获取学生分组信息失败:', error)
+    StudentGroup.value = null
+    return null
+  }
+}
+
+
 async function loadStudents() {
   try {
     const className =  localStorage.getItem("className")
     const list = await getStudentsByClassName(className)
-    console.log('list', list)
+    // 若处于待审批阶段，进入页面时根据后端返回的当前用户审核状态同步本地分组状态
+    try { 
+      checkMyGroupAudit(list) 
+    } catch (e) { 
+      alert('审核状态检查失败', e) 
+    }
+    console.log('学生分组的列表', list)
     allStudents.value = (list || []).map((s, i) => ({
       id: s.id || s.studentId || s.sid || i + 1,
       name: s.name ||'-',
@@ -208,6 +297,43 @@ async function loadStudents() {
     alert(`加载学生列表失败：${e?.message || e}`)
     allStudents.value = []
   }
+}
+// 审核状态同步：在“审批中”时，根据接口返回的当前用户记录更新为 approved/rejected/pending
+function checkMyGroupAudit(list) {
+  try {
+    if (!Array.isArray(list)) return
+    const myId = String(localStorage.getItem('userId') || '')
+    if (!myId) return
+    const me = list.find(s => String(s.id || s.studentId || s.userId) === myId)
+    if (!me) return
+    const stRaw = me.groupStatus || me.status || ''
+    const st = String(stRaw).toLowerCase()
+    const prev = groupStatus.value
+    if (st === 'approved') {
+      if (prev !== 'approved') {
+        groupStatus.value = 'approved'
+        try { localStorage.setItem(GROUP_STATUS_KEY, 'approved') } catch {}
+        alert('小组审核通过')
+      }
+    } else if (st === 'rejected') {
+      if (prev !== 'none') {
+        groupStatus.value = 'none'
+        createdGroup.value = null
+        groupName.value = ''
+        try {
+          localStorage.setItem(GROUP_STATUS_KEY, 'none')
+          localStorage.removeItem(GROUP_INFO_KEY)
+        } catch {}
+        alert('小组申请被拒绝，请重新新建小组')
+      }
+    } else if (st === 'pending') {
+      if (prev !== 'pending') {
+        groupStatus.value = 'pending'
+        try { localStorage.setItem(GROUP_STATUS_KEY, 'pending') } catch {}
+        alert('小组审核中')
+      }
+    }
+  } catch (e) { console.warn(e) }
 }
 
 // 从首页课程接口获取教师ID，缓存在本地，供分组提交使用
@@ -381,15 +507,16 @@ async function submitGroup() {
     const leader = currentUserObj.value
     const members = selectedMembers.value
     const payload = {
-      groupName: groupName.value || `${leader?.name || '我的'}小组`,
+      groupName: groupName.value,
       groupLeaderId: leader?.id,
       memberIds: members.map(m => m.id),
       teacherId: (() => {
         const v = localStorage.getItem('teacherId')
         return v ? Number(v) : undefined
       })(),
-      taskDescription: taskDescription.value
+      groupDescription: taskDescription.value
     }
+
     console.log('提交小组信息', payload)
     const res = await createStudentGroup(payload)
     const code = Number(res?.code ?? res?.status ?? 0)

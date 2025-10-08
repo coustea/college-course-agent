@@ -1,7 +1,7 @@
 import axios from "axios"
 // import {getCurrentInstance} from "vue";
 
-const BASE = 'http://192.168.52.75:9999'
+const BASE = 'http://192.168.1.106:9999'
 
 const http = axios.create({
     baseURL: BASE,
@@ -12,10 +12,14 @@ http.interceptors.request.use((config) => {
     try {
         const token = localStorage.getItem('token')
         if (token) {
-            config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+            config.headers = {
+                ...(config.headers || {}),
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data'
+            }
         }
     } catch (e) {
-        alert(`读取登录信息失败：${e?.message || e}`)
+        console.error(`读取登录信息失败：${e?.message || e}`)
     }
     return config
 })

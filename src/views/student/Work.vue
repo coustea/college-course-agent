@@ -32,6 +32,17 @@
             <el-descriptions-item label="说明" :span="2">{{ currentAssignment?.description || '—' }}</el-descriptions-item>
           </el-descriptions>
         </el-card>
+        <el-card class="detail-card" shadow="never" style="margin-top: 12px">
+          <div class="attach-title">附件</div>
+          <div v-if="Array.isArray(currentAssignment?.attachments) && currentAssignment.attachments.length" class="attachments">
+            <div v-for="(f, idx) in currentAssignment.attachments" :key="idx" class="attachment-item">
+              <i class="fas fa-paperclip" style="margin-right:6px;color:#64748b;"></i>
+              <span class="file-name">{{ f.name || ('附件' + (idx + 1)) }}</span>
+              <el-link :href="normalizeUrl(f.url)" target="_blank" :download="f.name || ''" type="primary" style="margin-left:auto">下载</el-link>
+            </div>
+        </div>
+          <div v-else class="attachments-empty">暂无附件</div>
+        </el-card>
         <el-form :model="submissionForm" label-width="100px">
           <div class="form-row">
             <el-form-item label="提交身份">
@@ -134,14 +145,15 @@ const submissionForm = ref({
 // 组队状态（来自“学习分组”页的本地持久化）
 const GROUP_STATUS_KEY = 'student_group_status'
 const GROUP_INFO_KEY = 'student_group_info'
-const groupStatus = ref('none') // none | pending | approved
+const groupStatus = ref('none') 
 const groupInfo = ref(null)
-const submitScope = ref('individual') // individual | group
+const submitScope = ref('individual') 
 const groupStatusText = computed(() => {
   if (groupStatus.value === 'approved') return '已组队'
   if (groupStatus.value === 'pending') return '审批中'
   return '未组队'
 })
+const canGroupSubmit = computed(() => groupStatus.value === 'approved')
 
 const deadlineText = ref('截止时间：2025-12-31 23:59')
 const submitting = ref(false)
@@ -152,7 +164,6 @@ function getDefaultRequirements() {
     descriptionMaxLen: 200,
     maxFiles: 3,
     maxFileSizeMB: 10,
-    // 常见文档/压缩与图片、mp4 视频
     allowedExtensions: ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.zip'],
     allowedMimeTypes: ['image/*', 'video/mp4'],
     extraNotes: '请按要求提交，命名规范：班级-学号-姓名-作品名。'
@@ -187,7 +198,6 @@ onMounted(async () => {
     } catch (e) { console.error(e) }
   } catch (e) { console.error(e) }
 
-  // 初始化作业列表（从 sidebar 或本地兜底）
   try {
     const raw = localStorage.getItem('work_sidebar_status')
     const cached = raw ? JSON.parse(raw) : {}
@@ -202,17 +212,41 @@ onMounted(async () => {
 
   // 读取组队状态，决定提交身份默认值
   try {
+    loadGroupStatusFromStorage()
+  } catch {}
+  submitScope.value = groupStatus.value === 'approved' ? 'group' : 'individual'
+
+  // 监听来自“学习分组”页面的状态更新
+  try { window.addEventListener('student-group-updated', onGroupUpdated) } catch {}
+  try { window.addEventListener('storage', onStorageChanged) } catch {}
+})
+
+function onGroupUpdated(e) {
+  try {
+    const detail = e?.detail || {}
+    if (typeof detail.status === 'string') groupStatus.value = detail.status
+    if (detail.info && typeof detail.info === 'object') groupInfo.value = detail.info
+    if (groupStatus.value !== 'approved' && submitScope.value === 'group') submitScope.value = 'individual'
+  } catch {}
+}
+
+function onStorageChanged(ev) {
+  if (!ev || (ev.key !== GROUP_STATUS_KEY && ev.key !== GROUP_INFO_KEY)) return
+  loadGroupStatusFromStorage()
+  if (groupStatus.value !== 'approved' && submitScope.value === 'group') submitScope.value = 'individual'
+}
+
+function loadGroupStatusFromStorage() {
+  try {
     const st = localStorage.getItem(GROUP_STATUS_KEY)
     if (st === 'pending' || st === 'approved' || st === 'none') groupStatus.value = st
     const info = JSON.parse(localStorage.getItem(GROUP_INFO_KEY) || 'null')
     if (info && typeof info === 'object') groupInfo.value = info
   } catch {}
-  submitScope.value = groupStatus.value === 'approved' ? 'group' : 'individual'
-})
+}
 
 
 function handleFileChange(file, fileList) {
-  // 过滤不满足要求的文件
   const passed = []
   for (const f of fileList) {
     if (validateSingleFile(f)) passed.push(f)
@@ -251,13 +285,12 @@ function isTypeAllowed(file) {
 }
 
 function validateSingleFile(file) {
-  // size
   const maxMB = Number(requirements.value.maxFileSizeMB || 0)
   if (maxMB > 0 && file.size > maxMB * bytesPerMB()) {
     ElMessage.error(`文件大小超限（最大 ${maxMB}MB）: ${file.name}`)
     return false
   }
-  // type
+  
   if (!isTypeAllowed(file)) {
     const allowTip = accept.value || '格式受限'
     ElMessage.error(`文件类型不被允许: ${file.name}（允许: ${allowTip}）`)
@@ -267,7 +300,6 @@ function validateSingleFile(file) {
 }
 
 function beforeUpload(file) {
-  // element-plus before-upload: 返回 false/Promise.reject 可阻止加入
   return validateSingleFile(file)
 }
 
@@ -281,7 +313,7 @@ function applyRequirements(data) {
   const d = getDefaultRequirements()
   const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key)
 
-  // 标题/描述是否必填
+
   const titleRequired = has(r, 'titleRequired') ? !!r.titleRequired : (has(r, 'requireTitle') ? !!r.requireTitle : d.titleRequired)
   const descriptionRequired = has(r, 'descriptionRequired') ? !!r.descriptionRequired : (has(r, 'requireDescription') ? !!r.requireDescription : d.descriptionRequired)
 
@@ -338,13 +370,19 @@ function normalizeAssignments(data) {
   const list = []
   const arr = Array.isArray(data?.assignments) ? data.assignments : []
   for (const item of arr) {
+    const rawAtt = Array.isArray(item?.attachments) ? item.attachments : (Array.isArray(item?.files) ? item.files : (Array.isArray(item?.materials) ? item.materials : []))
+    const attachments = Array.isArray(rawAtt) ? rawAtt.map((a, i) => ({
+      name: a?.name || a?.fileName || a?.title || `附件${i + 1}`,
+      url: a?.url || a?.fileUrl || a?.resourceUrl || a?.path || ''
+    })).filter(x => !!x.url) : []
     list.push({
       id: item.id ?? item.assignmentId ?? `${item.title || '作业'}`,
       title: item.title || item.name || '作业',
       description: item.description || item.content || '',
       deadline: item.deadline || item.endTime || '',
       course: item.courseName || item.course || '',
-      teacher: item.teacherName || item.teacher || ''
+      teacher: item.teacherName || item.teacher || '',
+      attachments
     })
   }
   return list
@@ -364,10 +402,18 @@ function formatDateTime(dt) {
   const mi = p(dt.getMinutes())
   return `${y}-${m}-${d} ${h}:${mi}`
 }
+// 兼容相对/绝对链接的附件地址
+function normalizeUrl(u) {
+  if (!u) return ''
+  const s = String(u)
+  if (/^(https?:|data:|blob:)/i.test(s)) return s
+  if (s.startsWith('/')) return s
+  return `/${s.replace(/^\//,'')}`
+}
 function getMockAssignments() {
   const now = new Date()
   return [
-    { id: 'mock-1', title: '思想道德修养期中报告', course: '思想道德修养与法律基础', deadline: formatDateTime(addDays(now, 7)), teacher: '李老师', description: '围绕社会主义核心价值观撰写2000字分析报告，PDF提交。' },
+    { id: 'mock-1', title: '思想道德修养期中报告', course: '思想道德修养与法律基础', deadline: formatDateTime(addDays(now, 7)), teacher: '李老师', description: '围绕社会主义核心价值观撰写2000字分析报告，PDF提交。', attachments: [{ name: '参考模板.docx', url: '/uploads/template.docx' }] },
     { id: 'mock-2', title: '中国近现代史人物小传', course: '中国近现代史纲要', deadline: formatDateTime(addDays(now, 10)), teacher: '王老师', description: '任选一个近现代历史人物，完成不少于1500字人物小传。' },
     { id: 'mock-3', title: '形势与政策热点研判', course: '形势与政策', deadline: formatDateTime(addDays(now, 5)), teacher: '张老师', description: '围绕近期时政热点，完成PPT+讲稿并录制5分钟讲解视频。' },
     { id: 'mock-4', title: '毛泽东思想读书笔记', course: '毛泽东思想和中国特色社会主义理论体系概论', deadline: formatDateTime(addDays(now, 12)), teacher: '赵老师', description: '指定篇目阅读，提交不少于8页读书笔记（图片或PDF）。' },
@@ -408,6 +454,10 @@ function submitWork() {
   // 文件大小/类型复核
   for (const f of submissionForm.value.files) {
     if (!validateSingleFile(f)) return
+  }
+  // 若选择“小组”，但当前状态不是已组队，强制回退为个人
+  if (submitScope.value === 'group' && groupStatus.value !== 'approved') {
+    submitScope.value = 'individual'
   }
   submitting.value = true
   ;(async () => {
@@ -568,5 +618,12 @@ function submitWork() {
 .st-none { background:#ffebee; color:#c62828; }
 .st-pending { background:#fff7ed; color:#b45309; }
 .st-approved { background:#e8f5e9; color:#2e7d32; }
+
+.attachments { display:flex; flex-direction:column; gap:8px; }
+.attachment-item { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid #eef2f7; border-radius:8px; }
+.attach-title { font-weight:600; color:#1e293b; margin-bottom:8px; }
+.attachments-empty { color:#94a3b8; font-size:13px; padding:8px; border:1px dashed #e5e7eb; border-radius:8px; }
+
+/* 兼容相对地址的下载链接 */
 
 </style>

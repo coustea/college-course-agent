@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
 
 const handleLogin = async () => {
   try {
-    const BASE = 'http://192.168.52.75:9999'
+    const BASE = 'http://192.168.1.106:9999'
     const res = await axios.post(`${BASE}/api/auth/login`, {
       username: username.value,
       password: password.value,

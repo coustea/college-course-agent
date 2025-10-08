@@ -113,7 +113,6 @@
 <script setup>
 import { ref, watch, computed, onMounted,getCurrentInstance,onActivated} from 'vue'
 import { ElMessage } from 'element-plus'
-import { updateStudentPassword } from '@/services/changePasswordApi'
 import { useRouter, useRoute,onBeforeRouteUpdate} from 'vue-router'
 import axios from "axios";
 
@@ -129,9 +128,6 @@ const avatar = computed(() => {
 })
 
 const workStatus = ref('none')
-const workStatusLabel = computed(() => workStatus.value === 'submitted' ? '作业已提交' : '有新的作业')
-const workStatusClass = computed(() => workStatus.value === 'submitted' ? 'chip-ok' : 'chip-none')
-
 const {proxy} = getCurrentInstance()
 const BASE_URL = proxy.$baseUrl
 
@@ -169,8 +165,7 @@ function refreshWorkStatus() {
 
 function loadUserFromStorage() {
   try {
-    const u = JSON.parse(localStorage.getItem('currentUser') || 'null')
-    userName.value = u?.name || '未登录'
+    userName.value = localStorage.getItem('studentName')
   } catch {
     userName.value = '未登录'
   }
@@ -183,12 +178,11 @@ onMounted(() => {
   try { window.addEventListener('storage', refreshWorkStatus) } catch (e) { console.error(e) }
   try { window.addEventListener('work-status-updated', refreshWorkStatus) } catch (e) { console.error(e) }
 })
-// 当页面被 keep-alive 缓存后重新激活时执行
+
 onActivated(() => {
   getStudentById()
 })
 
-// 当路由更新时重新获取学生信息
 onBeforeRouteUpdate(() => {
   getStudentById()
 })
@@ -202,10 +196,8 @@ const logout = async () => {
   showUserMenu.value = false
 
   try {
-    // 获取存储的token
     const token = localStorage.getItem('token')
 
-    // 调用后端退出登录接口
     if (token) {
       const res = await axios.post(`${BASE_URL}/auth/logout`, {}, {
         headers: {
@@ -220,19 +212,15 @@ const logout = async () => {
     }
   } catch (error) {
     console.error('退出登录请求失败:', error)
-    // 即使后端调用失败，我们仍然清理本地状态
   } finally {
-    // 清理小组持久化状态
     try {
       localStorage.removeItem('student_group_status')
       localStorage.removeItem('student_group_info')
     } catch (e) { console.error(e) }
-    // 移除Token相关项
     localStorage.removeItem('token')
     localStorage.removeItem('userId')
-
     // 跳转到登录页
-    router.push('/')
+    await router.push('/')
   }
 }
 
