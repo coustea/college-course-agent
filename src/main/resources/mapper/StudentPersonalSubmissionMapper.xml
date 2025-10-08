@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.StudentPersonalSubmissionMapper">
+    <insert id="insert" parameterType="com.ccut.entity.StudentPersonalSubmission">
+        INSERT INTO student_personal_submissions
+        (assignment_id, student_id, submission_content, submission_files, submitted_at, late_submission, score, feedback, graded_at, graded_by, status, created_at)
+        VALUES
+        (#{assignmentId}, #{studentId}, #{submissionContent}, #{submissionFiles}, #{submittedAt}, #{lateSubmission}, #{score}, #{feedback}, #{gradedAt}, #{gradedBy}, #{status}, #{createdAt})
+    </insert>
+
+    <!-- 覆盖逻辑：若存在同一 assignment_id + student_id，则更新；否则插入 -->
+    <insert id="upsert" parameterType="com.ccut.entity.StudentPersonalSubmission">
+        INSERT INTO student_personal_submissions
+        (assignment_id, student_id, submission_content, submission_files, submitted_at, late_submission, score, feedback, graded_at, graded_by, status, created_at)
+        VALUES
+        (#{assignmentId}, #{studentId}, #{submissionContent}, #{submissionFiles}, #{submittedAt}, #{lateSubmission}, #{score}, #{feedback}, #{gradedAt}, #{gradedBy}, #{status}, #{createdAt})
+        ON DUPLICATE KEY UPDATE
+        submission_content = VALUES(submission_content),
+        submission_files = VALUES(submission_files),
+        submitted_at = VALUES(submitted_at),
+        late_submission = VALUES(late_submission),
+        status = VALUES(status),
+        updated_at = CURRENT_TIMESTAMP
+    </insert>
+</mapper>
+
+
