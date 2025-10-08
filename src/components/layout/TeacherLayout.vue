@@ -172,7 +172,7 @@
 <script setup>
 import {ref, watch} from 'vue'
 import {useRouter, useRoute} from 'vue-router'
-
+import axios from "axios";
 const router = useRouter()
 const route = useRoute()
 

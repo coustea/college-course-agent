@@ -417,7 +417,9 @@ const deleteCourse = async (course) => {
     const ok = window.confirm(`确定要删除课程 “${course.title || ''}” 吗？此操作不可恢复。`)
     if (!ok) return
     const base = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
-    const res = await fetch(`${base}/course/delete?courseId=${encodeURIComponent(course.id || course.courseId)}`, { method: 'DELETE' })
+    const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+    const res = await fetch(`${base}/course/delete?courseId=${encodeURIComponent(course.id || course.courseId)}`, { method: 'DELETE', headers })
     const data = await res.json().catch(() => ({}))
     if (Number(data?.code) === 200) { courses.value = courses.value.filter(c => (c.id || c.courseId) !== (course.id || course.courseId)); alert('课程删除成功') } else { alert(`删除失败：${data?.message || res.status}`) }
   } catch { alert('删除失败，请稍后重试') }

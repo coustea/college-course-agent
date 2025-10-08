@@ -31,6 +31,7 @@
 import { ref } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { getAuthHeaders } from '@/services/auth'
 
 export default {
   name: 'CourseMaterials',
@@ -40,7 +41,7 @@ export default {
     const doc = ref({ courseId: routeCourseId, docIndex: null, docTitle: '', file: null })
     const submittingVideo = ref(false)
     const submittingDoc = ref(false)
-    const base = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+    const base = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 
     const onVideoFileChange = (e) => { video.value.file = e.target.files && e.target.files[0] }
     const onDocFileChange = (e) => { doc.value.file = e.target.files && e.target.files[0] }
@@ -49,7 +50,7 @@ export default {
       try {
         submittingVideo.value = true
         const form = new FormData(); form.append('courseId', video.value.courseId); if (video.value.videoIndex != null) form.append('videoIndex', String(video.value.videoIndex)); if (video.value.videoTitle) form.append('videoTitle', video.value.videoTitle); if (video.value.file) form.append('file', video.value.file)
-        const res = await axios.post(`${base}/course/video/insert`, form)
+        const res = await axios.post(`${base}/course/video/insert`, form, { headers: getAuthHeaders() })
         const body = res?.data
         if (body && Number(body.code) === 200) { ElMessage.success('视频添加成功'); video.value.videoTitle = ''; video.value.file = null }
         else { ElMessage.error(body?.message || '视频添加失败') }
@@ -60,7 +61,7 @@ export default {
       try {
         submittingDoc.value = true
         const form = new FormData(); form.append('courseId', doc.value.courseId); if (doc.value.docIndex != null) form.append('docIndex', String(doc.value.docIndex)); if (doc.value.docTitle) form.append('docTitle', doc.value.docTitle); if (doc.value.file) form.append('file', doc.value.file)
-        const res = await axios.post(`${base}/course/document/insert`, form)
+        const res = await axios.post(`${base}/course/document/insert`, form, { headers: getAuthHeaders() })
         const body = res?.data
         if (body && Number(body.code) === 200) { ElMessage.success('文档添加成功'); doc.value.docTitle = ''; doc.value.file = null }
         else { ElMessage.error(body?.message || '文档添加失败') }

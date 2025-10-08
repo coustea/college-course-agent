@@ -90,7 +90,7 @@ import { Search, Upload } from '@element-plus/icons-vue'
 import axios from 'axios'
 
 // === 全局统一后端地址 ===
-const BASE_URL = 'http://localhost:9999/api'
+const BASE_URL = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 
 // === 状态管理 ===
 const loading = ref(false)
@@ -241,11 +241,7 @@ const getCourseProgress = (studentId, courseId) =>
 const fetchStudents = async () => {
   loading.value = true
   try {
-    const res = await api.get(`${BASE_URL}/teacher/list/students`,{
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-      }
-    })
+    const res = await api.get('/teacher/list/students')
     console.log('学生列表', res.data)
     const body = res?.data
 
