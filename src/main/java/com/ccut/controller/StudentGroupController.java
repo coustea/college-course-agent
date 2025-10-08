@@ -8,11 +8,14 @@ import com.ccut.mapper.StudentGroupMapper;
 import com.ccut.service.Impl.GroupMemberServiceImpl;
 import com.ccut.service.Impl.StudentGroupServiceImpl;
 import com.ccut.service.Impl.StudentServiceImpl;
+import com.ccut.service.Impl.TeacherServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/student-group")
@@ -28,42 +31,94 @@ public class StudentGroupController {
     @Autowired
     private StudentServiceImpl studentService;
 
+    @Autowired
+    private TeacherServiceImpl teacherService;
+
     @PostMapping
-    public Result<StudentGroup> create(@RequestBody StudentGroup studentGroup) {
+    public Result<StudentGroup> create(@RequestParam String groupName,
+                                       @RequestParam Long groupLeaderId,
+                                       @RequestParam Long teacherId,
+                                       @RequestParam String groupDescription,
+                                       @RequestParam List<Long> memberIds
+    ) {
         try {
-            if (studentGroup == null) {
-                log.error("参数错误，studentGroup is null");
-                return Result.error(400, "参数错误");
+            if (groupName == null || groupName.isEmpty()) {
+                return Result.error(400, "参数错误：groupName 不能为空");
             }
-            Student student = studentService.selectById(studentGroup.getGroupLeaderId());
+            if (groupLeaderId == null) {
+                return Result.error(400, "参数错误：groupLeaderId 不能为空");
+            }
+            if (teacherId == null) {
+                return Result.error(400, "参数错误：teacherId 不能为空");
+            }
+            if (groupDescription == null || groupDescription.isEmpty()) {
+                return Result.error(400, "参数错误：groupDescription 不能为空");
+            }
+            if (memberIds == null || memberIds.isEmpty()) {
+                return Result.error(400, "参数错误：memberIds 不能为空");
+            }
+
+
+            // 验证组长是否存在
+            Student student = studentService.selectById(groupLeaderId);
             if (student == null) {
-                log.error("参数错误，groupLeaderId is not exist");
-                return Result.error(400, "参数错误，groupLeaderId is not exist");
+                return Result.error(400, "参数错误：groupLeaderId 不存在");
             }
-            if (studentGroup.getApprovalStatus() == null) {
-                studentGroup.setApprovalStatus(StudentGroup.GroupApprovalStatus.pending);
-            }
-            if (studentGroup.getStatus() == null) {
-                studentGroup.setStatus(StudentGroup.GroupStatus.active);
-            }
+
+            StudentGroup studentGroup = new StudentGroup();
+            studentGroup.setGroupLeaderId(groupLeaderId);
+            studentGroup.setTeacherId(teacherId);
+            studentGroup.setGroupName(groupName);
+            studentGroup.setGroupDescription(groupDescription);
+            studentGroup.setStatus(StudentGroup.GroupStatus.active);
+            studentGroup.setApprovalStatus(StudentGroup.GroupApprovalStatus.pending);
+
+            // === 1. 插入小组信息 ===
             int result = studentGroupService.insert(studentGroup);
-            if (result > 0) {
-                log.info("插入成功，studentGroupId is {}", studentGroup.getGroupId());
-                GroupMember groupMember = new GroupMember(
-                    studentGroup.getGroupId(),
-                    studentGroup.getCourseId(),
+            if (result <= 0) {
+                log.error("插入分组失败: {}", studentGroup);
+                return Result.error(500, "插入分组失败");
+            }
+
+            Long groupId = studentGroup.getGroupId(); // MyBatis返回自增主键
+            log.info("分组创建成功，groupId={}", groupId);
+
+            // === 2. 插入组长成员 ===
+            GroupMember leader = new GroupMember(
+                    groupId,
                     studentGroup.getGroupLeaderId(),
                     student.getName(),
                     GroupMember.GroupMemberRole.leader,
                     GroupMember.Status.approved
-                );
-                int res = groupMemberService.insertMember(groupMember);
-                return Result.success(studentGroup);
+            );
+            int leaderInsert = groupMemberService.insertMember(leader);
+            if (leaderInsert <= 0) {
+                throw new RuntimeException("插入组长成员失败");
             }
-            log.error("插入失败，studentGroup is {}", studentGroup);
-            return Result.error(500, "插入失败");
+
+            // === 3. 插入组员列表 ===
+            for (Long memberId : memberIds) {
+                Student member = studentService.selectById(memberId);
+                if (member == null) {
+                    log.error("成员不存在，memberId={}", memberId);
+                    continue; // 跳过不存在的成员
+                }
+                GroupMember memberEntry = new GroupMember(
+                        groupId,
+                        memberId,
+                        member.getName(),
+                        GroupMember.GroupMemberRole.member,
+                        GroupMember.Status.pending
+                );
+                int memberInsert = groupMemberService.insertMember(memberEntry);
+                if (memberInsert <= 0) {
+                    throw new RuntimeException("插入成员失败: " + member.getName());
+                }
+            }
+            log.info("创建分组及成员成功, groupId={}", groupId);
+            return Result.success(studentGroup);
+
         } catch (Exception e) {
-            log.error("插入学生分组信息时发生异常: ", e);
             return Result.error(500, "系统异常，请稍后重试");
         }
     }
@@ -100,17 +155,6 @@ public class StudentGroupController {
                 return Result.success(studentGroupService.selectAll());
             }
             List<StudentGroup> studentGroups = studentGroupService.selectByApprovalStatus(approvalStatus);
-            return Result.success(studentGroups);
-        } catch (Exception e) {
-            log.error("查询学生分组信息时发生异常: ", e);
-            return Result.error(500, "系统异常，请稍后重试");
-        }
-    }
-
-    @GetMapping("/course/{courseId}/teacher/{teacherId}")
-    public Result<List<StudentGroup>> selectByCourseIdAndTeacherId(@PathVariable("courseId") Long courseId, @PathVariable("teacherId") Long teacherId) {
-        try {
-            List<StudentGroup> studentGroups = studentGroupService.selectByCourseIdAndTeacherId(courseId, teacherId);
             return Result.success(studentGroups);
         } catch (Exception e) {
             log.error("查询学生分组信息时发生异常: ", e);

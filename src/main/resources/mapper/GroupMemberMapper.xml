@@ -1,16 +1,25 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="com.ccut.mapper.GroupMemberMapper">
-    <insert id="insertMember">
+    <insert id="insertMember"
+            parameterType="com.ccut.entity.GroupMember"
+            useGeneratedKeys="true"
+            keyProperty="id"
+            keyColumn="id">
         INSERT INTO group_members
-        (group_id, course_id, student_id,student_name,join_time,role,join_status)
+        (group_id, student_id, student_name, join_time, role, join_status)
         VALUES
-        (#{groupId},#{courseId},#{studentId},#{studentName},CURRENT_TIMESTAMP,#{role},#{joinStatus})
+            (#{groupId}, #{studentId}, #{studentName}, CURRENT_TIMESTAMP, #{role}, #{joinStatus})
     </insert>
+
     <delete id="deleteMember">
         DELETE FROM group_members
         WHERE student_id = #{studentId}
         AND group_id = #{groupId}
     </delete>
+
+
+
+
 
 </mapper>

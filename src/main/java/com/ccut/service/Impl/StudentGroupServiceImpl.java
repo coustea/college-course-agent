@@ -44,8 +44,5 @@ public class StudentGroupServiceImpl implements StudentGroupService {
         return studentGroupMapper.deleteById(id);
     }
 
-    @Override
-    public List<StudentGroup> selectByCourseIdAndTeacherId(Long courseId, Long teacherId) {
-        return studentGroupMapper.selectByCourseIdAndTeacherId(courseId, teacherId);
-    }
+
 }
