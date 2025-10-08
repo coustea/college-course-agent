@@ -45,7 +45,6 @@ const router = useRouter()
 const username = ref('')
 const password = ref('')
 const role = ref('')
-const errorMsg = ref('')
 
 // 背景图片数组
 const backgrounds = [

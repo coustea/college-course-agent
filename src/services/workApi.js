@@ -42,8 +42,8 @@ export async function submitWork(payload = {}, signal) {
   // 根据提交身份选择后端接口（个人/小组）
   const resolveSubmitUrl = () => {
     const t = String(stype || '').toLowerCase()
-    if (t === 'group' || t === 'team') return 'http://192.168.1.106:9999/api/group-submission/upload'
-    return 'http://192.168.1.106:9999/api/personal-submission/upload'
+    if (t === 'group' || t === 'team') return 'http://39.96.172.21:9999/api/group-submission/upload'
+    return 'http://39.96.172.21:9999/api/personal-submission/upload'
   }
   const userId  = localStorage.getItem('userId')
   const res = await axios .post(resolveSubmitUrl(), {userId,...payload},{

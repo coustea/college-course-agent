@@ -2,7 +2,7 @@
 import axios from 'axios'
 
 // 统一后端 BASE，并为题目相关请求自动附带 Authorization
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999' : ''))
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://39.96.172.21:9999' : ''))
 const qa = axios.create({ baseURL: API_BASE, timeout: 20000 })
 qa.interceptors.request.use((config) => {
     try {
