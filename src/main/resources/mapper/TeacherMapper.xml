@@ -63,6 +63,13 @@
         SELECT id, employee_number, name, email, phone, department, title
         FROM teachers WHERE id = #{id}
     </select>
+    <select id="selectClassNameByTeacherId" resultType="java.lang.String">
+        SELECT DISTINCT s.class_name
+        FROM students s
+        Join enrollments e on s.id = e.student_id
+        Join courses c on e.course_id = c.course_id
+        WHERE c.teacher_id = #{teacherId}
+    </select>
 
 </mapper>
 

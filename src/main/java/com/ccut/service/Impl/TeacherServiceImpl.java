@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class TeacherServiceImpl implements TeacherService {
 
@@ -50,6 +52,11 @@ public class TeacherServiceImpl implements TeacherService {
 
     public java.util.List<Teacher> selectAll() {
         return teacherMapper.selectAll();
+    }
+
+    @Override
+    public List<String> selectClassNameByTeacherId(Long teacherId) {
+        return teacherMapper.selectClassNameByTeacherId(teacherId);
     }
 }
 
