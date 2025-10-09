@@ -172,6 +172,7 @@
 <script setup>
 import {ref, watch, computed, onMounted} from 'vue'
 import {useRouter, useRoute} from 'vue-router'
+import { ElMessage } from 'element-plus'
 import axios from "axios";
 const router = useRouter()
 const route = useRoute()
@@ -185,7 +186,7 @@ const teacherAvatarChar = computed(() => {
 })
 const displayTeacherName = computed(() => {
   const n = (teacherName.value || '').trim()
-  if (!n) return '老师'
+  if (!n || n === '老师' || /^\d+$/.test(n)) return '老师'
   // 取第一个字符作为姓氏
   const surname = n.charAt(0)
   return `${surname}老师`
@@ -232,16 +233,14 @@ const logout = async () => {
     const token = localStorage.getItem('token')
 
     // 调用后端退出登录接口
+    const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
     if (token) {
-      const res = await axios.post(`${BASE_URL}/logout`, {}, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      if (res.data.code === 200) {
-        ElMessage.success('退出登录成功')
-      } else {
-        ElMessage.error('退出登录失败')
+      try {
+        const res = await axios.post(`${API_BASE}/auth/logout`, {}, { headers: { Authorization: `Bearer ${token}` } })
+        if (res?.data?.code === 200) ElMessage.success('退出登录成功')
+        else ElMessage.error(res?.data?.message || '退出登录失败')
+      } catch {
+        // 忽略网络错误，走本地清理
       }
     }
   } catch (error) {
@@ -252,6 +251,16 @@ const logout = async () => {
     localStorage.removeItem('userId')
     localStorage.removeItem('userName')
     localStorage.removeItem('token')
+    localStorage.removeItem('userToken')
+    localStorage.removeItem('userRole')
+    localStorage.removeItem('teacherId')
+    localStorage.removeItem('studentId')
+    localStorage.removeItem('profile')
+    localStorage.removeItem('userInfo')
+    localStorage.removeItem('course_questions_state_v1')
+    localStorage.removeItem('currentStudentId')
+    // 重置内存中的展示姓名
+    teacherName.value = '老师'
     // 跳转到登录页
     router.push('/')
   }
@@ -273,13 +282,11 @@ const navigateTo = (path) => {
 onMounted(() => {
   try {
     const u = JSON.parse(localStorage.getItem('userInfo') || 'null')
-    if (u && (u.name || u.username)) {
-      teacherName.value = u.name || u.username
-      return
-    }
+    const candidate = (u && (u.name || u.username)) ? String(u.name || u.username).trim() : ''
+    if (candidate && !/^\d+$/.test(candidate)) { teacherName.value = candidate; return }
   } catch {}
   const fallback = localStorage.getItem('userName') || ''
-  teacherName.value = fallback || '老师'
+  teacherName.value = (fallback && !/^\d+$/.test(fallback)) ? fallback : '老师'
 })
 
 // 根据当前路由自动展开对应的子菜单
