@@ -63,7 +63,6 @@
           <div>
             <div class="user-avatar">{{ avatar }}</div>
             <span>{{ userName }}</span>
-            <span class="work-chip" :class="workStatusClass">{{ workStatusLabel }}</span>
           </div>
           <i class="fas fa-chevron-up" :class="{active: showUserMenu}"></i>
         </div>
@@ -114,7 +113,7 @@
 import { ref, watch, computed, onMounted,getCurrentInstance,onActivated} from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter, useRoute,onBeforeRouteUpdate} from 'vue-router'
-import axios from "axios";
+import axios from "axios"
 
 const router = useRouter()
 const route = useRoute()
@@ -127,7 +126,7 @@ const avatar = computed(() => {
   return name ? name[name.length - 1] : '访'
 })
 
-const workStatus = ref('none')
+// 左侧栏不再展示作品状态，移除相关状态
 const {proxy} = getCurrentInstance()
 const BASE_URL = proxy.$baseUrl
 
@@ -156,12 +155,7 @@ const getStudentById = async () => {
   }
 }
 
-function refreshWorkStatus() {
-  try {
-    const s = localStorage.getItem('work_status') || 'none'
-    workStatus.value = s === 'submitted' ? 'submitted' : 'none'
-  } catch { workStatus.value = 'none' }
-}
+// 已删除作品状态刷新逻辑
 
 function loadUserFromStorage() {
   try {
@@ -173,10 +167,7 @@ function loadUserFromStorage() {
 
 onMounted(() => {
   loadUserFromStorage()
-  refreshWorkStatus()
   getStudentById()
-  try { window.addEventListener('storage', refreshWorkStatus) } catch (e) { console.error(e) }
-  try { window.addEventListener('work-status-updated', refreshWorkStatus) } catch (e) { console.error(e) }
 })
 
 onActivated(() => {
@@ -451,15 +442,6 @@ const changePassword = async () => {
   justify-content: center;
   margin-right: 10px;
   font-weight: bold;
-}
-
-.work-chip {
-  display:inline-block;
-  margin-left:8px;
-  padding:2px 8px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:700;
 }
 
 .user-info .fa-chevron-up {

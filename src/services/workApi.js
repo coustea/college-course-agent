@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const BASE = 'http://39.96.172.21:9999'
+const BASE = 'http://192.168.52.75:9999'
 
 const http = axios.create({
   baseURL: BASE,
@@ -25,7 +25,6 @@ function toUrl(u) {
   return `${BASE.replace(/\/$/, '')}/${s.replace(/^\//, '')}`
 }
 
-// 获取左侧栏绑定状态（例如：待提交数量、截止时间等）
 // params 可携带 userId/classId/courseId 等筛选维度
 export async function getWorkSidebarStatus(signal) {
   const profile = localStorage.getItem('profile')
@@ -36,57 +35,55 @@ export async function getWorkSidebarStatus(signal) {
   return resp?.data?.data ?? resp?.data ?? {}
 }
 
-// 提交作品
-// payload: { title, description, files?: UploadFile[] | File[] }
-export async function submitWork(payload = {}, signal) {
-  // 根据提交身份选择后端接口（个人/小组）
-  const resolveSubmitUrl = () => {
-    const t = String(stype || '').toLowerCase()
-    if (t === 'group' || t === 'team') return 'http://39.96.172.21:9999/api/group-submission/upload'
-    return 'http://39.96.172.21:9999/api/personal-submission/upload'
-  }
-  const userId  = localStorage.getItem('userId')
-  const res = await axios .post(resolveSubmitUrl(), {userId,...payload},{
-      headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
-  })
-  console.log("个人提交作品的状态",res.data)
+// 通用上传函数（multipart/form-data，仅文件）
+async function uploadTo(url, payload = {}, signal) {
   const files = Array.isArray(payload?.files) ? payload.files : []
-
-  // 判定是否包含二进制文件（Element Plus UploadFile.raw 或 File）
-  const hasBinary = files.some(f => {
-    const raw = f?.raw ?? f
-    return raw instanceof File || (raw && typeof raw === 'object' && typeof raw.size === 'number')
-  })
-
-  if (hasBinary) {
-    const form = new FormData()
-    if (payload.title != null) form.append('title', String(payload.title))
-    if (payload.description != null) form.append('description', String(payload.description))
-    if (payload.submitType != null) form.append('submitType', String(payload.submitType))
-    files.forEach((f, idx) => {
-      const raw = f?.raw ?? f
-      if (raw) form.append('files', raw, raw.name || `file_${idx + 1}`)
-    })
-    const resp = await http.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' }, signal })
-    return resp?.data
+  const form = new FormData()
+  if (payload.assignmentId != null) form.append('assignmentId', String(payload.assignmentId))
+  if (payload.studentId != null) form.append('studentId', String(payload.studentId))
+  if (payload.content != null) form.append('content', String(payload.content))
+  // 后端要求单文件字段名为 file，只取第一个文件
+  const first = files[0]
+  if (first) {
+    const raw = first?.raw ?? first
+    if (raw) form.append('file', raw, raw.name || 'file')
   }
+  console.log(0)
+  const resp = await http.post(url, form, { headers: {
+    Authorization: `Bearer ${localStorage.getItem('token')}`,
+    'Content-Type': 'multipart/form-data',
+  }, signal })
+  console.log(1)
+  console.log("上传的作品作业状态",resp.data)
+  return resp.data
+}
 
-  // 无文件或仅元数据，走 JSON
-  const resp = await http.post(url, {
-    title: payload?.title ?? '',
-    description: payload?.description ?? '',
-    files: files.map(f => ({ name: f?.name || '', type: f?.type || 'file' })),
-    submitType: payload?.submitType ?? 'individual'
-  }, { signal })
-  return resp?.data
+// 个人提交
+export async function submitPersonalWork(payload = {}, signal) {
+  const url = toUrl('/api/personal-submission/upload')
+  console.log("个人提交",url,payload)
+  return uploadTo(url, payload, signal)
+}
+
+// 小组提交
+export async function submitTeamWork(payload = {}, signal) {
+  const url = toUrl('/api/team-submission/upload')
+  console.log("小组提交",url,payload)
+  return uploadTo(url, payload, signal)
+}
+
+// 兼容旧方法：按 submitType 路由
+export async function submitWork(payload = {}, signal) {
+  const t = String(payload?.submitType || '').toLowerCase()
+  if (t === 'group' || t === 'team') return submitTeamWork(payload, signal)
+  return submitPersonalWork(payload, signal)
 }
 
 export default {
   getWorkSidebarStatus,
-  submitWork
+  submitWork,
+  submitPersonalWork,
+  submitTeamWork
 }
 
 

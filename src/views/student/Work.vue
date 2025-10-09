@@ -130,7 +130,7 @@
 <script setup>
 import { ref, onMounted, computed,getCurrentInstance} from 'vue'
 import { ElMessage } from 'element-plus'
-import { getWorkSidebarStatus, submitWork as submitWorkApi } from '@/services/workApi'
+import { getWorkSidebarStatus, submitPersonalWork, submitTeamWork } from '@/services/workApi'
 import axios from "axios";
 
 const { proxy } = getCurrentInstance()
@@ -146,7 +146,6 @@ const submissionForm = ref({
   files: []
 })
 
-// 组队状态（来自“学习分组”页的本地持久化）
 const GROUP_STATUS_KEY = 'student_group_status'
 const GROUP_INFO_KEY = 'student_group_info'
 const groupStatus = ref('none') 
@@ -399,7 +398,6 @@ function normalizeAssignments(data) {
   const list = []
   const arr = Array.isArray(data?.assignments) ? data.assignments : (Array.isArray(data?.data) ? data.data : [])
   for (const item of arr) {
-    // 兼容 attachmentFiles（数组或JSON字符串）
     let attachments = []
     try {
       const raw = item?.attachmentFiles ?? item?.attachments ?? []
@@ -418,12 +416,12 @@ function normalizeAssignments(data) {
       }
     } catch {}
     list.push({
-      id: item.id ?? item.assignmentId ?? `${item.assignmentName || item.title || '作业'}`,
-      title: item.assignmentName || item.title || item.name || '作业',
-      description: item.description || item.content || item.assignmentDescription || '',
+      id: item.id ?? item.assignmentId ?? `${item.title || '作业'}`,
+      title: item.title || item.name || '作业',
+      description: item.description || item.content || '',
       deadline: item.deadline || item.endTime || item.dueTime || item.dueDate || '',
       course: item.courseName || item.course || String(item.courseId ?? ''),
-      teacher: item.teacherName || item.teacher || String(item.teacherId ?? ''),
+      teacher: item.teacher || String(item.teacherId ?? ''),
       attachments
     })
   }
@@ -473,7 +471,6 @@ function backToList() {
 }
 
 function submitWork() {
-  // 标题/描述校验
   if (requirements.value.titleRequired && !submissionForm.value.title) {
     ElMessage.error('请填写作品标题')
     return
@@ -487,12 +484,12 @@ function submitWork() {
     ElMessage.error(`作品描述不能超过 ${maxLen} 个字符`)
     return
   }
-  // 文件数量限制
-  const limit = Number(requirements.value.maxFiles || 0)
-  if (limit > 0 && submissionForm.value.files.length > limit) {
-    ElMessage.error(`最多可提交 ${limit} 个文件`)
-    return
-  }
+  // // 文件数量限制
+  // const limit = Number(requirements.value.maxFiles || 0)
+  // if (limit > 0 && submissionForm.value.files.length > limit) {
+  //   ElMessage.error(`最多可提交 ${limit} 个文件`)
+  //   return
+  // }
   // 文件大小/类型复核
   for (const f of submissionForm.value.files) {
     if (!validateSingleFile(f)) return
@@ -501,17 +498,20 @@ function submitWork() {
   if (submitScope.value === 'group' && groupStatus.value !== 'approved') {
     submitScope.value = 'individual'
   }
-  submitting.value = true
-  ;(async () => {
+  submitting.value = true;
+  (async () => {
     try {
-      await submitWorkApi({
-        // title: submissionForm.value.title,
-        // description: submissionForm.value.description,
-        files: submissionForm.value.files,
-        // submitType: submitScope.value,
-        // groupStatus: groupStatus.value,
-        // groupInfo: submitScope.value === 'group' ? (groupInfo.value || {}) : null
-      })
+      const studentId = localStorage.getItem('userId')
+      if (submitScope.value === 'group') {
+        await submitTeamWork({ files: submissionForm.value.files, assignmentId: currentAssignment.value?.id })
+      } else {
+        await submitPersonalWork({
+          files: submissionForm.value.files,
+          assignmentId: currentAssignment.value?.id,
+          studentId: Number(studentId) || studentId,
+          content: submissionForm.value.description
+        })
+      }
       ElMessage.success('作品提交成功！')
       submissionForm.value = { title: '', description: '', files: [] }
       try {
@@ -529,7 +529,6 @@ function submitWork() {
 </script>
 
 <style scoped>
-.work-page { width: 100%; }
 .page-container { max-width: 1200px; margin: 0 auto; padding: 10px; }
 .header {
   display: flex;
