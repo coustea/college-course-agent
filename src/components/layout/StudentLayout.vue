@@ -391,15 +391,33 @@ function cancelProfileEdit() {
   profileDialogVisible.value = false
 }
 
-function loadProfileIntoForm() {
+async function loadProfileIntoForm() {
   try {
-    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
-    profileForm.value.name = localStorage.getItem('studentName') || saved.name || ''
-    profileForm.value.className = localStorage.getItem('className') || saved.className || ''
-    profileForm.value.studentNumber = localStorage.getItem('studentNumber') || saved.studentNumber || ''
-    profileForm.value.phone = localStorage.getItem('studentPhone') || saved.phone || ''
-    profileForm.value.email = localStorage.getItem('studentEmail') || saved.email || ''
-  } catch (e) { console.error(e) }
+
+    const userId = localStorage.getItem('userId')
+    const res = await axios.post(`${BASE_URL}/student/by-id`,
+        {
+          userId
+        },
+        {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    if (res.data.code === 200) {
+      profileForm.value = {
+        name: res.data.data.name ||  '',
+        className: res.data.data.className || '',
+        studentNumber: res.data.data.studentNumber || '',
+        phone: res.data.data.phone ||  '',
+        email: res.data.data.email || ''
+      }
+    }
+
+  } catch (e) {
+    console.error(e)
+  }
 }
 
 async function updateStudentContact(phone, email) {
@@ -416,7 +434,7 @@ async function updateStudentContact(phone, email) {
     const token = localStorage.getItem('token')
     console.log('学生更改信息', normalizedPhone, normalizedEmail)
     const res = await axios.put(
-      `${BASE_URL}/teacher/update/student?id=${userId}`,
+      `${BASE_URL}/teacher/update/student/${userId}`,
       { phone: normalizedPhone, email: normalizedEmail },
       { headers: { Authorization: `Bearer ${token}` } }
     )
