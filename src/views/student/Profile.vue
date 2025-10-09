@@ -78,23 +78,23 @@
             </div>
           </div>
 
-          <div v-if="displayedCourses.length === 0" class="empty-state">
-            <div class="empty-text">暂无任何学习进度</div>
-          </div>
-          <div
+         <div v-if="displayedCourses.length === 0" class="empty-state">
+           <div class="empty-text">暂无任何学习进度</div>
+         </div>
+         <div
               v-for="course in displayedCourses"
               :key="course.id"
-              class="progress-container"
-          >
-            <div class="progress-header">
-              <span class="progress-label">{{ course.title }}</span>
-              <span class="progress-value">{{ course.progress }}%</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: course.progress + '%' }"></div>
-            </div>
-          </div>
-        </div>
+             class="progress-container"
+         >
+           <div class="progress-header">
+             <span class="progress-label">{{ course.title }}</span>
+             <span class="progress-value">{{ course.progress }}%</span>
+           </div>
+           <div class="progress-bar">
+             <div class="progress-fill" :style="{ width: course.progress + '%' }"></div>
+           </div>
+         </div>
+       </div>
 
         <div class="stat-card bottom-card">
           <div class="stat-card-header">
@@ -159,11 +159,11 @@
             </div>
           </div>
 
-          <div class="progress-container">
-            <div class="progress-header">
-              <span class="progress-label">作品提交截至时间</span>
-              <span class="progress-value">{{ workDeadline }}</span>
-            </div>
+         <div class="progress-container">
+           <div class="progress-header">
+             <span class="progress-label">作品提交截至时间</span>
+             <span class="progress-value">{{ workDeadline }}</span>
+           </div>
           </div>
           <div class="progress-container">
             <div class="progress-header">

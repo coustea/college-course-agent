@@ -16,7 +16,6 @@
     </div>
   </div>
 
-
   <div class="filters-row block-section" v-if="(groupStatus === 'none') && (!isCreating || isSelecting)">
     <el-input
         v-model="keyword"
@@ -202,14 +201,29 @@ onMounted(async () => {
   try {
     const group = await getStudentGroup()
     console.log(group)
-    const st = group.approvalStatus
-    if (st === 'pending' || st === 'approved') {
-      groupStatus.value = st
-      console.log(groupStatus.value)
-      const info = JSON.parse(localStorage.getItem(GROUP_INFO_KEY) || 'null')
-      if (info && typeof info === 'object') {
+    if (!group) {
+      try {
+        localStorage.removeItem(GROUP_STATUS_KEY)
+        localStorage.removeItem(GROUP_INFO_KEY)
+      } catch (e) { console.error(e) }
+      groupStatus.value = 'none'
+    } else {
+      const st = String(group.approvalStatus || '').toLowerCase()
+      if (st === 'pending' || st === 'approved') {
+        groupStatus.value = st
+        const info = {
+          groupName: group.groupName || '',
+          leaderName: group.leaderName || '',
+          memberNames: Array.isArray(group.memberNames) ? group.memberNames : []
+        }
         createdGroup.value = info
-        groupName.value = info.groupName || groupName.value
+        if (info.groupName) groupName.value = info.groupName
+        try {
+          localStorage.setItem(GROUP_STATUS_KEY, st)
+          localStorage.setItem(GROUP_INFO_KEY, JSON.stringify(info))
+        } catch (e) { console.error(e) }
+      } else {
+        groupStatus.value = 'none'
       }
     }
   } catch (e) { alert(`恢复小组信息失败：${e?.message || e}`) }
@@ -281,10 +295,10 @@ async function loadStudents() {
     const className =  localStorage.getItem("className")
     const list = await getStudentsByClassName(className)
     // 若处于待审批阶段，进入页面时根据后端返回的当前用户审核状态同步本地分组状态
-    try { 
-      checkMyGroupAudit(list) 
-    } catch (e) { 
-      alert('审核状态检查失败', e) 
+    try {
+      await checkMyGroupAudit(list)
+    } catch (e) {
+      alert('审核状态检查失败')
     }
     console.log('学生分组的列表', list)
     allStudents.value = (list || []).map((s, i) => ({
@@ -298,8 +312,28 @@ async function loadStudents() {
     allStudents.value = []
   }
 }
+// 获取并本地持久化小组详情（审批通过时调用）
+async function fetchAndPersistGroupInfo() {
+  try {
+    const group = await getStudentGroup()
+    if (group && typeof group === 'object') {
+      const info = {
+        groupName: group.groupName || '',
+        leaderName: group.leaderName || '',
+        memberNames: Array.isArray(group.memberNames) ? group.memberNames : []
+      }
+      createdGroup.value = info
+      if (info.groupName) groupName.value = info.groupName
+      try {
+        localStorage.setItem(GROUP_STATUS_KEY, 'approved')
+        localStorage.setItem(GROUP_INFO_KEY, JSON.stringify(info))
+      } catch (e) { console.error(e) }
+    }
+  } catch (e) { console.warn('获取小组详情失败:', e) }
+}
+
 // 审核状态同步：在“审批中”时，根据接口返回的当前用户记录更新为 approved/rejected/pending
-function checkMyGroupAudit(list) {
+async function checkMyGroupAudit(list) {
   try {
     if (!Array.isArray(list)) return
     const myId = String(localStorage.getItem('userId') || '')
@@ -313,6 +347,7 @@ function checkMyGroupAudit(list) {
       if (prev !== 'approved') {
         groupStatus.value = 'approved'
         try { localStorage.setItem(GROUP_STATUS_KEY, 'approved') } catch {}
+        await fetchAndPersistGroupInfo()
         alert('小组审核通过')
       }
     } else if (st === 'rejected') {

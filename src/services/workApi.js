@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const BASE = 'http://192.168.52.75:9999'
+const BASE = 'http://192.168.1.100:9999'
 
 const http = axios.create({
   baseURL: BASE,
@@ -58,25 +58,15 @@ async function uploadTo(url, payload = {}, signal) {
   return resp.data
 }
 
-// 个人提交
-export async function submitPersonalWork(payload = {}, signal) {
-  const url = toUrl('/api/personal-submission/upload')
-  console.log("个人提交",url,payload)
-  return uploadTo(url, payload, signal)
+// 提交接口暂时移除，等待后续重写
+export async function submitPersonalWork() {
+  throw new Error('提交接口已移除，将在后续重写后恢复')
 }
-
-// 小组提交
-export async function submitTeamWork(payload = {}, signal) {
-  const url = toUrl('/api/team-submission/upload')
-  console.log("小组提交",url,payload)
-  return uploadTo(url, payload, signal)
+export async function submitTeamWork() {
+  throw new Error('提交接口已移除，将在后续重写后恢复')
 }
-
-// 兼容旧方法：按 submitType 路由
-export async function submitWork(payload = {}, signal) {
-  const t = String(payload?.submitType || '').toLowerCase()
-  if (t === 'group' || t === 'team') return submitTeamWork(payload, signal)
-  return submitPersonalWork(payload, signal)
+export async function submitWork() {
+  throw new Error('提交接口已移除，将在后续重写后恢复')
 }
 
 export default {

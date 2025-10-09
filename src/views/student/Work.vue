@@ -12,9 +12,17 @@
           <el-table-column prop="course" label="课程" min-width="180" />
           <el-table-column prop="deadline" label="截止时间" width="180" />
           <el-table-column prop="teacher" label="发布教师" width="140" />
-          <el-table-column label="操作" width="120" align="center">
+          <el-table-column label="操作" width="160" align="center">
             <template #default="{ row }">
-              <el-button type="primary" size="small" @click="openDetail(row)">查看详情</el-button>
+              <template v-if="getRowScore(row) != null">
+                <span style="color:#16a34a;font-weight:600;">成绩：{{ getRowScore(row) }}分</span>
+              </template>
+              <template v-else-if="isRowSubmitted(row)">
+                <span style="color:#b45309;">等待教师批阅</span>
+              </template>
+              <template v-else>
+                <el-button type="primary" size="small" @click="openDetail(row)">查看详情</el-button>
+              </template>
             </template>
           </el-table-column>
         </el-table>
@@ -44,17 +52,7 @@
           <div v-else class="attachments-empty">暂无附件</div>
         </el-card>
         <el-form :model="submissionForm" label-width="100px">
-          <div class="form-row">
-            <el-form-item label="提交身份">
-              <div class="submit-scope">
-                <el-radio-group v-model="submitScope">
-                  <el-radio-button label="individual">个人</el-radio-button>
-                  <el-radio-button label="group" :disabled="groupStatus !== 'approved'">小组</el-radio-button>
-                </el-radio-group>
-                <span class="status-chip" :class="`st-${groupStatus}`">{{ groupStatusText }}</span>
-              </div>
-            </el-form-item>
-          </div>
+          
           <div class="form-row">
             <el-form-item label="作品标题">
               <el-input v-model="submissionForm.title" placeholder="请输入作品标题" />
@@ -120,7 +118,11 @@
         </div>
         <div class="form-bottom-bar">
           <div class="deadline-text">{{ deadlineText }}</div>
-          <el-button type="primary" :loading="submitting" @click="submitWork">提交作品</el-button>
+          <el-tooltip :disabled="canSubmitWork" content="仅组长可提交" placement="top">
+            <span>
+              <el-button type="primary" :disabled="!canSubmitWork" :loading="submitting" @click="submitWork">提交作品</el-button>
+            </span>
+          </el-tooltip>
         </div>
       </div>
     </div>
@@ -130,7 +132,7 @@
 <script setup>
 import { ref, onMounted, computed,getCurrentInstance} from 'vue'
 import { ElMessage } from 'element-plus'
-import { getWorkSidebarStatus, submitPersonalWork, submitTeamWork } from '@/services/workApi'
+import { getWorkSidebarStatus } from '@/services/workApi'
 import axios from "axios";
 
 const { proxy } = getCurrentInstance()
@@ -150,13 +152,24 @@ const GROUP_STATUS_KEY = 'student_group_status'
 const GROUP_INFO_KEY = 'student_group_info'
 const groupStatus = ref('none') 
 const groupInfo = ref(null)
-const submitScope = ref('individual') 
-const groupStatusText = computed(() => {
-  if (groupStatus.value === 'approved') return '已组队'
-  if (groupStatus.value === 'pending') return '审批中'
-  return '未组队'
+// 组队与角色
+const currentUserName = computed(() => {
+  try { return localStorage.getItem('studentName') || '' } catch { return '' }
 })
-const canGroupSubmit = computed(() => groupStatus.value === 'approved')
+const isLeader = computed(() => {
+  const info = groupInfo.value || {}
+  const leader = String(info.leaderName || '')
+  return leader && leader === String(currentUserName.value || '')
+})
+const canSubmitWork = computed(() => {
+  if (groupStatus.value === 'approved') return isLeader.value
+  if (groupStatus.value === 'pending') return false
+  return true
+})
+const SUBMIT_STATE_KEY = 'assignment_submission_state_v1'
+const GRADES_STATE_KEY = 'assignment_grades_state_v1'
+function readJson(key, def = {}) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def } catch { return def } }
+function writeJson(key, val) { try { localStorage.setItem(key, JSON.stringify(val)) } catch {} }
 
 const deadlineText = ref('截止时间：2025-12-31 23:59')
 const submitting = ref(false)
@@ -173,6 +186,24 @@ function getDefaultRequirements() {
   }
 }
 
+function loadSubmissionState() {
+  submissionState.value = readJson(SUBMIT_STATE_KEY, {})
+  gradesState.value = readJson(GRADES_STATE_KEY, {})
+}
+
+const submissionState = ref({})
+const gradesState = ref({})
+function isRowSubmitted(row) {
+  const id = row?.id
+  const state = submissionState.value || {}
+  return !!(id && state[id] && state[id].status === 'submitted')
+}
+function getRowScore(row) {
+  const id = row?.id
+  const g = gradesState.value || {}
+  const v = id ? g[id]?.score : null
+  return typeof v === 'number' ? v : null
+}
 const requirements = ref(getDefaultRequirements())
 
 const accept = computed(() => {
@@ -184,7 +215,7 @@ const accept = computed(() => {
 
 onMounted(async () => {
   try {
-    // const data = await getWorkSidebarStatus()
+    
     const data = await getTeachAssignments()
     console.log(data)
     if (data?.code === 200 && Array.isArray(data?.data) && data.data.length > 0) {
@@ -196,7 +227,6 @@ onMounted(async () => {
       }
     }
     try { applyRequirements(data || {}) } catch (e) { console.error(e) }
-    // 如后端返回了作业列表，优先使用
     try {
       const serverAssignments = normalizeAssignments(data || {})
       if (serverAssignments.length > 0) assignments.value = serverAssignments
@@ -219,11 +249,8 @@ onMounted(async () => {
     assignments.value = getMockAssignments()
   }
 
-  // 读取组队状态，决定提交身份默认值
-  try {
-    loadGroupStatusFromStorage()
-  } catch {}
-  submitScope.value = groupStatus.value === 'approved' ? 'group' : 'individual'
+  // 仍保留状态读取（用于其他文案或权限），但不影响提交方式
+  try { loadGroupStatusFromStorage() } catch {}
 
   // 监听来自“学习分组”页面的状态更新
   try { window.addEventListener('student-group-updated', onGroupUpdated) } catch {}
@@ -259,9 +286,13 @@ function onGroupUpdated(e) {
 }
 
 function onStorageChanged(ev) {
-  if (!ev || (ev.key !== GROUP_STATUS_KEY && ev.key !== GROUP_INFO_KEY)) return
-  loadGroupStatusFromStorage()
-  if (groupStatus.value !== 'approved' && submitScope.value === 'group') submitScope.value = 'individual'
+  if (!ev) return
+  if (ev.key === GROUP_STATUS_KEY || ev.key === GROUP_INFO_KEY) {
+    loadGroupStatusFromStorage()
+  }
+  if (ev.key === SUBMIT_STATE_KEY || ev.key === GRADES_STATE_KEY) {
+    loadSubmissionState()
+  }
 }
 
 function loadGroupStatusFromStorage() {
@@ -489,25 +520,27 @@ function submitWork() {
   for (const f of submissionForm.value.files) {
     if (!validateSingleFile(f)) return
   }
-  // 若选择“小组”，但当前状态不是已组队，强制回退为个人
-  if (submitScope.value === 'group' && groupStatus.value !== 'approved') {
-    submitScope.value = 'individual'
-  }
   submitting.value = true;
   (async () => {
     try {
-      const studentId = localStorage.getItem('userId')
-      if (submitScope.value === 'group') {
-        await submitTeamWork({ files: submissionForm.value.files, assignmentId: currentAssignment.value?.id })
-      } else {
-        await submitPersonalWork({
-          files: submissionForm.value.files,
-          assignmentId: currentAssignment.value?.id,
-          studentId: Number(studentId) || studentId,
-          content: submissionForm.value.description
-        })
+      // 暂无提交接口：仅做前端占位提示
+      console.log('提交参数占位:', {
+        files: submissionForm.value.files,
+        assignmentId: currentAssignment.value?.id,
+        content: submissionForm.value.description
+      })
+      ElMessage.info('提交接口待接入，已记录表单参数')
+      // 记录提交状态并广播
+      const id = currentAssignment.value?.id
+      if (id) {
+        const state = readJson(SUBMIT_STATE_KEY, {})
+        state[id] = { status: 'submitted', by: String(currentUserName.value || ''), at: Date.now() }
+        writeJson(SUBMIT_STATE_KEY, state)
+        submissionState.value = state
+        try { window.dispatchEvent(new StorageEvent('storage', { key: SUBMIT_STATE_KEY })) } catch {}
       }
-      ElMessage.success('作品提交成功！')
+      // 返回列表
+      backToList()
       submissionForm.value = { title: '', description: '', files: [] }
       try {
         const data = await getWorkSidebarStatus()

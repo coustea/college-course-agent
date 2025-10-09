@@ -47,15 +47,15 @@
             </div>
           </li>
 
-          <li class="menu-item">
-            <div class="menu-title" :class="{active: $route.path === '/profile'}"
-                 @click="navigateTo('/profile')">
-              <div>
-                <i class="fas fa-user"></i>
-                <span>个人中心</span>
-              </div>
-            </div>
-          </li>
+<!--          <li class="menu-item">-->
+<!--            <div class="menu-title" :class="{active: $route.path === '/profile'}"-->
+<!--                 @click="navigateTo('/profile')">-->
+<!--              <div>-->
+<!--                <i class="fas fa-user"></i>-->
+<!--                <span>个人中心</span>-->
+<!--              </div>-->
+<!--            </div>-->
+<!--          </li>-->
         </ul>
       </div>
       <div class="user-panel">
@@ -68,6 +68,10 @@
         </div>
 
         <ul class="user-dropdown" :class="{show: showUserMenu}">
+          <li class="dropdown-item" @click="openProfileDialog">
+            <i class="fas fa-user"></i>
+            <span>个人资料</span>
+          </li>
           <li class="dropdown-item" @click="openPasswordDialog">
             <i class="fas fa-key"></i>
             <span>修改密码</span>
@@ -106,17 +110,45 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 个人资料 -->
+    <el-dialog v-model="profileDialogVisible" title="个人资料" width="620px" :before-close="handleCloseProfileDialog">
+      <el-descriptions :column="2" border style="margin-bottom: 12px;">
+        <el-descriptions-item label="姓名">{{ profileForm.name || '未设置' }}</el-descriptions-item>
+        <el-descriptions-item label="学号">{{ profileForm.studentNumber || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="班级" :span="2">{{ profileForm.className || '-' }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-form :model="profileForm" :rules="profileRules" ref="profileFormRef" label-width="90px">
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="profileForm.phone" placeholder="请输入手机号" />
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="profileForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="cancelProfileEdit">取消</el-button>
+          <el-button type="primary" :loading="savingProfile" @click="updateStudentContact(profileForm.phone, profileForm.email)">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted,getCurrentInstance,onActivated} from 'vue'
+import { ref, watch, computed, onMounted,getCurrentInstance,onActivated, provide} from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter, useRoute,onBeforeRouteUpdate} from 'vue-router'
 import axios from "axios"
 
 const router = useRouter()
 const route = useRoute()
+
+const {proxy} = getCurrentInstance()
+const BASE_URL = proxy.$baseUrl
 
 const isSubMenuOpen = ref(false)
 const showUserMenu = ref(false)
@@ -126,10 +158,10 @@ const avatar = computed(() => {
   return name ? name[name.length - 1] : '访'
 })
 
-// 左侧栏不再展示作品状态，移除相关状态
-const {proxy} = getCurrentInstance()
-const BASE_URL = proxy.$baseUrl
-
+const profileDialogVisible = ref(false)
+const profileFormRef = ref()
+const profileForm = ref({ name: '', className: '', studentNumber: '', phone: '', email: '' })
+const savingProfile = ref(false)
 
 const getStudentById = async () => {
   console.log('getStudentById called')
@@ -155,7 +187,6 @@ const getStudentById = async () => {
   }
 }
 
-// 已删除作品状态刷新逻辑
 
 function loadUserFromStorage() {
   try {
@@ -210,7 +241,6 @@ const logout = async () => {
     } catch (e) { console.error(e) }
     localStorage.removeItem('token')
     localStorage.removeItem('userId')
-    // 跳转到登录页
     await router.push('/')
   }
 }
@@ -305,7 +335,6 @@ const changePassword = async () => {
         return
       }
 
-      // 只提交要更新的字段（这里仅更新密码）
       const payload = {
         password: passwordForm.value.newPassword
       }
@@ -331,6 +360,90 @@ const changePassword = async () => {
     }
   })
 }
+
+const profileRules = {
+  phone: [
+    {
+      validator: (rule, value, callback) => {
+        const v = String(value || '').trim()
+        if (!v) return callback()
+        return /^\d{6,20}$/.test(v) ? callback() : callback(new Error('手机号格式不正确'))
+      },
+      trigger: 'blur'
+    }
+  ],
+  email: [
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+  ]
+}
+
+function openProfileDialog() {
+  showUserMenu.value = false
+  loadProfileIntoForm()
+  profileDialogVisible.value = true
+}
+
+function handleCloseProfileDialog(done) {
+  done()
+}
+
+function cancelProfileEdit() {
+  profileDialogVisible.value = false
+}
+
+function loadProfileIntoForm() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
+    profileForm.value.name = localStorage.getItem('studentName') || saved.name || ''
+    profileForm.value.className = localStorage.getItem('className') || saved.className || ''
+    profileForm.value.studentNumber = localStorage.getItem('studentNumber') || saved.studentNumber || ''
+    profileForm.value.phone = localStorage.getItem('studentPhone') || saved.phone || ''
+    profileForm.value.email = localStorage.getItem('studentEmail') || saved.email || ''
+  } catch (e) { console.error(e) }
+}
+
+async function updateStudentContact(phone, email) {
+  try {
+    if (profileFormRef.value) await profileFormRef.value.validate()
+    savingProfile.value = true
+
+    const userId = localStorage.getItem('userId')
+    if (!userId) { ElMessage.error('未找到用户 ID，请重新登录'); return false }
+
+    const normalizedPhone = String((phone ?? profileForm.value.phone ?? '')).trim()
+    const normalizedEmail = String((email ?? profileForm.value.email ?? '')).trim()
+
+    const token = localStorage.getItem('token')
+    console.log('学生更改信息', normalizedPhone, normalizedEmail)
+    const res = await axios.put(
+      `${BASE_URL}/teacher/update/student?id=${userId}`,
+      { phone: normalizedPhone, email: normalizedEmail },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    console.log('学生更改信息结果', res.data)
+    if (res?.data?.code !== 200) { ElMessage.error('保存失败'); return false }
+
+    try {
+      const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
+      const merged = { ...saved, phone: normalizedPhone, email: normalizedEmail }
+      localStorage.setItem('currentUser', JSON.stringify(merged))
+      localStorage.setItem('studentPhone', normalizedPhone)
+      localStorage.setItem('studentEmail', normalizedEmail)
+    } catch (e) { console.error(e) }
+
+    ElMessage.success('个人资料已更新')
+    profileDialogVisible.value = false
+    return true
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('保存失败')
+    return false
+  } finally {
+    savingProfile.value = false
+  }
+}
+
+provide('updateStudentContact', updateStudentContact)
 
 </script>
 
@@ -457,7 +570,7 @@ const changePassword = async () => {
   bottom: 100%;
   left: 0;
   right: 0;
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(15, 23, 42, 0.9);
   backdrop-filter: blur(10px);
   list-style: none;
   padding: 0;
@@ -465,11 +578,13 @@ const changePassword = async () => {
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.3s ease;
-  border-radius: 8px 8px 0 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 .user-dropdown.show {
-  max-height: 120px;
+  max-height: 200px;
 }
 
 .dropdown-item {
@@ -479,7 +594,7 @@ const changePassword = async () => {
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .dropdown-item:hover {

@@ -15,29 +15,29 @@
         />
       </div>
 
-      <div class="search-filters">
-        <button
-            class="filter-btn"
-            :class="{active: activeFilter === 'all'}"
-            @click="setFilter('all')"
-        >
-          全部课程
-        </button>
-        <button
-            class="filter-btn"
-            :class="{active: activeFilter === 'document'}"
-            @click="setFilter('document')"
-        >
-          文档课程
-        </button>
-        <button
-            class="filter-btn"
-            :class="{active: activeFilter === 'video'}"
-            @click="setFilter('video')"
-        >
-          视频课程
-        </button>
-      </div>
+<!--      <div class="search-filters">-->
+<!--        <button-->
+<!--            class="filter-btn"-->
+<!--            :class="{active: activeFilter === 'all'}"-->
+<!--            @click="setFilter('all')"-->
+<!--        >-->
+<!--          全部课程-->
+<!--        </button>-->
+<!--        <button-->
+<!--            class="filter-btn"-->
+<!--            :class="{active: activeFilter === 'document'}"-->
+<!--            @click="setFilter('document')"-->
+<!--        >-->
+<!--          文档课程-->
+<!--        </button>-->
+<!--        <button-->
+<!--            class="filter-btn"-->
+<!--            :class="{active: activeFilter === 'video'}"-->
+<!--            @click="setFilter('video')"-->
+<!--        >-->
+<!--          视频课程-->
+<!--        </button>-->
+<!--      </div>-->
     </div>
     <div class="courses-container">
       <div v-if="loading" class="loading-container">
