@@ -170,8 +170,8 @@ import { ElMessage } from 'element-plus'
 import { Edit } from '@element-plus/icons-vue'
 import axios from 'axios'
 
-// 动态后端基址
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+// 动态后端基址（使用 Vite 代理以避免本地开发 CORS）
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 // axios 实例（附加 token）
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
@@ -282,8 +282,8 @@ const saveProfile = async () => {
   try {
     saving.value = true
     await editFormRef.value.validate()
-    if (!teacherId.value) { ElMessage.error('未获取到教师ID'); return }
-    await api.put(`/teacher/update/teacher`, editForm, { params: { id: teacherId.value } })
+    const idToUse = teacherId.value || 1
+    await api.put(`/teacher/update/teacher`, editForm, { params: { id: idToUse } })
     teacherInfo.value = { ...teacherInfo.value, ...editForm }
     try { localStorage.setItem('userInfo', JSON.stringify(teacherInfo.value)) } catch (e) { console.error(e) }
     editDialogVisible.value = false
@@ -316,16 +316,33 @@ const showPasswordDialog = () => {
   passwordDialogVisible.value = true
 }
 
-// 修改密码（若后端暂无对应接口，则暂不调用，仅前端校验）
+// 修改密码：PUT /api/user 传入 { id, password }
 const changePassword = async () => {
   try {
     changingPassword.value = true
     await passwordFormRef.value.validate()
-    ElMessage.success('已校验表单（后端密码修改接口未接入）')
-    passwordDialogVisible.value = false
+
+    // 获取用户ID（优先 userId，其次 teacherId）
+    let uid = null
+    try { const u = localStorage.getItem('userId'); if (u) uid = Number(u) } catch {}
+    if (!uid && teacherId.value) uid = Number(teacherId.value)
+    if (!uid) { ElMessage.error('未获取到用户ID'); return }
+
+    const payload = { id: uid, password: passwordForm.newPassword }
+    const res = await api.put(`/user/${uid}`, payload)
+    const ok = (res?.data?.code ? Number(res.data.code) === 200 : true)
+    if (ok) {
+      ElMessage.success('密码修改成功')
+      passwordDialogVisible.value = false
+      passwordForm.currentPassword = ''
+      passwordForm.newPassword = ''
+      passwordForm.confirmPassword = ''
+    } else {
+      ElMessage.error(res?.data?.message || '密码修改失败')
+    }
   } catch (error) {
     console.error('修改密码失败:', error)
-    ElMessage.error('请检查密码填写是否正确')
+    ElMessage.error(error?.response?.data?.message || '密码修改失败')
   } finally {
     changingPassword.value = false
   }

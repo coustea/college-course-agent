@@ -134,19 +134,24 @@ const filteredCourses = computed(() => {
 
 const setFilter = (filter) => { activeFilter.value = filter }
 
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token') || localStorage.getItem('userToken')
   if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
   return config
 })
-const backendHost = (() => { try { const p = window?.location?.port; if (p === '4173' || p === '5173') return 'http://localhost:9999' } catch {} return '' })()
+// 使用同源 /uploads 经过 Vite 代理，避免跨域
+const backendHost = ''
 const normalizeUrl = (url) => {
   if (!url || typeof url !== 'string') return ''
-  if (/^(https?:|data:|blob:)/i.test(url)) return url
-  if (url.startsWith('/uploads/')) return (backendHost || '') + url
-  return url
+  const u = String(url)
+  if (/^(https?:|data:|blob:)/i.test(u)) return u
+  // 统一成同源路径，交由 Vite 代理到后端
+  if (u.startsWith('/api/uploads/')) return u.replace('/api', '')
+  if (u.startsWith('/uploads/')) return u
+  if (u.startsWith('uploads/')) return `/${u}`
+  return u
 }
 
 // 为视频播放构造同源路径，避免 CORS：将 http(s)://.../uploads/** 重写为同源 /uploads/**
@@ -187,8 +192,8 @@ const loadCourses = async () => {
             id: c.id || c.course_id || c.courseId,
             title: c.title || c.course_name || c.courseName || '未命名课程',
             description: c.description || '',
-            image: normalizeUrl(c.image || c.resourceUrl || ''),
-            resourceUrl: normalizeUrl(c.resourceUrl || c.image || ''),
+            image: normalizeUrl(c.image || c.cover || c.imageUrl || c.img || c.thumbnail || c.pic || c.resourceUrl || ''),
+            resourceUrl: normalizeUrl(c.resourceUrl || c.image || c.cover || c.imageUrl || ''),
             type: 'video',
             startDate: c.createTime || c.start_date || '',
             endDate: '',
@@ -220,10 +225,10 @@ const loadCourses = async () => {
           const firstVideoUrl = chapters[0]?.videoUrl || ''
           return {
             id: c.courseId,
-            title: c.courseName || '未命名课程',
+            title: c.courseName || c.title || '未命名课程',
             description: c.description || '',
-            image: normalizeUrl(c.resourceUrl || ''),
-            resourceUrl: normalizeUrl(c.resourceUrl || ''),
+            image: normalizeUrl(c.image || c.cover || c.imageUrl || c.img || c.thumbnail || c.pic || c.resourceUrl || ''),
+            resourceUrl: normalizeUrl(c.resourceUrl || c.image || c.cover || c.imageUrl || ''),
             type: vids.length > 0 ? 'video' : 'document',
             startDate: c.startDate || '',
             endDate: c.endDate || '',
@@ -381,7 +386,7 @@ const fetchStudentLists = async () => {
 }
 const fetchEnrolledStudents = async () => {
   try {
-    const base = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+    const base = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
     const cid = managingCourse.value?.id || managingCourse.value?.courseId
     if (!cid) { enrolledIds.value = new Set(); return }
     const res = await fetch(`${base}/teacher/enrollments/students?courseId=${encodeURIComponent(cid)}`)
@@ -395,7 +400,7 @@ const enrollSelectedStudents = async () => {
   if (!managingCourse.value) return
   const cid = managingCourse.value.id || managingCourse.value.courseId
   if (!cid) return
-  const base = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+  const base = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
   const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
   const headers = token ? { Authorization: `Bearer ${token}` } : {}
   try {
