@@ -214,28 +214,32 @@ async function saveEdit() {
     const email = String(editEmail.value || '').trim()
     if (phone && !/^\d{6,20}$/.test(phone)) { alert('手机号格式不正确'); return }
     if (email && !/^\S+@\S+\.\S+$/.test(email)) { alert('邮箱格式不正确'); return }
-
+    console.log("修改信息:", phone, email)
     // 优先调用后端保存；若没有后端则落地到本地存储
-
     console.log(BASE_URL)
     const token = localStorage.getItem('token')
     const userId = localStorage.getItem('userId')
-    let ok = false
     try {
-      if (userId && token) {
-        const res = await axios.put(`${BASE_URL}/user/${userId}`, { phone, email }, { 
+        const res = await axios.put(`${BASE_URL}/teacher/update/student?id=${userId}`, { phone, email }, {
           headers: { Authorization: `Bearer ${token}` } })
-        ok = Number(res?.data?.code) === 200
-      }
-    } catch {}
-    if (!ok) {
-      const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
-      const merged = { ...saved, phone, email }
-      try { localStorage.setItem('currentUser', JSON.stringify(merged)) } catch {}
-    }
-    student.value = { ...student.value, phone, email }
-    editing.value = false
-    alert('已保存')
+        console.log("修改信息的响应:", res?.data)
+        const ok = (res?.data?.code === 200)
+        if (ok) {
+          // 更新前端展示与本地持久化，确保立即可见
+          student.value = { ...student.value, phone, email }
+          try {
+            const saved = JSON.parse(localStorage.getItem('currentUser') || 'null') || {}
+            const merged = { ...saved, phone, email }
+            localStorage.setItem('currentUser', JSON.stringify(merged))
+            localStorage.setItem('studentPhone', phone)
+            localStorage.setItem('studentEmail', email)
+          } catch (e) { console.error(e) }
+          editing.value = false
+          alert('保存成功')
+        } else {
+          alert('保存失败')
+        }
+    } catch(e) {alert(`保存失败：${e?.message || e}`)}
   } catch (e) { alert(`保存失败：${e?.message || e}`) }
 }
 const avatarText = computed(() => (student.value.name ? student.value.name[student.value.name.length-1] : '学'))

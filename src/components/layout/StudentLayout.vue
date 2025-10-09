@@ -17,15 +17,15 @@
             </div>
           </li>
 
-          <li class="menu-item">
-            <div class="menu-title" :class="{active: $route.path === '/data'}"
-                 @click="navigateTo('/data')">
-              <div>
-                <i class="fas fa-chart-line"></i>
-                <span>学习数据</span>
-              </div>
-            </div>
-          </li>
+<!--          <li class="menu-item">-->
+<!--            <div class="menu-title" :class="{active: $route.path === '/data'}"-->
+<!--                 @click="navigateTo('/data')">-->
+<!--              <div>-->
+<!--                <i class="fas fa-chart-line"></i>-->
+<!--                <span>学习数据</span>-->
+<!--              </div>-->
+<!--            </div>-->
+<!--          </li>目前不用-->
 
           <li class="menu-item">
             <div class="menu-title" :class="{active: $route.path === '/group'}"

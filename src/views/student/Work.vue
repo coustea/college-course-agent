@@ -484,12 +484,7 @@ function submitWork() {
     ElMessage.error(`作品描述不能超过 ${maxLen} 个字符`)
     return
   }
-  // // 文件数量限制
-  // const limit = Number(requirements.value.maxFiles || 0)
-  // if (limit > 0 && submissionForm.value.files.length > limit) {
-  //   ElMessage.error(`最多可提交 ${limit} 个文件`)
-  //   return
-  // }
+
   // 文件大小/类型复核
   for (const f of submissionForm.value.files) {
     if (!validateSingleFile(f)) return
