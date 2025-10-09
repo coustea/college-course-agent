@@ -45,6 +45,7 @@ const router = useRouter()
 const username = ref('')
 const password = ref('')
 const role = ref('')
+const errorMsg = ref('')
 
 // 背景图片数组
 const backgrounds = [
@@ -69,7 +70,7 @@ onBeforeUnmount(() => {
 
 const handleLogin = async () => {
   try {
-    const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
+    const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
     const res = await axios.post(`${API_BASE}/auth/login`, {
       username: username.value,
       password: password.value,

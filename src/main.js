@@ -14,7 +14,6 @@ app.use(pinia)
 app.use(ElementPlus)
 app.use(router)
 
-// === 全局 BASE_URL ===
 app.config.globalProperties.$baseUrl = 'http://39.96.172.21:9999/api'
 
 // 初始化全局设置

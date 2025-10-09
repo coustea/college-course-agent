@@ -144,8 +144,8 @@
       <div class="user-panel">
         <div class="user-info" @click="toggleUserMenu">
           <div>
-            <div class="user-avatar">教</div>
-            <span>王老师</span>
+            <div class="user-avatar">{{ teacherAvatarChar }}</div>
+            <span>{{ displayTeacherName }}</span>
           </div>
           <i class="fas fa-chevron-up" :class="{active: showUserMenu}"></i>
         </div>
@@ -170,7 +170,7 @@
 </template>
 
 <script setup>
-import {ref, watch} from 'vue'
+import {ref, watch, computed, onMounted} from 'vue'
 import {useRouter, useRoute} from 'vue-router'
 import axios from "axios";
 const router = useRouter()
@@ -178,6 +178,18 @@ const route = useRoute()
 
 const activeSubMenu = ref('')
 const showUserMenu = ref(false)
+const teacherName = ref('老师')
+const teacherAvatarChar = computed(() => {
+  const n = (teacherName.value || '').trim()
+  return n ? n.charAt(0) : '教'
+})
+const displayTeacherName = computed(() => {
+  const n = (teacherName.value || '').trim()
+  if (!n) return '老师'
+  // 取第一个字符作为姓氏
+  const surname = n.charAt(0)
+  return `${surname}老师`
+})
 
 // 仅切换子菜单，不导航
 const toggleSubMenuOnly = (menu) => {
@@ -257,6 +269,18 @@ const navigateTo = (path) => {
     window.scrollTo({top: 0, behavior: 'smooth'})
   }, 100)
 }
+
+onMounted(() => {
+  try {
+    const u = JSON.parse(localStorage.getItem('userInfo') || 'null')
+    if (u && (u.name || u.username)) {
+      teacherName.value = u.name || u.username
+      return
+    }
+  } catch {}
+  const fallback = localStorage.getItem('userName') || ''
+  teacherName.value = fallback || '老师'
+})
 
 // 根据当前路由自动展开对应的子菜单
 watch(() => route.path, (newPath) => {
