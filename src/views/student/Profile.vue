@@ -210,8 +210,8 @@ function cancelEdit() {
 
 async function saveEdit() {
   try {
-    const phone = String(editPhone.value || '暂无').trim()
-    const email = String(editEmail.value || '暂无').trim()
+    const phone = String(editPhone.value || '').trim()
+    const email = String(editEmail.value || '').trim()
     if (phone && !/^\d{6,20}$/.test(phone)) { alert('手机号格式不正确'); return }
     if (email && !/^\S+@\S+\.\S+$/.test(email)) { alert('邮箱格式不正确'); return }
 
