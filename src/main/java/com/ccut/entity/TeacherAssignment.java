@@ -13,12 +13,8 @@ public class TeacherAssignment {
     private Long assignmentId;
     // 教师ID
     private Long teacherId;
-    // 课程ID
-    private Long courseId;
     // 作业名称
     private String assignmentName;
-    // 班级
-    private String className;
     // 作业描述
     private String description;
     // 作业要求
@@ -26,8 +22,6 @@ public class TeacherAssignment {
     // 截止日期
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm",timezone = "Asia/Shanghai")
     private LocalDateTime dueDate;
-    // 是否允许迟交
-    private Boolean allowLateSubmission;
     // 附件文件
     private String attachmentFiles;
     // 创建时间

@@ -17,7 +17,6 @@ public class StudentSubmission {
         // 已重提交
         resubmitted
     }
-
     // 提交ID
     private Long submissionId;
     // 作业ID
@@ -32,18 +31,8 @@ public class StudentSubmission {
     private String submissionFiles;
     // 提交时间
     private LocalDateTime submittedAt;
-    // 迟交
-    private Boolean lateSubmission;
-    // 分数
-    private Double score;
-    // 反馈
-    private String feedback;
-    // 评分时间
-    private LocalDateTime gradedAt;
-    // 评分人ID
-    private Long gradedBy;
     // 状态
-    private String status;
+    private Status status;
     // 创建时间
     private LocalDateTime createdAt;
     // 更新时间
