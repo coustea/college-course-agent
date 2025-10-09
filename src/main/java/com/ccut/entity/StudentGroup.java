@@ -26,10 +26,10 @@ public class StudentGroup {
 
     private Long groupId;              // 分组ID（自增主键）
     private String groupName;          // 小组名称
+    private String className;
     private Long groupLeaderId;        // 组长ID
     private String groupDescription;   // 小组描述
     private Date createdAt;            // 创建时间
-    private Date updatedAt;            // 更新时间
     private GroupStatus status;        // 小组状态（active / disbanded）
     private GroupApprovalStatus approvalStatus; // 审批状态
 

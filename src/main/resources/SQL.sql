@@ -179,6 +179,7 @@ UNIQUE KEY uniq_student_document (student_id, document_id)
 CREATE TABLE student_groups (
 group_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '分组ID',
 group_name VARCHAR(100) NOT NULL COMMENT '小组名称',
+class_name VARCHAR(100) COMMENT '班级名称',
 group_leader_id BIGINT COMMENT '组长ID',
 group_description TEXT COMMENT '小组描述',
 created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -205,7 +206,7 @@ UNIQUE KEY uniq_group_student (group_id, student_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='小组成员表';
 
 -- ================================================
--- 🧾 教师发布作业表
+--  教师发布作业表
 -- ================================================
 CREATE TABLE teacher_assignments (
 assignment_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '作业ID',
@@ -221,7 +222,7 @@ FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教师发布作业表';
 
 -- ================================================
--- 🧑‍🎓 学生小组作业提交表
+--  学生小组作业提交表
 -- ================================================
 CREATE TABLE student_submissions (
 submission_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '提交ID',
@@ -243,7 +244,7 @@ INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生小组提交表';
 
 -- ================================================
--- 🧾 学生成员个人得分表
+--  学生成员个人得分表
 -- ================================================
 CREATE TABLE student_member_scores (
 id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
