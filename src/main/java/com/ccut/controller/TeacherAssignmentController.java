@@ -50,16 +50,12 @@ public class TeacherAssignmentController {
     }
 
 
-
     @PostMapping
     public Result<TeacherAssignment> insert(
             @RequestParam Long teacherId,
-            @RequestParam Long courseId,
             @RequestParam String assignmentName,
-            @RequestParam String className,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String requirements,
-            @RequestParam(required = false) Boolean allowLateSubmission,
             @RequestParam(required = false) MultipartFile[] files,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm") String dueDate
     ) throws Exception {
@@ -97,15 +93,11 @@ public class TeacherAssignmentController {
         }
 
         String attachmentJson = objectMapper.writeValueAsString(fileInfos);
-
         TeacherAssignment teacherAssignment = new TeacherAssignment();
         teacherAssignment.setTeacherId(teacherId);
-        teacherAssignment.setCourseId(courseId);
         teacherAssignment.setAssignmentName(assignmentName);
         teacherAssignment.setDescription(description);
         teacherAssignment.setRequirements(requirements);
-        teacherAssignment.setClassName(className);
-        teacherAssignment.setAllowLateSubmission(allowLateSubmission != null ? allowLateSubmission : false);
         teacherAssignment.setAttachmentFiles(attachmentJson);
 
         if (dueDate != null && !dueDate.isEmpty()) {
@@ -145,17 +137,14 @@ public class TeacherAssignmentController {
             Map<String, Object> assignmentMap = new HashMap<>();
             assignmentMap.put("assignmentId", assignment.getAssignmentId());
             assignmentMap.put("teacherId", assignment.getTeacherId());
-            assignmentMap.put("courseId", assignment.getCourseId());
             assignmentMap.put("assignmentName", assignment.getAssignmentName());
             assignmentMap.put("description", assignment.getDescription());
             assignmentMap.put("requirements", assignment.getRequirements());
             assignmentMap.put("dueDate", assignment.getDueDate());
-            assignmentMap.put("allowLateSubmission", assignment.getAllowLateSubmission());
             assignmentMap.put("attachments", attachmentList);
 
             responseList.add(assignmentMap);
         }
-
         return Result.success(responseList);
     }
 
@@ -184,12 +173,10 @@ public class TeacherAssignmentController {
                 Map<String, Object> map = new HashMap<>();
                 map.put("assignmentId", assignment.getAssignmentId());
                 map.put("teacherId", assignment.getTeacherId());
-                map.put("courseId", assignment.getCourseId());
                 map.put("assignmentName", assignment.getAssignmentName());
                 map.put("description", assignment.getDescription());
                 map.put("requirements", assignment.getRequirements());
                 map.put("dueDate", assignment.getDueDate());
-                map.put("allowLateSubmission", assignment.getAllowLateSubmission());
                 map.put("attachments", attachmentList);
                 resp.add(map);
             }
@@ -262,12 +249,10 @@ public class TeacherAssignmentController {
                 Map<String, Object> map = new HashMap<>();
                 map.put("assignmentId", assignment.getAssignmentId());
                 map.put("teacherId", assignment.getTeacherId());
-                map.put("courseId", assignment.getCourseId());
                 map.put("assignmentName", assignment.getAssignmentName());
                 map.put("description", assignment.getDescription());
                 map.put("requirements", assignment.getRequirements());
                 map.put("dueDate", assignment.getDueDate());
-                map.put("allowLateSubmission", assignment.getAllowLateSubmission());
                 map.put("attachments", attachmentList);
                 resp.add(map);
             }

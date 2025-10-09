@@ -7,9 +7,11 @@
             keyProperty="id"
             keyColumn="id">
         INSERT INTO group_members
-        (group_id, student_id, student_name, join_time, role, join_status)
+        (group_id, student_id, student_name,
+         class_name, join_time, role, join_status)
         VALUES
-            (#{groupId}, #{studentId}, #{studentName}, CURRENT_TIMESTAMP, #{role}, #{joinStatus})
+            (#{groupId}, #{studentId}, #{studentName},
+             #{className}, CURRENT_TIMESTAMP, #{role}, #{joinStatus})
     </insert>
 
     <delete id="deleteMember">

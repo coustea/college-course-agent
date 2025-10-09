@@ -3,12 +3,13 @@
 <mapper namespace="com.ccut.mapper.StudentGroupMapper">
 
 
-    <insert id="insert" useGeneratedKeys="true" keyProperty="groupId" keyColumn="group_id">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="groupId" keyColumn="group_id" >
         INSERT INTO student_groups
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="groupName != null">group_name,</if>
             <if test="groupLeaderId != null">group_leader_id,</if>
-            <if test="teacherId != null">teacher_id,</if>
+            <if test="className != null">class_name,</if>
+            <if test="groupDescription != null">group_description,</if>
             created_at,
             <if test="status != null">status,</if>
             <if test="approvalStatus != null">approval_status,</if>
@@ -17,7 +18,8 @@
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="groupName != null">#{groupName},</if>
             <if test="groupLeaderId != null">#{groupLeaderId},</if>
-            <if test="teacherId != null">#{teacherId},</if>
+            <if test="className != null">#{className},</if>
+            <if test="groupDescription != null">#{groupDescription},</if>
             CURRENT_TIMESTAMP,
             <if test="status != null">#{status},</if>
             <if test="approvalStatus != null">#{approvalStatus},</if>
@@ -33,8 +35,8 @@
         <if test="groupLeaderId != null">
             group_leader_id = #{groupLeaderId},
         </if>
-        <if test="teacherId != null">
-            teacher_id = #{teacherId},
+        <if test="className != null and className != ''">
+            class_name = #{className},
         </if>
         <if test="groupDescription != null and groupDescription != ''">
             group_description = #{groupDescription},
@@ -49,15 +51,18 @@
         </set>
         WHERE group_id = #{groupId}
     </update>
+    <delete id="deleteByGroupId">
+        DELETE FROM student_groups WHERE group_id = #{groupId}
+    </delete>
+
 
     <resultMap id="studentGroupRM" type="com.ccut.entity.StudentGroup">
         <id property="groupId" column="group_id" />
         <result property="groupName" column="group_name" />
+        <result property="className" column="class_name" />
         <result property="groupLeaderId" column="group_leader_id" />
-        <result property="teacherId" column="teacher_id" />
         <result property="groupDescription" column="group_description" />
         <result property="createdAt" column="created_at" />
-        <result property="updatedAt" column="updated_at" />
         <result property="status" column="status" />
         <result property="approvalStatus" column="approval_status" />
         <collection property="groupMemberList" ofType="com.ccut.entity.GroupMember">
@@ -71,15 +76,15 @@
         </collection>
     </resultMap>
 
-   
+
     <select id="selectByApprovalStatus" resultMap="studentGroupRM">
         SELECT
-            sg.group_id, sg.group_name, sg.group_leader_id, sg.teacher_id,
-            sg.group_description, sg.created_at, sg.updated_at, sg.status, sg.approval_status,
-            gm.id, gm.group_id, gm.course_id, gm.student_id, gm.student_name,
-            gm.join_time, gm.role, gm.join_status
+        sg.group_id, sg.group_name, sg.class_name, sg.group_leader_id,
+        sg.group_description, sg.created_at, sg.updated_at, sg.status, sg.approval_status,
+        gm.id, gm.group_id, gm.student_id, gm.student_name,
+        gm.join_time, gm.role, gm.join_status
         FROM student_groups as sg
-                 JOIN group_members as gm on sg.group_id = gm.group_id
+        JOIN group_members as gm on sg.group_id = gm.group_id
         <where>
             <if test="approvalStatus != null">
                 sg.approval_status = #{approvalStatus}
@@ -89,9 +94,9 @@
 
     <select id="selectAll" resultMap="studentGroupRM">
         SELECT
-            sg.group_id, sg.group_name, sg.group_leader_id, sg.teacher_id,
-            sg.group_description, sg.created_at, sg.updated_at, sg.status, sg.approval_status,
-            gm.id, gm.group_id,gm.student_id, gm.student_name,
+            sg.group_id, sg.group_name, sg.class_name, sg.group_leader_id,
+            sg.group_description, sg.created_at, sg.status, sg.approval_status,
+            gm.id, gm.group_id, gm.student_id, gm.student_name,
             gm.join_time, gm.role, gm.join_status
         FROM student_groups as sg
                  JOIN group_members as gm on sg.group_id = gm.group_id
@@ -99,8 +104,8 @@
 
     <select id="selectByGroupId" resultMap="studentGroupRM">
         SELECT
-            sg.group_id, sg.group_name, sg.group_leader_id, sg.teacher_id,
-            sg.group_description, sg.created_at, sg.updated_at, sg.status, sg.approval_status,
+            sg.group_id, sg.group_name, sg.class_name, sg.group_leader_id,
+            sg.group_description, sg.created_at, sg.status, sg.approval_status,
             gm.id, gm.group_id, gm.student_id, gm.student_name,
             gm.join_time, gm.role, gm.join_status
         FROM student_groups as sg
@@ -108,8 +113,5 @@
         WHERE sg.group_id = #{groupId}
     </select>
 
-    <delete id="deleteById">
-        DELETE FROM student_groups WHERE group_id = #{id}
-    </delete>
 
 </mapper>

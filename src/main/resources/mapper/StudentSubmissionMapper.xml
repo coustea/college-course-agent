@@ -2,12 +2,44 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="com.ccut.mapper.StudentSubmissionMapper">
     <insert id="insert">
-        INSERT INTO student_submissions
-        (assignment_id, group_id, student_id, submission_content,
-         submission_files, submitted_at, late_submission,created_at)
-        VALUES
-        (#{assignmentId}, #{groupId}, #{studentId}, #{submissionContent},
-         #{submissionFiles}, #{submittedAt}, CURRENT_TIMESTAMP, #{score},
-         #{createdAt})
-    </insert>
+    INSERT INTO student_submissions
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+        <if test="assignmentId != null">
+            assignment_id,
+        </if>
+
+        <if test="studentId != null">
+            student_id,
+        </if>
+        <if test="submissionContent != null and submissionContent != ''">
+            submission_content,
+        </if>
+        <if test="submissionFiles != null and submissionFiles != ''">
+            submission_files,
+        </if>
+
+        created_at
+    </trim>
+    <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+        <if test="assignmentId != null">
+            #{assignmentId},
+        </if>
+
+        <if test="studentId != null">
+            #{studentId},
+        </if>
+        <if test="submissionContent != null and submissionContent != ''">
+            #{submissionContent},
+        </if>
+        <if test="submissionFiles != null and submissionFiles != ''">
+            #{submissionFiles},
+        </if>
+
+        <if test="submittedAt != null">
+            #{submittedAt},
+        </if>
+        CURRENT_TIMESTAMP
+    </trim>
+</insert>
+
 </mapper>

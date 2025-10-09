@@ -38,32 +38,6 @@ public class TeacherController {
     private CourseVideoMapper courseVideoMapper;
     @Autowired
     private CourseDocumentMapper courseDocumentMapper;
-    @PostMapping("/insert/students")
-    public Result<String> insertStudents(@RequestBody Student student){
-        try {
-            // 兜底补齐 username、password、role（在 service 也有兜底，这里再提前一次）
-            if (student.getUsername() == null || student.getUsername().isEmpty()) {
-                student.setUsername(student.getStudentNumber());
-            }
-            if (student.getPassword() == null || student.getPassword().isEmpty()) {
-                student.setPassword("123456");
-            }
-            if (student.getRole() == null) {
-                // 默认 student 角色
-                student.setRole(com.ccut.entity.User.Role.student);
-            }
-
-            // 由 studentService 负责先插入 users 再插入 students，保证外键正确
-            int insert = studentService.insert(student);
-            if(insert <= 0){
-                return Result.error(500,"学生信息插入失败");
-            }
-            return Result.success("添加成功");
-        }catch (Exception e){
-            return Result.error(500,e.getMessage());
-        }
-    }
-
 
     // 教师获取自己的班级
     @GetMapping("/classNames")

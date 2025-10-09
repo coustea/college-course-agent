@@ -40,8 +40,8 @@ public class StudentGroupServiceImpl implements StudentGroupService {
     }
 
     @Override
-    public int deleteById(Long id) {
-        return studentGroupMapper.deleteById(id);
+    public int deleteByGroupId(Long groupId) {
+        return studentGroupMapper.deleteByGroupId(groupId);
     }
 
 

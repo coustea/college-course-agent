@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,7 +35,11 @@ public class StudentGroupController {
     @Autowired
     private TeacherServiceImpl teacherService;
 
-
+    @GetMapping
+    public Result<List<StudentGroup>> selectAll() {
+        List<StudentGroup> studentGroups = studentGroupService.selectAll();
+        return Result.success(studentGroups);
+    }
 
     @PostMapping("/getByGroupId")
     public Result<StudentGroup> getGroup(@RequestParam Long groupId) {
@@ -50,11 +55,9 @@ public class StudentGroupController {
         return Result.success(studentGroup);
     }
 
-
     @PostMapping
     public Result<StudentGroup> create(@RequestParam String groupName,
                                        @RequestParam Long groupLeaderId,
-                                       @RequestParam Long teacherId,
                                        @RequestParam String groupDescription,
                                        @RequestParam List<Long> memberIds
     ) {
@@ -64,9 +67,6 @@ public class StudentGroupController {
             }
             if (groupLeaderId == null) {
                 return Result.error(400, "参数错误：groupLeaderId 不能为空");
-            }
-            if (teacherId == null) {
-                return Result.error(400, "参数错误：teacherId 不能为空");
             }
             if (groupDescription == null || groupDescription.isEmpty()) {
                 return Result.error(400, "参数错误：groupDescription 不能为空");
@@ -84,8 +84,9 @@ public class StudentGroupController {
 
             StudentGroup studentGroup = new StudentGroup();
             studentGroup.setGroupLeaderId(groupLeaderId);
-            studentGroup.setTeacherId(teacherId);
+            studentGroup.setClassName(student.getClassName());
             studentGroup.setGroupName(groupName);
+            studentGroup.setCreatedAt(new Date());
             studentGroup.setGroupDescription(groupDescription);
             studentGroup.setStatus(StudentGroup.GroupStatus.active);
             studentGroup.setApprovalStatus(StudentGroup.GroupApprovalStatus.pending);
@@ -125,7 +126,7 @@ public class StudentGroupController {
                         memberId,
                         member.getName(),
                         GroupMember.GroupMemberRole.member,
-                        GroupMember.Status.pending
+                        GroupMember.Status.approved
                 );
                 int memberInsert = groupMemberService.insertMember(memberEntry);
                 if (memberInsert <= 0) {
@@ -133,6 +134,7 @@ public class StudentGroupController {
                 }
             }
             log.info("创建分组及成员成功, groupId={}", groupId);
+            studentGroup = studentGroupService.selectByGroupId(groupId);
             return Result.success(studentGroup);
 
         } catch (Exception e) {
@@ -179,13 +181,10 @@ public class StudentGroupController {
         }
     }
 
-
-
-
-    @DeleteMapping("/{id}")                                                                                                                         
-    public Result<String> delete(@PathVariable("id") Long id) {
+    @DeleteMapping("/{groupId}")
+    public Result<String> delete(@PathVariable("groupId") Long groupId)  {
         try {
-            int result = studentGroupService.deleteById(id);
+            int result = studentGroupService.deleteByGroupId(groupId);
             if (result > 0) {
                 return Result.success("删除成功");
             }

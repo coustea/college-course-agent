@@ -16,7 +16,6 @@ public interface StudentGroupMapper {
 
     List<StudentGroup> selectAll();
     StudentGroup selectByGroupId(@Param("groupId") Long groupId);
-    int deleteById(@Param("id") Long id);
-
+    int deleteByGroupId(@Param("groupId") Long groupId);
 
 }

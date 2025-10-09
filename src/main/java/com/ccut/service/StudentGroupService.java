@@ -11,5 +11,5 @@ public interface StudentGroupService {
     List<StudentGroup> selectByApprovalStatus(StudentGroup.GroupApprovalStatus approvalStatus);
     List<StudentGroup> selectAll();
     StudentGroup selectByGroupId(Long groupId);
-    int deleteById(Long id);
+    int deleteByGroupId(Long groupId);
 }
