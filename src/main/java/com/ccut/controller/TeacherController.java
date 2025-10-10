@@ -50,8 +50,16 @@ public class TeacherController {
         }
     }
 
-    // ============== 教师 CRUD（简化版） ==============
-
+    @GetMapping("/{id}")
+    public Result<Teacher> getById(@PathVariable Long id){
+        try {
+            Teacher teacher = teacherService.selectById(id);
+            if (teacher != null) return Result.success(teacher);
+            return Result.error(404, "未找到");
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
 
 
 

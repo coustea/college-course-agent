@@ -38,6 +38,11 @@ public class TeacherServiceImpl implements TeacherService {
     }
 
     @Override
+    public Teacher selectById(Long id) {
+        return teacherMapper.selectById(id);
+    }
+
+    @Override
     public List<String> selectClassNameByTeacherId(Long teacherId) {
         return teacherMapper.selectClassNameByTeacherId(teacherId);
     }

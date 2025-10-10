@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class Student extends User{
 
-    public enum Status{
+public enum Status{
         // 在校
         IN_SCHOOL,
         // 校外实习
@@ -23,5 +23,4 @@ public class Student extends User{
     private String major; // 专业
     private String grade; // 年级
     private Status status;// 学生状态
-    private Integer enrollmentYear;// 入学年份
 }

@@ -49,7 +49,6 @@
 
     <resultMap id="TeacherRM" type="com.ccut.entity.Teacher">
         <id property="id" column="id"/>
-        <result property="employeeNumber" column="employee_number"/>
         <result property="name" column="name"/>
         <result property="email" column="email"/>
         <result property="phone" column="phone"/>
@@ -60,13 +59,13 @@
     </resultMap>
 
     <select id="selectAll" resultMap="TeacherRM">
-        SELECT id, employee_number, name, email, phone, department, title, position, bio
+        SELECT id, name, email, phone, department, title, position, bio
         FROM teachers
         ORDER BY id DESC
     </select>
 
     <select id="selectById" resultMap="TeacherRM">
-        SELECT id, employee_number, name, email, phone, department, title, position, bio
+        SELECT id, name, email, phone, department, title, position, bio
         FROM teachers WHERE id = #{id}
     </select>
     <select id="selectClassNameByTeacherId" resultType="java.lang.String">
