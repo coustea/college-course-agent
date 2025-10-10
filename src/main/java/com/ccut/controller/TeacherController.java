@@ -62,10 +62,11 @@ public class TeacherController {
         }
     }
 
-    @PutMapping("/update/teacher")
-    public Result<String> updateTeacher(@RequestParam("id") Long id, @RequestBody Teacher teacher){
+    @PutMapping("/update/teacher/{id}")
+    public Result<String> updateTeacher(@PathVariable("id") Long id, @RequestBody Teacher teacher){
         try {
             teacher.setId(id);
+            System.out.println(teacher.getBio());
             int n = teacherService.update(teacher);
             if (n > 0) return Result.success("更新成功");
             return Result.error(404, "未找到或未变更");
@@ -94,11 +95,12 @@ public class TeacherController {
         }
     }
 
-    @PutMapping("/update/student")
-    public Result<String> updateStudent(@RequestParam("id") Long id, @RequestBody Student student) {
+    @PutMapping("/update/student/{id}")
+    public Result<String> updateStudent(@PathVariable("id") Long id, @RequestBody Student student) {
         try {
             if (id == null) return Result.error(400, "id 不能为空");
             student.setId(id);
+            System.out.println(student);
             int n = studentService.updateById(student);
             if (n > 0) return Result.success("更新成功");
             return Result.error(404, "未找到或未变更");

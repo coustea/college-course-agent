@@ -15,4 +15,5 @@ public class Teacher extends  User{
     private String department;// 所属部门
     private String title;// 职称
     private String position;// 职务
+    private String bio; // 教师简介
 }

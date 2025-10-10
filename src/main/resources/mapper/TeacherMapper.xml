@@ -12,6 +12,8 @@
                 <if test="phone != null">phone,</if>
                 <if test="department != null">department,</if>
                 <if test="title != null">title,</if>
+                <if test="position != null">position,</if>
+                <if test="bio != null">bio,</if>
             </trim>
         ) VALUES (
             <trim suffixOverrides=",">
@@ -22,6 +24,8 @@
                 <if test="phone != null">#{phone},</if>
                 <if test="department != null">#{department},</if>
                 <if test="title != null">#{title},</if>
+                <if test="position != null">#{position},</if>
+                <if test="bio != null">#{bio},</if>
             </trim>
         )
     </insert>
@@ -35,6 +39,8 @@
             <if test="phone != null">phone = #{phone},</if>
             <if test="department != null">department = #{department},</if>
             <if test="title != null">title = #{title},</if>
+            <if test="position != null">position = #{position},</if>
+            <if test="bio != null">bio = #{bio},</if>
         </set>
         WHERE id = #{id}
     </update>
@@ -51,16 +57,18 @@
         <result property="phone" column="phone"/>
         <result property="department" column="department"/>
         <result property="title" column="title"/>
+        <result property="position" column="position"/>
+        <result property="bio" column="bio"/>
     </resultMap>
 
     <select id="selectAll" resultMap="TeacherRM">
-        SELECT id, employee_number, name, email, phone, department, title
+        SELECT id, employee_number, name, email, phone, department, title, position, bio
         FROM teachers
         ORDER BY id DESC
     </select>
 
     <select id="selectById" resultMap="TeacherRM">
-        SELECT id, employee_number, name, email, phone, department, title
+        SELECT id, employee_number, name, email, phone, department, title, position, bio
         FROM teachers WHERE id = #{id}
     </select>
     <select id="selectClassNameByTeacherId" resultType="java.lang.String">

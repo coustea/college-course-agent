@@ -57,6 +57,7 @@ phone VARCHAR(20) COMMENT '联系电话',
 department VARCHAR(100) COMMENT '所属部门',
 title VARCHAR(50) COMMENT '职称',
 position VARCHAR(100) COMMENT '职务',
+bio TEXT COMMENT '个人简介',
 FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教师信息表';
 
@@ -65,7 +66,7 @@ FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE
 -- ================================================
 CREATE TABLE courses (
 course_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '课程ID',
-course_code VARCHAR(20) UNIQUE NOT NULL COMMENT '课程代码',
+course_code VARCHAR(20) UNIQUE  NULL COMMENT '课程代码',
 course_name VARCHAR(200) NOT NULL COMMENT '课程名称',
 description TEXT COMMENT '课程描述',
 credits INT DEFAULT 0 COMMENT '学分',
@@ -252,6 +253,7 @@ submission_id BIGINT NOT NULL COMMENT '对应的小组提交ID',
 student_id BIGINT NOT NULL COMMENT '被评分的学生ID',
 teacher_name VARCHAR(100) COMMENT '评分教师姓名',
 score INT DEFAULT 0 COMMENT '个人得分',
+level VARCHAR(20) COMMENT '等级（优秀、中等、合格、不及格）',
 feedback TEXT COMMENT '教师对该学生的评价',
 graded_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '评分时间',
 FOREIGN KEY (submission_id) REFERENCES student_submissions(submission_id) ON DELETE CASCADE,
