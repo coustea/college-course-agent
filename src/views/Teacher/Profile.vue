@@ -229,7 +229,7 @@ const passwordRules = {
 // 获取教师ID（优先登录信息）
 const teacherId = computed(() => {
   try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) return Number(u.id) } catch (e) { console.error(e) }
-  const id = localStorage.getItem('teacherId')
+  const id = localStorage.getItem('userId')
   return id ? Number(id) : null
 })
 

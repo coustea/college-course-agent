@@ -11,8 +11,8 @@
         <el-option v-for="classItem in classes" :key="classItem" :label="classItem" :value="classItem" />
       </el-select>
       <el-select v-model="statusFilter" placeholder="按状态筛选" clearable style="width: 150px; margin-right: 12px;">
-        <el-option label="已登录" value="active" />
-        <el-option label="未登录" value="locked" />
+        <el-option label="在校" value="IN_SCHOOL" />
+        <el-option label="校外实习" value="OFF_CAMPUS_INTERNSHIP" />
       </el-select>
       <el-button type="primary" :icon="Search" @click="fetchStudents">搜索</el-button>
     </div>
@@ -25,6 +25,13 @@
         <el-table-column prop="className" label="班级" width="120" :style="{ textAlign: 'center' }" />
         <el-table-column prop="phone" label="手机号" width="150" :style="{ textAlign: 'center' }" />
         <el-table-column prop="email" label="邮箱" width="200" :style="{ textAlign: 'center' }" />
+        <el-table-column prop="status" label="状态" width="120" :style="{ textAlign: 'center' }">
+          <template #default="scope">
+            <el-tag :type="scope.row.status === 'IN_SCHOOL' ? 'success' : 'warning'">
+              {{ scope.row.status === 'IN_SCHOOL' ? '在校' : scope.row.status === 'OFF_CAMPUS_INTERNSHIP' ? '校外实习' : scope.row.status || '未知' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="courseCount" label="学习课程" width="100" :style="{ textAlign: 'center' }" />
         <el-table-column label="操作" width="240" fixed="right" :style="{ textAlign: 'center' }">
           <template #default="scope">
@@ -247,7 +254,13 @@ const fetchStudents = async () => {
 
     students.value =
       body && Number(body.code) === 200 && Array.isArray(body.data)
-        ? body.data
+        ? body.data.map(student => ({
+            ...student,
+            // 确保字段名正确映射
+            phone: student.phone || student.phoneNumber || student.tel || '',
+            email: student.email || student.mail || '',
+            status: student.status || 'IN_SCHOOL' // 默认值设为在校
+          }))
         : []
 
     try {
