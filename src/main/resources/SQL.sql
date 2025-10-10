@@ -50,7 +50,6 @@ FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE
 -- ================================================
 CREATE TABLE teachers (
 id BIGINT PRIMARY KEY COMMENT '教师ID（对应 users.id）',
-employee_number VARCHAR(20) UNIQUE COMMENT '员工编号',
 name VARCHAR(100) COMMENT '教师姓名',
 email VARCHAR(100) COMMENT '邮箱地址',
 phone VARCHAR(20) COMMENT '联系电话',

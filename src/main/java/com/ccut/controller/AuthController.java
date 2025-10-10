@@ -76,7 +76,6 @@ public class AuthController {
                     Teacher teacher = teacherMapper.selectById(dbUser.getId());
                     if (teacher != null) {
                         data.put("teacherId", teacher.getId());
-                        profile.put("employeeNumber", teacher.getEmployeeNumber());
                         profile.put("name", teacher.getName());
                         profile.put("email", teacher.getEmail());
                         profile.put("phone", teacher.getPhone());

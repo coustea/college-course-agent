@@ -6,7 +6,6 @@
         INSERT INTO teachers (
             <trim suffixOverrides=",">
                 <if test="id != null">id,</if>
-                <if test="employeeNumber != null">employee_number,</if>
                 <if test="name != null">name,</if>
                 <if test="email != null">email,</if>
                 <if test="phone != null">phone,</if>
@@ -18,7 +17,6 @@
         ) VALUES (
             <trim suffixOverrides=",">
                 <if test="id != null">#{id},</if>
-                <if test="employeeNumber != null">#{employeeNumber},</if>
                 <if test="name != null">#{name},</if>
                 <if test="email != null">#{email},</if>
                 <if test="phone != null">#{phone},</if>

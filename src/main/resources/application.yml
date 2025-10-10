@@ -1,19 +1,27 @@
 spring:
   application:
     name: service
+
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
+    url: jdbc:mysql://39.96.172.21:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
     username: ccut
     password: Aa123456
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
-      connection-timeout: 30000
+      pool-name: HikariCP
+      maximum-pool-size: 50        # 最大连接数（并发能力提升）
+      minimum-idle: 10             # 最小空闲连接数
+      idle-timeout: 600000         # 空闲连接存活时间（10分钟）
+      max-lifetime: 1800000        # 连接最长生命周期（30分钟）
+      connection-timeout: 30000    # 获取连接超时时间（30秒）
+      validation-timeout: 5000     # 连接校验超时（5秒）
+      leak-detection-threshold: 20000  # 检测连接泄漏（20秒警告）
+
   servlet:
     multipart:
       max-file-size: 1024MB
       max-request-size: 1024MB
+
   ai:
     dashscope:
       api-key: sk-b79bfc6284eb467da714a7957eee7605
@@ -22,13 +30,23 @@ spring:
 server:
   port: 9999
 
+  # === 内嵌 Tomcat 并发优化 ===
+  tomcat:
+    threads:
+      max: 200         # 最大处理线程数（支持200并发）
+      min-spare: 20     # 最小空闲线程数
+    accept-count: 100   # 请求排队上限（超过会被拒绝）
+    connection-timeout: 20000  # 连接超时时间20秒
+    max-connections: 10000     # 支持更多TCP连接
+    keep-alive-timeout: 15000  # HTTP连接保持15秒
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
-  # 开启驼峰命名
   configuration:
     map-underscore-to-camel-case: true
-logging:
-  level:
-    com.ccut.mapper: debug
 
+# === 日志系统（使用 logback-spring.xml） ===
+logging:
+#  config: classpath:logback-spring.xml
+  level:
+    com.ccut.mapper: debug   # 打印SQL语句
