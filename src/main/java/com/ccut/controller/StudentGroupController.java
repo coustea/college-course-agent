@@ -81,7 +81,9 @@ public class StudentGroupController {
             if (student == null) {
                 return Result.error(400, "参数错误：groupLeaderId 不存在");
             }
-
+            if (groupMemberService.selectById(student.getId()) != null){
+                return Result.error(400, "参数错误：groupLeaderId 已存在于其他分组");
+            }
             StudentGroup studentGroup = new StudentGroup();
             studentGroup.setGroupLeaderId(groupLeaderId);
             studentGroup.setClassName(student.getClassName());
@@ -120,6 +122,9 @@ public class StudentGroupController {
                 if (member == null) {
                     log.error("成员不存在，memberId={}", memberId);
                     continue; // 跳过不存在的成员
+                }
+                if (groupMemberService.selectById(member.getId()) != null){
+                    return Result.error(400, "参数错误：memberId 已存在于其他分组");
                 }
                 GroupMember memberEntry = new GroupMember(
                         groupId,
