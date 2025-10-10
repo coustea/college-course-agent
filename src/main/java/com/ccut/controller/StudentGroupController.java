@@ -59,9 +59,9 @@ public class StudentGroupController {
     public Result<StudentGroup> create(@RequestParam String groupName,
                                        @RequestParam Long groupLeaderId,
                                        @RequestParam String groupDescription,
-                                       @RequestParam List<Long> memberIds
-    ) {
+                                       @RequestParam List<Long> memberIds) {
         try {
+            // === 参数校验 ===
             if (groupName == null || groupName.isEmpty()) {
                 return Result.error(400, "参数错误：groupName 不能为空");
             }
@@ -75,57 +75,64 @@ public class StudentGroupController {
                 return Result.error(400, "参数错误：memberIds 不能为空");
             }
 
-
-            // 验证组长是否存在
-            Student student = studentService.selectById(groupLeaderId);
-            if (student == null) {
+            // === 1. 验证组长是否存在 ===
+            Student leader = studentService.selectById(groupLeaderId);
+            if (leader == null) {
                 return Result.error(400, "参数错误：groupLeaderId 不存在");
             }
-            if (groupMemberService.selectById(student.getId()) != null){
-                return Result.error(400, "参数错误：groupLeaderId 已存在于其他分组");
+
+            // === 2. 组长是否已在其他小组 ===
+            GroupMember leaderExisting = groupMemberService.selectById(groupLeaderId);
+            if (leaderExisting != null) {
+                return Result.error(400, "该组长已加入其他小组");
             }
+
+            // === 3. 创建小组 ===
             StudentGroup studentGroup = new StudentGroup();
             studentGroup.setGroupLeaderId(groupLeaderId);
-            studentGroup.setClassName(student.getClassName());
+            studentGroup.setClassName(leader.getClassName());
             studentGroup.setGroupName(groupName);
             studentGroup.setCreatedAt(new Date());
             studentGroup.setGroupDescription(groupDescription);
             studentGroup.setStatus(StudentGroup.GroupStatus.active);
             studentGroup.setApprovalStatus(StudentGroup.GroupApprovalStatus.pending);
 
-            // === 1. 插入小组信息 ===
-            int result = studentGroupService.insert(studentGroup);
-            if (result <= 0) {
+            int insertResult = studentGroupService.insert(studentGroup);
+            if (insertResult <= 0) {
                 log.error("插入分组失败: {}", studentGroup);
                 return Result.error(500, "插入分组失败");
             }
 
-            Long groupId = studentGroup.getGroupId(); // MyBatis返回自增主键
-            log.info("分组创建成功，groupId={}", groupId);
+            Long groupId = studentGroup.getGroupId();
+            log.info("小组创建成功，groupId={}", groupId);
 
-            // === 2. 插入组长成员 ===
-            GroupMember leader = new GroupMember(
+            // === 4. 插入组长 ===
+            GroupMember leaderMember = new GroupMember(
                     groupId,
-                    studentGroup.getGroupLeaderId(),
-                    student.getName(),
+                    groupLeaderId,
+                    leader.getName(),
                     GroupMember.GroupMemberRole.leader,
                     GroupMember.Status.approved
             );
-            int leaderInsert = groupMemberService.insertMember(leader);
+            int leaderInsert = groupMemberService.insertMember(leaderMember);
             if (leaderInsert <= 0) {
                 throw new RuntimeException("插入组长成员失败");
             }
 
-            // === 3. 插入组员列表 ===
+            // === 5. 插入其他成员 ===
             for (Long memberId : memberIds) {
                 Student member = studentService.selectById(memberId);
                 if (member == null) {
-                    log.error("成员不存在，memberId={}", memberId);
-                    continue; // 跳过不存在的成员
+                    log.warn("成员不存在，memberId={}", memberId);
+                    continue;
                 }
-                if (groupMemberService.selectById(member.getId()) != null){
-                    return Result.error(400, "参数错误：memberId 已存在于其他分组");
+
+                // 检查该成员是否已加入其他小组
+                GroupMember existing = groupMemberService.selectById(memberId);
+                if (existing != null) {
+                    return Result.error(400, "成员 " + member.getName() + " 已在其他小组中");
                 }
+
                 GroupMember memberEntry = new GroupMember(
                         groupId,
                         memberId,
@@ -138,11 +145,13 @@ public class StudentGroupController {
                     throw new RuntimeException("插入成员失败: " + member.getName());
                 }
             }
-            log.info("创建分组及成员成功, groupId={}", groupId);
+
+            log.info("创建小组及成员成功, groupId={}", groupId);
             studentGroup = studentGroupService.selectByGroupId(groupId);
             return Result.success(studentGroup);
 
         } catch (Exception e) {
+            log.error("创建分组异常", e);
             return Result.error(500, "系统异常，请稍后重试");
         }
     }
