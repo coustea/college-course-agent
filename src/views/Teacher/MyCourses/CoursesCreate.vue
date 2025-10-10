@@ -33,10 +33,12 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted} from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+
+
 
 export default {
   name: 'CoursesCreate',
@@ -44,16 +46,7 @@ export default {
     const router = useRouter()
     const formRef = ref()
     const token = ref('')
-    const teacherId = ref((() => {
-      try {
-        const tid = localStorage.getItem('teacherId')
-        if (tid) return Number(tid)
-        const role = localStorage.getItem('userRole')
-        const uid = localStorage.getItem('userId')
-        if (role === 'teacher' && uid) return Number(uid)
-      } catch {}
-      return null
-    })())
+    const teacherId = ref(localStorage.getItem('userId'))
 
     const form = reactive({ title: '', description: '' })
     const imageFile = ref(null)
@@ -63,7 +56,7 @@ export default {
     const rules = { title: [{ required: true, message: '请输入课程标题', trigger: 'blur' }], description: [{ required: true, message: '请输入课程描述', trigger: 'blur' }] }
 
     onMounted(() => {
-      token.value = localStorage.getItem('token') || localStorage.getItem('userToken')
+      token.value = localStorage.getItem('token')
       if (!token.value) { ElMessage.error('用户未登录，请先登录'); router.push('/login'); return }
       if (!teacherId.value) { ElMessage.error('未获取到教师ID，请重新登录'); return }
     })
@@ -86,7 +79,8 @@ export default {
     const saveCourse = async (status) => {
       try {
         if (!token.value) { ElMessage.error('用户未登录，请先登录'); router.push('/login'); return }
-        const base = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api'
+        const base = import.meta?.env?.VITE_API_BASE_URL || 'http://39.96.172.21:9999/api'
+
         const formData = new FormData()
         formData.append('courseCode', genCourseCode())
         formData.append('courseName', form.title)

@@ -165,10 +165,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed ,getCurrentInstance} from 'vue'
 import { ElMessage } from 'element-plus'
 import { Edit } from '@element-plus/icons-vue'
 import axios from 'axios'
+
+const { proxy } = getCurrentInstance()
+const BASE_URL = proxy.$baseUrl
 
 // 动态后端基址（使用 Vite 代理以避免本地开发 CORS）
 const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
@@ -282,15 +285,37 @@ const saveProfile = async () => {
   try {
     saving.value = true
     await editFormRef.value.validate()
-    const idToUse = teacherId.value || 1
-    await api.put(`/teacher/update/teacher`, editForm, { params: { id: idToUse } })
+
+    // 使用更可靠的教师ID来源
+    const id = teacherId.value
+    if (!id) {
+      ElMessage.error('未找到有效的教师ID')
+      return
+    }
+
+    // 发送更新请求，修复了多余的空对象参数
+    await axios.put(`${BASE_URL}/teacher/update/teacher/${id}`, editForm
+        ,{
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+      }
+    })
+
+    // 更新教师信息
     teacherInfo.value = { ...teacherInfo.value, ...editForm }
-    try { localStorage.setItem('userInfo', JSON.stringify(teacherInfo.value)) } catch (e) { console.error(e) }
+
+    // 更新本地存储的用户信息
+    try {
+      localStorage.setItem('userInfo', JSON.stringify(teacherInfo.value))
+    } catch (e) {
+      console.error('更新本地存储失败:', e)
+    }
+
     editDialogVisible.value = false
     ElMessage.success('个人信息更新成功')
   } catch (error) {
     console.error('更新个人信息失败:', error)
-    ElMessage.error('更新个人信息失败')
+    ElMessage.error(error.response?.data?.message || '更新个人信息失败')
   } finally {
     saving.value = false
   }

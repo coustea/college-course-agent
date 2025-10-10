@@ -237,8 +237,7 @@ onActivated(() => {
 onBeforeRouteUpdate(() => {
   getStudentGroup()
 })
-// const BASE_URL = proxy.$baseUrl
-// const StudentGroup = ref(null)
+
 
 const getStudentGroup = async () => {
   try {
@@ -546,7 +545,7 @@ async function submitGroup() {
       groupLeaderId: leader?.id,
       memberIds: members.map(m => m.id),
       teacherId: (() => {
-        const v = localStorage.getItem('teacherId')
+        const v = localStorage.getItem('userId')
         return v ? Number(v) : undefined
       })(),
       groupDescription: taskDescription.value

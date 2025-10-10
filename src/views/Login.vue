@@ -37,10 +37,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount,getCurrentInstance} from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 const router = useRouter()
+
+const {proxy} = getCurrentInstance()
+const BASE_URL = proxy.$baseUrl
 
 const username = ref('')
 const password = ref('')
@@ -70,8 +73,8 @@ onBeforeUnmount(() => {
 
 const handleLogin = async () => {
   try {
-    const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
-    const res = await axios.post(`${API_BASE}/auth/login`, {
+
+    const res = await axios.post(`${BASE_URL}/auth/login`, {
       username: username.value,
       password: password.value,
       role: role.value

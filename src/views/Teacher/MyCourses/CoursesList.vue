@@ -199,7 +199,7 @@ export default {
     const deleteCourse = async (course) => {
       try {
         ElMessageBox.confirm(`确定要删除课程 "${course.title}" 吗？此操作不可恢复。`, '删除确认', { confirmButtonText: '删除', cancelButtonText: '取消', type: 'error', confirmButtonClass: 'el-button--danger' }).then(async () => {
-          const base = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+          const base = (import.meta?.env?.VITE_API_BASE_URL || 'http://39.96.172.21:9999/api')
           const response = await axios.delete(`${base}/course/delete`, { params: { courseId: course.id }, headers: { Authorization: `Bearer ${token.value}` } })
           const body = response?.data
           if (body && Number(body.code) === 200) { ElMessage.success('课程删除成功'); loadCourses() } else { ElMessage.error(body?.message || '删除失败') }
