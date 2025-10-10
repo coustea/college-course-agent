@@ -54,7 +54,6 @@ public class TeacherAssignmentController {
     public Result<TeacherAssignment> insert(
             @RequestParam Long teacherId,
             @RequestParam String assignmentName,
-            @RequestParam(required = false) String description,
             @RequestParam(required = false) String requirements,
             @RequestParam(required = false) MultipartFile[] files,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm") String dueDate
@@ -96,7 +95,6 @@ public class TeacherAssignmentController {
         TeacherAssignment teacherAssignment = new TeacherAssignment();
         teacherAssignment.setTeacherId(teacherId);
         teacherAssignment.setAssignmentName(assignmentName);
-        teacherAssignment.setDescription(description);
         teacherAssignment.setRequirements(requirements);
         teacherAssignment.setAttachmentFiles(attachmentJson);
 
