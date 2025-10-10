@@ -18,7 +18,7 @@ DROP TABLE IF EXISTS students;
 DROP TABLE IF EXISTS users;
 
 -- ================================================
--- 🧩 用户表
+-- 用户表
 -- ================================================
 CREATE TABLE users (
 id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
@@ -29,7 +29,7 @@ token VARCHAR(255) COMMENT 'JWT令牌'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 -- ================================================
--- 🧑 学生表
+-- 学生表
 -- ================================================
 CREATE TABLE students (
 id BIGINT PRIMARY KEY COMMENT '学生ID（对应 users.id）',
@@ -41,12 +41,12 @@ phone VARCHAR(20) COMMENT '联系电话',
 major VARCHAR(100) COMMENT '专业',
 grade VARCHAR(100) COMMENT '年级',
 enrollment_year YEAR COMMENT '入学年份',
-status VARCHAR(20) COMMENT '学生状态(在校, 校外实习)',
+status ENUM('IN_SCHOOL', 'OFF_CAMPUS_INTERNSHIP') DEFAULT 'IN_SCHOOL' COMMENT '学生状态(在校, 校外实习)',
 FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生信息表';
 
 -- ================================================
--- 👨‍🏫 教师表
+-- 教师表
 -- ================================================
 CREATE TABLE teachers (
 id BIGINT PRIMARY KEY COMMENT '教师ID（对应 users.id）',
@@ -61,7 +61,7 @@ FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教师信息表';
 
 -- ================================================
--- 📚 课程表
+--  课程表
 -- ================================================
 CREATE TABLE courses (
 course_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '课程ID',
@@ -80,7 +80,7 @@ FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程信息表';
 
 -- ================================================
--- 📝 选课表
+--  选课表
 -- ================================================
 CREATE TABLE enrollments (
 enrollment_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '选课记录ID',
@@ -94,7 +94,7 @@ UNIQUE KEY unique_enrollment (student_id, course_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生选课记录表';
 
 -- ================================================
--- 🎯 学习进度表
+--  学习进度表
 -- ================================================
 CREATE TABLE learning_progress (
 progress_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '学习进度ID',
@@ -110,7 +110,7 @@ UNIQUE KEY uniq_student_course (student_id, course_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学习进度汇总表';
 
 -- ================================================
--- 🎬 课程视频表
+--  课程视频表
 -- ================================================
 CREATE TABLE course_videos (
 video_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '视频ID',
@@ -125,7 +125,7 @@ UNIQUE KEY unique_video (course_id, video_index)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程视频资源表';
 
 -- ================================================
--- 📄 课程文档表
+--  课程文档表
 -- ================================================
 CREATE TABLE course_documents (
 document_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '文档ID',
@@ -139,7 +139,7 @@ UNIQUE KEY unique_document (course_id, document_index)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程文档资源表';
 
 -- ================================================
--- ⏯️ 视频进度表
+--  视频进度表
 -- ================================================
 CREATE TABLE video_progress (
 id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -156,7 +156,7 @@ UNIQUE KEY uniq_student_video (student_id, video_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程视频学习进度表';
 
 -- ================================================
--- 📚 文档进度表
+--  文档进度表
 -- ================================================
 CREATE TABLE document_progress (
 id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -174,7 +174,7 @@ UNIQUE KEY uniq_student_document (student_id, document_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程文档学习进度表';
 
 -- ================================================
--- 👥 学生分组表
+--  学生分组表
 -- ================================================
 CREATE TABLE student_groups (
 group_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '分组ID',
@@ -189,7 +189,7 @@ FOREIGN KEY (group_leader_id) REFERENCES students(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生小组表';
 
 -- ================================================
--- 👤 小组成员表
+--  小组成员表
 -- ================================================
 CREATE TABLE group_members (
 id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '成员记录ID',
