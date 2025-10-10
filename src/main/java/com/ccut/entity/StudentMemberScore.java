@@ -15,7 +15,7 @@ public class StudentMemberScore {
     private Long submissionId;
     private Long studentId;
     private Integer score;
-
+    private String level ;
     private String feedback;
     private LocalDateTime gradedAt;
 }
