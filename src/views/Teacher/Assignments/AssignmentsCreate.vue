@@ -24,6 +24,8 @@
       label-width="120px"
       class="assignment-form"
     >
+
+
       <el-form-item label="检测标题" prop="title">
         <el-input v-model="assignmentForm.title" placeholder="请输入检测标题" />
       </el-form-item>
