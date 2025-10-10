@@ -11,8 +11,6 @@
       <el-button type="primary" @click="submitForm" :loading="submitting">
         {{ submitting ? '提交中...' : '下发检测' }}
       </el-button>
-      <el-button @click="saveAsDraft">保存为草稿</el-button>
-      <el-button @click="resetForm">重置</el-button>
     </div>
   </div>
 
@@ -24,8 +22,6 @@
       label-width="120px"
       class="assignment-form"
     >
-
-
       <el-form-item label="检测标题" prop="title">
         <el-input v-model="assignmentForm.title" placeholder="请输入检测标题" />
       </el-form-item>
@@ -47,38 +43,6 @@
         </el-select>
       </el-form-item>
 
-      <el-form-item label="课程" prop="courseId">
-        <el-select
-          v-model="assignmentForm.courseId"
-          placeholder="请选择课程"
-          filterable
-          style="width: 320px;"
-        >
-          <el-option
-            v-for="c in courses"
-            :key="c.id"
-            :label="c.name"
-            :value="c.id"
-          />
-        </el-select>
-      </el-form-item>
-
-      <el-form-item label="班级" prop="className">
-        <el-select
-          v-model="assignmentForm.className"
-          placeholder="请选择班级"
-          filterable
-          style="width: 320px;"
-        >
-          <el-option
-            v-for="c in classes"
-            :key="c.name"
-            :label="c.name"
-            :value="c.name"
-          />
-        </el-select>
-      </el-form-item>
-
       <el-form-item label="截止日期" prop="deadline">
         <el-date-picker
           v-model="assignmentForm.deadline"
@@ -95,10 +59,6 @@
           :rows="5"
           placeholder="请输入检测详细要求和说明"
         />
-      </el-form-item>
-
-      <el-form-item label="是否允许延交">
-        <el-switch v-model="assignmentForm.allowLateSubmission" />
       </el-form-item>
 
       <el-form-item label="参考附件">
@@ -154,18 +114,13 @@ api.interceptors.request.use((config) => {
 const assignmentForm = reactive({
   title: '',
   teacherId: '',
-  courseId: '',
   deadline: '',
-  className: '',
   description: '',
-  allowLateSubmission: false,
   attachments: []
 })
 
 // === 数据源 ===
-const courses = ref([])
 const teachers = ref([])
-const classes = ref([])
 const fileList = ref([])
 
 // === 表单验证规则 ===
@@ -175,8 +130,6 @@ const rules = reactive({
     { min: 3, max: 100, message: '标题长度在 3 到 100 个字符', trigger: 'blur' }
   ],
   teacherId: [{ required: true, message: '请选择教师', trigger: 'change' }],
-  courseId: [{ required: true, message: '请选择课程', trigger: 'change' }],
-  className: [{ required: true, message: '请选择班级', trigger: 'change' }],
   deadline: [{ required: true, message: '请选择截止日期', trigger: 'change' }],
   description: [{ required: true, message: '请输入检查要求', trigger: 'blur' }]
 })
@@ -215,42 +168,6 @@ const handleFileRemove = (file, files) => {
   assignmentForm.attachments = files.map((f) => f.raw || f)
 }
 
-// === 获取课程 ===
-const fetchCourses = async () => {
-  try {
-    const res = await api.get('/course/list')
-    const body = res?.data
-    const list =
-      body && Number(body.code) === 200 && Array.isArray(body.data)
-        ? body.data
-        : []
-    courses.value = list.map((c) => ({
-      id: c.courseId,
-      name: c.courseName
-    }))
-
-    let currentTid = null
-    try {
-      const u = JSON.parse(localStorage.getItem('userInfo') || 'null')
-      if (u?.id) currentTid = Number(u.id)
-    } catch (e) {}
-    if (!currentTid) {
-      const tid = localStorage.getItem('teacherId')
-      if (tid) currentTid = Number(tid)
-    }
-
-    if (currentTid) {
-      const filtered = list.filter((c) => Number(c.teacherId) === currentTid)
-      courses.value = (filtered.length > 0 ? filtered : list).map((c) => ({
-        id: c.courseId,
-        name: c.courseName
-      }))
-    }
-  } catch (error) {
-    ElMessage.error('获取课程列表失败')
-  }
-}
-
 // === 获取教师 ===
 const fetchTeachers = async () => {
   try {
@@ -280,30 +197,6 @@ const fetchTeachers = async () => {
   }
 }
 
-// === 获取班级（根据教师ID） ===
-const fetchClasses = async (teacherId) => {
-  try {
-    if (!teacherId) {
-      ElMessage.error('无法获取教师信息')
-      return
-    }
-
-    const res = await api.get('/teacher/classNames', { params: { teacherId } })
-
-    if (res.data.code === 200 && Array.isArray(res.data.data)) {
-      classes.value = res.data.data.map((className) => ({
-        name: className
-      }))
-    } else {
-      ElMessage.error('获取班级列表失败')
-      classes.value = []
-    }
-  } catch (error) {
-    ElMessage.error('获取班级列表异常，请稍后重试')
-    classes.value = []
-  }
-}
-
 // === 提交表单 ===
 const submitForm = async () => {
   try {
@@ -319,27 +212,11 @@ const submitForm = async () => {
       submitting.value = false
       return
     }
-    if (!assignmentForm.courseId) {
-      ElMessage.error('请选择课程')
-      submitting.value = false
-      return
-    }
-    if (!assignmentForm.className) {
-      ElMessage.error('请选择班级')
-      submitting.value = false
-      return
-    }
 
     formData.append('teacherId', String(tid))
-    formData.append('courseId', String(assignmentForm.courseId))
     formData.append('assignmentName', assignmentForm.title)
-    formData.append('className', assignmentForm.className)
     if (assignmentForm.description)
       formData.append('description', assignmentForm.description)
-    formData.append(
-      'allowLateSubmission',
-      String(assignmentForm.allowLateSubmission)
-    )
     if (assignmentForm.deadline)
       formData.append('dueDate', assignmentForm.deadline)
 
@@ -369,38 +246,9 @@ const submitForm = async () => {
   }
 }
 
-// === 保存草稿 ===
-const saveAsDraft = async () => {
-  try {
-    const formData = new FormData()
-    formData.append('title', assignmentForm.title || '未命名检查')
-    formData.append('courseId', assignmentForm.courseId)
-    formData.append('deadline', assignmentForm.deadline)
-    formData.append('description', assignmentForm.description)
-    formData.append('type', 'check')
-    formData.append('status', 'draft')
-
-    assignmentForm.attachments.forEach((file) => {
-      formData.append('attachments', file)
-    })
-
-    ElMessage.success('已保存为草稿')
-  } catch (error) {
-    ElMessage.error('保存草稿失败')
-  }
-}
-
-// === 重置表单 ===
-const resetForm = () => {
-  formRef.value.resetFields()
-  fileList.value = []
-  assignmentForm.attachments = []
-}
-
 // === 初始化 ===
 onMounted(async () => {
   await fetchTeachers()
-  await fetchCourses()
 
   let currentTid = null
   try {
@@ -414,11 +262,9 @@ onMounted(async () => {
 
   if (currentTid) {
     assignmentForm.teacherId = currentTid
-    await fetchClasses(currentTid)
   }
 })
 </script>
-
 
 <style scoped>
 .assignment-create {
