@@ -32,10 +32,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="courseCount" label="学习课程" width="100" :style="{ textAlign: 'center' }" />
         <el-table-column label="操作" width="240" fixed="right" :style="{ textAlign: 'center' }">
           <template #default="scope">
-            <el-button size="small" @click="viewLearningProgress(scope.row)">进度</el-button>
+<!--            <el-button size="small" @click="viewLearningProgress(scope.row)">进度</el-button>-->
             <el-button size="small" @click="editStudent(scope.row)" style="margin-left: 8px;">编辑</el-button>
             <el-button size="small" type="danger" @click="deleteStudent(scope.row)" style="margin-left: 8px;">删除</el-button>
           </template>
@@ -53,7 +52,6 @@
       </el-upload>
       <template #footer><el-button @click="showImportDialog = false">取消</el-button></template>
     </el-dialog>
-
     <!-- 编辑学生对话框 -->
     <el-dialog :title="isEditing ? '编辑学生' : '添加学生'" v-model="showEditDialog" width="500px">
       <el-form :model="studentForm" label-width="80px" :rules="rules" ref="formRef">
@@ -66,6 +64,12 @@
         </el-form-item>
         <el-form-item label="手机号" prop="phone"><el-input v-model="studentForm.phone" placeholder="请输入手机号" /></el-form-item>
         <el-form-item label="邮箱" prop="email"><el-input v-model="studentForm.email" placeholder="请输入邮箱" /></el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-select v-model="studentForm.status" placeholder="请选择状态">
+            <el-option label="在校" value="IN_SCHOOL" />
+            <el-option label="校外实习" value="OFF_CAMPUS_INTERNSHIP" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer><el-button @click="showEditDialog = false">取消</el-button><el-button type="primary" @click="saveStudent">保存</el-button></template>
     </el-dialog>
@@ -124,14 +128,16 @@ const studentForm = ref({
   name: '',
   className: '',
   phone: '',
-  email: ''
+  email: '',
+  status: 'IN_SCHOOL' // 添加默认状态
 })
 
 // === 表单校验规则 ===
 const rules = {
   studentNumber: [{ required: true, message: '请输入学号', trigger: 'blur' }],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  className: [{ required: true, message: '请选择班级', trigger: 'change' }]
+  className: [{ required: true, message: '请选择班级', trigger: 'change' }],
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
 }
 
 // === 上传配置 ===
@@ -257,8 +263,8 @@ const fetchStudents = async () => {
         ? body.data.map(student => ({
             ...student,
             // 确保字段名正确映射
-            phone: student.phone || student.phoneNumber || student.tel || '',
-            email: student.email || student.mail || '',
+            phone: student.phone ||  '',
+            email: student.email ||  '',
             status: student.status || 'IN_SCHOOL' // 默认值设为在校
           }))
         : []
