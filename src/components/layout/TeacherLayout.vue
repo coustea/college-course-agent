@@ -42,12 +42,6 @@
                 <i class="fas fa-plus-circle"></i>
                 <span>创建课程</span>
               </li>
-              <li class="submenu-item"
-                  :class="{active: $route.path === '/teacher/courses/categories'}"
-                  @click="navigateTo('/teacher/courses/categories')">
-                <i class="fas fa-folder"></i>
-                <span>课程分类</span>
-              </li>
             </ul>
           </li>
 
@@ -76,12 +70,12 @@
                 <i class="fas fa-layer-group"></i>
                 <span>分组管理</span>
               </li>
-              <li class="submenu-item"
-                  :class="{active: $route.path === '/teacher/students/performance'}"
-                  @click="navigateTo('/teacher/students/performance')">
-                <i class="fas fa-chart-line"></i>
-                <span>学习表现</span>
-              </li>
+<!--              <li class="submenu-item"-->
+<!--                  :class="{active: $route.path === '/teacher/students/performance'}"-->
+<!--                  @click="navigateTo('/teacher/students/performance')">-->
+<!--                <i class="fas fa-chart-line"></i>-->
+<!--                <span>学习表现</span>-->
+<!--              </li>-->
             </ul>
           </li>
 
@@ -119,15 +113,15 @@
             </ul>
           </li>
 
-          <li class="menu-item">
-            <div class="menu-title" :class="{active: $route.path === '/teacher/analytics'}"
-                 @click="navigateTo('/teacher/analytics')">
-              <div>
-                <i class="fas fa-chart-bar"></i>
-                <span>数据分析</span>
-              </div>
-            </div>
-          </li>
+<!--          <li class="menu-item">-->
+<!--            <div class="menu-title" :class="{active: $route.path === '/teacher/analytics'}"-->
+<!--                 @click="navigateTo('/teacher/analytics')">-->
+<!--              <div>-->
+<!--                <i class="fas fa-chart-bar"></i>-->
+<!--                <span>数据分析</span>-->
+<!--              </div>-->
+<!--            </div>-->
+<!--          </li>-->
 
           <li class="menu-item">
             <div class="menu-title" :class="{active: $route.path === '/teacher/profile'}"

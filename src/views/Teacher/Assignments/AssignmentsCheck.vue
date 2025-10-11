@@ -101,45 +101,6 @@
         </el-table>
       </div>
 
-      <!-- 个人提交列表 -->
-      <div class="groups-list" style="margin-top:24px;">
-        <h3>个人提交情况</h3>
-        <el-table :data="personalSubmissions" style="width: 100%" stripe>
-          <el-table-column prop="studentId" label="学生ID" width="120" align="center" />
-          <el-table-column prop="submittedAt" label="提交时间" width="180" align="center">
-            <template #default="scope">
-              {{ scope.row.submittedAt ? formatDateTime(scope.row.submittedAt) : '未提交' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="status" label="提交状态" width="120" align="center">
-            <template #default="scope">
-              <el-tag :type="scope.row.status === 'submitted' ? 'success' : (scope.row.status === 'graded' ? 'primary' : 'info')">
-                {{ scope.row.status || '—' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="score" label="评分" width="100" align="center">
-            <template #default="scope">
-              {{ scope.row.score != null ? scope.row.score : '未评分' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="附件" min-width="240" align="left">
-            <template #default="scope">
-              <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                <el-tag v-for="(f,idx) in scope.row.files" :key="idx" size="small" type="info">
-                  <a :href="normalizeFileUrl(f.url)" target="_blank" style="text-decoration:none;color:inherit;">{{ f.name }}</a>
-                </el-tag>
-                <span v-if="!scope.row.files || scope.row.files.length === 0">—</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="140" align="center">
-            <template #default="scope">
-              <el-button size="small" @click="viewPersonalDetails(scope.row)">查看详情</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
 
       <!-- 检查详情对话框 -->
       <el-dialog
