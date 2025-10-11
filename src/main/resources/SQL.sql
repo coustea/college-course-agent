@@ -42,6 +42,7 @@ major VARCHAR(100) COMMENT '专业',
 grade VARCHAR(100) COMMENT '年级',
 enrollment_year YEAR COMMENT '入学年份',
 status ENUM('IN_SCHOOL', 'OFF_CAMPUS_INTERNSHIP') DEFAULT 'IN_SCHOOL' COMMENT '学生状态(在校, 校外实习)',
+group_status VARCHAR(20) DEFAULT 'pending' COMMENT '加入状态(待审核, 已加入)',
 FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生信息表';
 
