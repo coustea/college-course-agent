@@ -8,10 +8,10 @@
       <el-select v-model="courseFilter" placeholder="按课程筛选" clearable
                  style="width: 150px; margin-right: 12px;">
         <el-option
-          v-for="course in courses"
-          :key="course.id"
-          :label="course.name"
-          :value="course.id"
+            v-for="course in courses"
+            :key="course.id"
+            :label="course.name"
+            :value="course.id"
         />
       </el-select>
       <el-button type="primary" :icon="Search" @click="fetchGroups">
@@ -32,7 +32,7 @@
     <div class="table-container">
       <el-table :data="paginatedGroups" style="width: 100%" v-loading="loading" height="100%">
         <el-table-column type="index" label="序号" width="80" align="center"/>
-        
+
         <el-table-column prop="name" label="队伍名称" width="200" align="center"/>
         <el-table-column prop="leaderName" label="组长" width="150" align="center"/>
         <el-table-column prop="members" label="组员" width="200" align="center">
@@ -52,18 +52,18 @@
           <template #default="scope">
             <el-button size="small" @click="viewGroupDetails(scope.row)">查看</el-button>
             <el-button
-              v-if="scope.row.status === 'pending'"
-              size="small"
-              type="success"
-              @click="approveGroup(scope.row)"
+                v-if="scope.row.status === 'pending'"
+                size="small"
+                type="success"
+                @click="approveGroup(scope.row)"
             >
               同意
             </el-button>
             <el-button
-              v-if="scope.row.status === 'pending'"
-              size="small"
-              type="danger"
-              @click="rejectGroup(scope.row)"
+                v-if="scope.row.status === 'pending'"
+                size="small"
+                type="danger"
+                @click="rejectGroup(scope.row)"
             >
               驳回
             </el-button>
@@ -73,21 +73,21 @@
     </div>
 
     <el-pagination
-      v-if="filteredGroups.length > 0"
-      v-model:current-page="currentPage"
-      v-model:page-size="pageSize"
-      :page-sizes="[10, 20, 50, 100]"
-      :total="filteredGroups.length"
-      layout="total, sizes, prev, pager, next, jumper"
-      background
-      class="pagination"
+        v-if="filteredGroups.length > 0"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="filteredGroups.length"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+        class="pagination"
     />
 
     <!-- 查看分组详情对话框 -->
     <el-dialog
-      title="分组详情"
-      v-model="showDetailsDialog"
-      width="600px"
+        title="分组详情"
+        v-model="showDetailsDialog"
+        width="600px"
     >
       <div class="group-details-content">
         <el-descriptions :column="1" border>
@@ -95,7 +95,7 @@
               currentGroupDetails?.name
             }}
           </el-descriptions-item>
-          
+
           <el-descriptions-item label="组长">{{
               currentGroupDetails?.leaderName
             }}
@@ -103,9 +103,9 @@
           <el-descriptions-item label="组员">
             <div class="member-list">
               <el-tag
-                v-for="member in currentGroupDetails?.memberList"
-                :key="member.id"
-                class="member-tag"
+                  v-for="member in currentGroupDetails?.memberList"
+                  :key="member.id"
+                  class="member-tag"
               >
                 {{ member.name }}
               </el-tag>
@@ -130,16 +130,16 @@
       <template #footer>
         <el-button @click="showDetailsDialog = false">关闭</el-button>
         <el-button
-          v-if="currentGroupDetails?.status === 'pending'"
-          type="success"
-          @click="approveGroup(currentGroupDetails)"
+            v-if="currentGroupDetails?.status === 'pending'"
+            type="success"
+            @click="approveGroup(currentGroupDetails)"
         >
           同意
         </el-button>
         <el-button
-          v-if="currentGroupDetails?.status === 'pending'"
-          type="danger"
-          @click="rejectGroup(currentGroupDetails)"
+            v-if="currentGroupDetails?.status === 'pending'"
+            type="danger"
+            @click="rejectGroup(currentGroupDetails)"
         >
           驳回
         </el-button>
@@ -153,8 +153,8 @@ import {ref, computed, onMounted} from 'vue'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import {Search} from '@element-plus/icons-vue'
 import axios from 'axios'
-// 动态后端基址 + Token 拦截
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://192.168.52.75:9999/api' : '/api'))
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   try {
@@ -202,7 +202,7 @@ export default {
       switch (status) {
         case 'pending':
           return '未审批'
-        case 'approved':
+        case 'approval':
           return '已同意'
         case 'rejected':
           return '已驳回'
@@ -253,14 +253,12 @@ export default {
       const params = {}
       if (courseFilter.value) params.courseId = courseFilter.value
       if (applicationStatusFilter.value) params.approvalStatus = applicationStatusFilter.value
-      // 优先尝试 GET ?params
+
+      // 直接使用 POST 请求，因为 GET 方法不被允许
       try {
-        return await api.get('/student-group/approvalStatus', { params })
+        return await api.post('/student-group/approvalStatus', params)
       } catch (e) {
-        // 若后端不允许 GET（405），尝试 POST JSON
-        if (e?.response?.status === 405) {
-          return await api.post('/student-group/approvalStatus', params)
-        }
+        console.error('请求分组数据失败:', e)
         throw e
       }
     }
@@ -288,8 +286,8 @@ export default {
           // 兼容旧字段（members/memberList 为字符串数组或逗号分隔）
           const fallbackMemberRaw = g.members || g.memberList || g.students || []
           const fallbackMemberList = Array.isArray(fallbackMemberRaw)
-            ? fallbackMemberRaw.map(m => (typeof m === 'string' ? { name: m } : m))
-            : String(fallbackMemberRaw || '').split(',').filter(Boolean).map(n => ({ name: n.trim() }))
+              ? fallbackMemberRaw.map(m => (typeof m === 'string' ? { name: m } : m))
+              : String(fallbackMemberRaw || '').split(',').filter(Boolean).map(n => ({ name: n.trim() }))
 
           const normalizedMemberList = memberListFromGroup.length > 0 ? memberListFromGroup : fallbackMemberList
 
@@ -352,24 +350,37 @@ export default {
       currentPage.value = 1 // 重置到第一页
     }
 
-    // 同意分组申请
+    // 同意分组申请 - 修改为正确的参数格式
     const approveGroup = async (group) => {
       try {
         const gid = group?.id || group?.groupId || group?.group_id
         if (!gid) { ElMessage.error('缺少分组ID'); return }
+
         await ElMessageBox.confirm(
-          `确定要同意"${group.name}"的分组申请吗？`,
-          '确认操作',
-          {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'warning',
-          }
+            `确定要同意"${group.name}"的分组申请吗？`,
+            '确认操作',
+            {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning',
+            }
         )
 
-        // 调用后端接口：PUT /api/student-group/{groupId}，仅更新审批状态
-        const payload = { approvalStatus: 'approved' }
-        await api.put(`/student-group/${gid}`, payload, { headers: { 'Content-Type': 'application/json' } })
+        // 构建完整的 StudentGroup 对象
+        const payload = {
+          groupId: gid,
+          groupName: group.name,
+          groupLeaderId: group.leaderId,
+          groupDescription: group.description,
+          approvalStatus: 'approval', // 使用正确的枚举值
+          status: 'active' // 保持小组状态为活跃
+        }
+
+        console.log('发送同意请求:', { url: `/student-group/${gid}`, payload })
+
+        // 使用 PUT 方法
+        const response = await api.put(`/student-group/${gid}`, payload)
+        console.log('同意响应:', response.data)
 
         // 更新本地状态
         group.status = 'approved'
@@ -382,32 +393,49 @@ export default {
         if (currentGroupDetails.value && currentGroupDetails.value.id === group.id) {
           showDetailsDialog.value = false
         }
+
+        // 刷新数据
+        await fetchGroups()
       } catch (error) {
         if (error !== 'cancel') {
           console.error('操作失败:', error)
-          ElMessage.error('操作失败')
+          console.log('错误详情:', error.response?.data)
+          ElMessage.error(error?.response?.data?.message || error?.response?.data || '操作失败')
         }
       }
     }
 
-    // 驳回分组申请
+// 驳回分组申请 - 同样的修改
     const rejectGroup = async (group) => {
       try {
         const gid = group?.id || group?.groupId || group?.group_id
         if (!gid) { ElMessage.error('缺少分组ID'); return }
+
         await ElMessageBox.confirm(
-          `确定要驳回"${group.name}"的分组申请吗？`,
-          '确认操作',
-          {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'warning',
-          }
+            `确定要驳回"${group.name}"的分组申请吗？`,
+            '确认操作',
+            {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning',
+            }
         )
 
-        // 调用后端接口：PUT /api/student-group/{groupId}，仅更新审批状态
-        const payload = { approvalStatus: 'rejected' }
-        await api.put(`/student-group/${gid}`, payload, { headers: { 'Content-Type': 'application/json' } })
+        // 构建完整的 StudentGroup 对象
+        const payload = {
+          groupId: gid,
+          groupName: group.name,
+          groupLeaderId: group.leaderId,
+          groupDescription: group.description,
+          approvalStatus: 'rejected', // 使用正确的枚举值
+          status: 'active' // 保持小组状态为活跃
+        }
+
+        console.log('发送驳回请求:', { url: `/student-group/${gid}`, payload })
+
+        // 使用 PUT 方法
+        const response = await api.put(`/student-group/${gid}`, payload)
+        console.log('驳回响应:', response.data)
 
         // 更新本地状态
         group.status = 'rejected'
@@ -420,10 +448,14 @@ export default {
         if (currentGroupDetails.value && currentGroupDetails.value.id === group.id) {
           showDetailsDialog.value = false
         }
+
+        // 刷新数据
+        await fetchGroups()
       } catch (error) {
         if (error !== 'cancel') {
           console.error('操作失败:', error)
-          ElMessage.error('操作失败')
+          console.log('错误详情:', error.response?.data)
+          ElMessage.error(error?.response?.data?.message || error?.response?.data || '操作失败')
         }
       }
     }
@@ -452,7 +484,8 @@ export default {
       approveGroup,
       rejectGroup,
       getStatusTagType,
-      getStatusText
+      getStatusText,
+      Search  // 确保Search图标在模板中可用
     }
   }
 }
