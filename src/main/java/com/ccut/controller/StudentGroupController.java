@@ -171,6 +171,8 @@ public class StudentGroupController {
                 log.error("参数错误，studentGroup is null");
                 return Result.error(400, "参数错误");
             }
+            log.info("groupId is {}",groupId);
+            studentGroup.setGroupId(groupId);
             StudentGroup group = studentGroupService.selectByGroupId(groupId);
             if (group == null) {
                 log.error("用户分组不存在!");

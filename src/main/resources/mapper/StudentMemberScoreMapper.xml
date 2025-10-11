@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.StudentMemberScoreMapper">
+
+	<insert id="insert">
+		INSERT INTO student_member_scores
+		(
+			submission_id,
+			student_id,
+			score,
+			level,
+			feedback,
+			graded_at
+		)
+		VALUES
+		(
+			#{submissionId},
+			#{studentId},
+			#{score},
+			#{level},
+			#{feedback},
+			#{gradedAt}
+		)
+	</insert>
+
+	<insert id="insertWithTeacherName">
+		INSERT INTO student_member_scores
+		(
+			submission_id,
+			student_id,
+			teacher_name,
+			score,
+			level,
+			feedback,
+			graded_at
+		)
+		VALUES
+		(
+			#{submissionId},
+			#{studentId},
+			#{teacherName},
+			#{score},
+			#{level},
+			#{feedback},
+			#{gradedAt}
+		)
+	</insert>
+
+	<update id="updateBySubmissionAndStudent">
+		UPDATE student_member_scores
+		SET score = #{score},
+			level = #{level},
+			feedback = #{feedback},
+			graded_at = #{gradedAt}
+		WHERE submission_id = #{submissionId}
+		  AND student_id = #{studentId}
+	</update>
+
+	<update id="updateBySubmissionAndStudentWithTeacherName">
+		UPDATE student_member_scores
+		SET teacher_name = #{teacherName},
+			score = #{score},
+			level = #{level},
+			feedback = #{feedback},
+			graded_at = #{gradedAt}
+		WHERE submission_id = #{submissionId}
+		  AND student_id = #{studentId}
+	</update>
+
+</mapper>
+
+
