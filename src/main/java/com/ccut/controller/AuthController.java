@@ -95,7 +95,6 @@ public class AuthController {
                         profile.put("phone", student.getPhone());
                         profile.put("major", student.getMajor());
                         profile.put("grade", student.getGrade());
-                        profile.put("enrollmentYear", student.getEnrollmentYear());
                     }
                 }
                 data.put("profile", profile);
