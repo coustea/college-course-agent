@@ -77,13 +77,10 @@ export async function fetchHomeCourses(signal) {
                 }))
             }
 
-            // 成功时优先展示后端拼装的卡片
             if (result.length) return result
         }
-        // 非法结构或空数组：退回到虚拟课程
         return getMockCourses()
     } catch (error) {
-        // 请求异常：继续展示虚拟课程
         return getMockCourses()
     }
 }

@@ -163,7 +163,7 @@ const getStudentById = async () => {
     })
     console.log(res.data)
     if (res.data.code === 200) {
-      console.log(res.data.data)
+      console.log("获取学生信息:", res.data.data)
       userName.value = res.data.data.name
     }
   } catch (error) {
@@ -171,7 +171,6 @@ const getStudentById = async () => {
   }
 }
 
-// 日期格式化
 const formatDate = (input) => {
   if (!input) return '-'
   const s = String(input)

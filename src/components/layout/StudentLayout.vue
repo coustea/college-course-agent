@@ -174,7 +174,7 @@ const getStudentById = async () => {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
     })
-    console.log(res.data)
+    console.log("getStudentById响应", res.data)
     if (res.data.code === 200) {
       console.log(res.data.data)
       userName.value = res.data.data.name
@@ -344,7 +344,7 @@ const changePassword = async () => {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       })
-
+      console.log("修改密码响应", res.data)
       if (res.data.code === 200) {
         ElMessage.success('密码修改成功')
         passwordDialogVisible.value = false
