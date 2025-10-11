@@ -3,8 +3,10 @@ package com.ccut.controller;
 
 import com.ccut.entity.FileInfo;
 import com.ccut.entity.Result;
+import com.ccut.entity.Teacher;
 import com.ccut.entity.TeacherAssignment;
 import com.ccut.service.Impl.TeacherAssignmentServiceImpl;
+import com.ccut.service.Impl.TeacherServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 
@@ -33,6 +35,9 @@ public class TeacherAssignmentController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Autowired
+    private TeacherServiceImpl teacherService;
+
 
 
     @Autowired
@@ -58,6 +63,14 @@ public class TeacherAssignmentController {
             @RequestParam(required = false) MultipartFile[] files,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm") String dueDate
     ) throws Exception {
+
+        Teacher teacher = teacherService.selectById(teacherId);
+        if(teacher == null){
+            log.error("未找到，teacherId is {}", teacherId);
+            return Result.error(404, "未找到");
+        }
+
+
         List<FileInfo> fileInfos = new ArrayList<>();
 
         if (files != null && files.length > 0) {
@@ -97,6 +110,9 @@ public class TeacherAssignmentController {
         teacherAssignment.setAssignmentName(assignmentName);
         teacherAssignment.setRequirements(requirements);
         teacherAssignment.setAttachmentFiles(attachmentJson);
+        teacherAssignment.setTeacherName(teacher.getName());
+
+
 
         if (dueDate != null && !dueDate.isEmpty()) {
             // 解析到分钟，秒固定为 0

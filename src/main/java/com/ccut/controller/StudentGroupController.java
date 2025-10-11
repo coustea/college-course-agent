@@ -120,7 +120,7 @@ public class StudentGroupController {
                 throw new RuntimeException("插入组长成员失败");
             }
             // 更新组长状态为已加入
-            leader.setGroupStatus("approved");
+            leader.setGroupStatus("approval");
             studentService.updateById(leader);
 
             // === 5. 插入其他成员 ===
@@ -150,7 +150,7 @@ public class StudentGroupController {
                     throw new RuntimeException("插入成员失败: " + member.getName());
                 }
                 // 更新成员状态为已加入
-                member.setGroupStatus("approved");
+                member.setGroupStatus("approval");
                 studentService.updateById(member);
             }
 

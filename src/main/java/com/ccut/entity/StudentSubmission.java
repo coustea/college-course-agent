@@ -24,7 +24,9 @@ public class StudentSubmission {
     // 小组ID
     private Long groupId;
     // 学生ID
-    private Long studentId;
+    private Long submittedBy;
+    // 班级
+    private String className;
     // 提交内容
     private String submissionContent;
     // 提交文件

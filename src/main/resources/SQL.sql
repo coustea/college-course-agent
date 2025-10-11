@@ -185,7 +185,7 @@ group_leader_id BIGINT COMMENT '组长ID',
 group_description TEXT COMMENT '小组描述',
 created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 status VARCHAR(20) DEFAULT 'active' COMMENT '小组状态(active, disbanded)',
-approval_status VARCHAR(20) DEFAULT 'pending' COMMENT '审核状态(pending, approved, rejected)',
+approval_status VARCHAR(20) DEFAULT 'pending' COMMENT '审核状态(pending, approval, rejected)',
 FOREIGN KEY (group_leader_id) REFERENCES students(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生小组表';
 
@@ -200,7 +200,7 @@ student_name VARCHAR(100) COMMENT '学生姓名',
 class_name VARCHAR(100) COMMENT '班级名称',
 join_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
 role VARCHAR(20) DEFAULT 'member' COMMENT '角色(leader/member)',
-join_status VARCHAR(20) DEFAULT 'pending' COMMENT '入组状态(pending, approved, rejected)',
+join_status VARCHAR(20) DEFAULT 'pending' COMMENT '入组状态(pending, approval, rejected)',
 FOREIGN KEY (group_id) REFERENCES student_groups(group_id) ON DELETE CASCADE,
 FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
 UNIQUE KEY uniq_group_student (group_id, student_id)
@@ -212,6 +212,7 @@ UNIQUE KEY uniq_group_student (group_id, student_id)
 CREATE TABLE teacher_assignments (
 assignment_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '作业ID',
 teacher_id BIGINT NOT NULL COMMENT '发布教师ID',
+teacher_name VARCHAR(100) COMMENT '教师姓名',
 assignment_name VARCHAR(200) NOT NULL COMMENT '作业名称',
 description TEXT COMMENT '作业描述',
 requirements TEXT COMMENT '作业要求',

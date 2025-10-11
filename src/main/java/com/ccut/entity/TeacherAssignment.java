@@ -13,6 +13,8 @@ public class TeacherAssignment {
     private Long assignmentId;
     // 教师ID
     private Long teacherId;
+    // 教师姓名
+    private String teacherName;
     // 作业名称
     private String assignmentName;
     // 作业描述
