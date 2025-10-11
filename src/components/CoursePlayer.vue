@@ -464,7 +464,7 @@ async function startExamPrefetch() {
         if (Number.isFinite(n) && n > 0) studentId = n
       }
     } catch {}
-    await generateExamAndQuestions({ courseId: props.courseId, studentId, choiceCount: 0, judgeCount: 2 })
+    // await generateExamAndQuestions({ courseId: props.courseId, studentId, choiceCount: 0, judgeCount: 2 })
   } catch {}
 }
 

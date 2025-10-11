@@ -2,13 +2,32 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 // 学生端路由
 const studentRoutes = [
-  { path: '/student', name: 'StudentHome', component: () => import('../views/student/Home.vue'), meta: { title: '首页' } },
-  { path: '/home', name: 'StudentHomeAlt', component: () => import('../views/student/Home.vue'), meta: { title: '首页' } },
-  { path: '/data', name: 'LearningData', component: () => import('../views/student/LearningData.vue'), meta: { title: '学习数据' } },
-  { path: '/group', name: 'Groups', component: () => import('../views/student/Groups.vue'), meta: { title: '学习小组' } },
-  { path: '/work', name: 'Work', component: () => import('../views/student/Work.vue'), meta: { title: '作品/作业' } },
-  { path: '/courses', name: 'Courses', component: () => import('../views/student/Courses.vue'), meta: { title: '课程' } },
-  { path: '/profile', name: 'Profile', component: () => import('../views/student/Profile.vue'), meta: { title: '个人中心' } },
+    {
+        path: '/student',
+        name: 'StudentHome',
+        component: () => import('../views/student/Home.vue'),
+        meta: {title: '首页'}
+    },
+    {
+        path: '/home',
+        name: 'StudentHomeAlt',
+        component: () => import('../views/student/Home.vue'),
+        meta: {title: '首页'}
+    },
+    {
+        path: '/data',
+        name: 'LearningData',
+        component: () => import('../views/student/LearningData.vue'),
+        meta: {title: '学习数据'}
+    },
+    {path: '/group', name: 'Groups', component: () => import('../views/student/Groups.vue'), meta: {title: '学习小组'}},
+    {path: '/work', name: 'Work', component: () => import('../views/student/Work.vue'), meta: {title: '作品/作业'}},
+    {
+        path: '/profile',
+        name: 'Profile',
+        component: () => import('../views/student/Profile.vue'),
+        meta: {title: '个人中心'}
+    },
 ]
 
 // 教师端路由

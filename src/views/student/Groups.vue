@@ -31,7 +31,7 @@
     </el-select>
     <div class="actions-spacer"></div>
     <div v-if="groupStatus === 'none' && (!isCreating || isSelecting)" class="header-actions">
-      <span v-if="isCreating && isSelecting" class="select-hint">请选择 2 ~ 4 名组员</span>
+      <span v-if="isCreating && isSelecting" class="select-hint">请选择 2 ~ 5 名组员</span>
       <el-button
           type="primary"
           @click="headerPrimaryAction"
@@ -126,9 +126,9 @@
     <div class="btn-row block-section" v-if="isCreating && !isSelecting">
       <button class="btn btn-yellow" data-tip="清空并重新选择组员" @click="resetSelection">重新选择</button>
       <button class="btn btn-yellow" data-tip="继续挑选更多组员" @click="againSelect">选择队员</button>
-      <div class="tooltip" data-tip="组员最多4人，最少2人">
+      <div class="tooltip" data-tip="组员最多5人，最少2人">
         <button class="btn btn-blue" :disabled="!canSubmit || !isCreating" @click="submitGroup">
-          提交小组申请 ({{ selectedMembers.length }}/4)
+          提交小组申请 ({{ selectedMembers.length }}/5)
         </button>
       </div>
       <button class="btn btn-yellow" @click="resetAllAndExit">重置</button>
@@ -159,20 +159,24 @@
           <span class="member-mark">组员</span>
         </span>
       </div>
+      <div class="group-summary-tasks">
+        <span class="group-summary-label">分工：</span>
+        <span>{{ createdGroup?.taskDescription || taskDescription || '—' }}</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick,getCurrentInstance,onActivated } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick,getCurrentInstance,onActivated } from 'vue'
 import { getStudentsByClassName, createStudentGroup} from '@/services/groupApi'
 import { fetchHomeCourses } from '@/services/homeCoursesApi'
 import {onBeforeRouteUpdate} from "vue-router"
-import axios from "axios";
+import axios from "axios"
 
 const {proxy} = getCurrentInstance()
 const BASE_URL = proxy.$baseUrl
-
+console.log(BASE_URL)
 
 const allStudents = ref([])
 const isCreating = ref(false)
@@ -193,29 +197,51 @@ onMounted(async () => {
       } else {
         isSelecting.value = !!ui.selecting
       }
+      // 若处于新建流程但尚未提交（非 pending/approved），刷新时将状态复原为全部 false
+      try {
+        const st = String(localStorage.getItem(GROUP_STATUS_KEY) || 'none').toLowerCase()
+        const unsubmitted = !(st === 'pending' || st === 'approved')
+        if (ui.creating === true && ui.selecting === false && unsubmitted) {
+          isCreating.value = false
+          isSelecting.value = false
+          localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: false, selecting: false }))
+        }
+      } catch (e) {
+        console.error('恢复UI状态时写入本地失败', e)
+      }
     }
   } catch (e) {
     alert(`读取分组界面UI状态失败：${e?.message || e}`)
   }
+  // 刷新/关闭前也进行一次保护性复原
+  const resetUiIfUnsubmitted = () => {
+    try {
+      const ui = JSON.parse(localStorage.getItem(uiStateStorageKey) || 'null')
+      const st = String(localStorage.getItem(GROUP_STATUS_KEY) || 'none').toLowerCase()
+      const unsubmitted = !(st === 'pending' || st === 'approved')
+      if (ui && ui.creating === true && ui.selecting === false && unsubmitted) {
+        localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: false, selecting: false }))
+      }
+    } catch (e) {
+      console.error('进入页面时复原UI失败', e)
+    }
+  }
+  window.addEventListener('beforeunload', resetUiIfUnsubmitted)
   // 恢复小组状态与信息（若存在）
   try {
     const group = await getStudentGroup()
-    console.log(group)
+    console.log("获取小组审核状态:",group)
     if (!group) {
       try {
         localStorage.removeItem(GROUP_STATUS_KEY)
         localStorage.removeItem(GROUP_INFO_KEY)
       } catch (e) { console.error(e) }
       groupStatus.value = 'none'
-    } else {
+    }else {
       const st = String(group.approvalStatus || '').toLowerCase()
       if (st === 'pending' || st === 'approved') {
         groupStatus.value = st
-        const info = {
-          groupName: group.groupName || '',
-          leaderName: group.leaderName || '',
-          memberNames: Array.isArray(group.memberNames) ? group.memberNames : []
-        }
+        const info = buildCreatedGroupFromApi(group)
         createdGroup.value = info
         if (info.groupName) groupName.value = info.groupName
         try {
@@ -230,59 +256,151 @@ onMounted(async () => {
   await Promise.all([loadStudents(), cacheTeacherIdFromHome()])
 })
 
-onActivated(() => {
-  getStudentGroup()
+// onUnmounted(() => {
+//   try {
+//   } catch (e) { console.error(e) }
+// })    兜底刷新使用
+
+onActivated(async () => {
+  const g = await getStudentGroup()
+  const st = String(g?.approvalStatus || '').toLowerCase()
+  if (st === 'pending' || st === 'approved') {
+    groupStatus.value = st
+  } else {
+    groupStatus.value = 'none'
+    createdGroup.value = null
+    try {
+      localStorage.setItem(GROUP_STATUS_KEY, 'none')
+      localStorage.removeItem(GROUP_INFO_KEY)
+    } catch (e) {
+      console.error('复原UI失败', e)
+    }
+  }
 })
 
-onBeforeRouteUpdate(() => {
-  getStudentGroup()
+onBeforeRouteUpdate(async () => {
+  const g = await getStudentGroup()
+  const st = String(g?.approvalStatus || '').toLowerCase()
+  if (st === 'pending' || st === 'approved') {
+    groupStatus.value = st
+  } else {
+    groupStatus.value = 'none'
+    createdGroup.value = null
+    try {
+      localStorage.setItem(GROUP_STATUS_KEY, 'none')
+      localStorage.removeItem(GROUP_INFO_KEY)
+    } catch (e) {
+      console.error('清理本地组队信息失败', e)
+    }
+  }
 })
 
-
+// 将后端的小组数据映射为前端展示结构（groupMemberList 的第一个为组长）
+function buildCreatedGroupFromApi(group) {
+  try {
+    let cachedInfo = null
+    try { cachedInfo = JSON.parse(localStorage.getItem(GROUP_INFO_KEY) || 'null') } catch (e) { cachedInfo = null }
+    const list = Array.isArray(group?.groupMemberList) ? group.groupMemberList : []
+    let leaderName = ''
+    let memberNames = []
+    if (list.length > 0) {
+      leaderName = list[0]?.studentName || list[0]?.name || ''
+      memberNames = list.slice(1).map(m => m?.studentName || m?.name).filter(Boolean)
+    } else {
+      leaderName = group?.leaderName || ''
+      memberNames = Array.isArray(group?.memberNames) ? group.memberNames : []
+    }
+    return {
+      groupName: group?.groupName || '',
+      leaderName,
+      memberNames,
+      taskDescription: group?.groupDescription || cachedInfo?.taskDescription || ''
+    }
+  } catch (e) {
+    return {
+      groupName: group?.groupName || '',
+      leaderName: group?.leaderName || '',
+      memberNames: Array.isArray(group?.memberNames) ? group.memberNames : [],
+      taskDescription: group?.groupDescription || ''
+    }
+  }
+}
 const getStudentGroup = async () => {
   try {
+    // 获取 userId
     const userId = localStorage.getItem('userId')
-    if (!userId) return null
-
-    const token = localStorage.getItem('token')
-    const headers = {
-      'Authorization':  `Bearer ${token}` ,
-      'Content-Type': 'multipart/form-data'
-    }
-
-    const fd1 = new FormData()
-    fd1.append('studentId', userId)
-
-    const res = await axios.post(
-        `${BASE_URL}/groupMember/getById`,
-        fd1,
-        { headers }
-    )
-    console.log(res)
-    if (!(res?.data?.code === 200) || !res?.data?.data?.groupId) {
+    if (!userId) {
+      console.error('未找到 userId')
       StudentGroup.value = null
       return null
     }
 
-    const groupId = res.data.data.groupId
-    const fd2 = new FormData()
-    fd2.append('groupId', groupId)
+    // 将 userId 转换为数字（Long 类型）
+    const studentId = Number(userId);
+    if (isNaN(studentId)) {
+      console.error('无效的 studentId:', userId)
+      StudentGroup.value = null
+      return null
+    }
 
+    // 第一次请求: 获取学生所在小组信息
+    const res = await axios.post(
+        `${BASE_URL}/groupMember/getById`,
+        { studentId },  // 传递对象格式，确保 studentId 是数字类型
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+    )
+
+    console.log("根据 userId 查询所在小组信息:", res)
+
+    // 检查返回的结果
+    if (!(res.data.code === 200)) {
+      console.error('未找到小组信息，groupId 不存在')
+      StudentGroup.value = null
+      return null
+    }
+
+    // 获取 groupId
+    const groupId = res.data.data.groupId
+    console.log("小组ID:", groupId)
+
+    // 检查 groupId 是否有效
+    if (!groupId) {
+      console.error('无效的 groupId:', groupId)
+      StudentGroup.value = null
+      return null
+    }
+
+    // 第二次请求: 根据 groupId 获取小组详细信息
     const response = await axios.post(
         `${BASE_URL}/student-group/getByGroupId`,
-        fd2,
-        { headers }
+        { groupId },  // 传递对象格式，确保 groupId 是数字类型
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
     )
-    console.log(response)
+
+    console.log("小组审核信息:", response)
+
+    // 如果返回成功且包含数据
     if (response?.data?.code === 200 && response?.data?.data) {
       StudentGroup.value = response.data.data
       return response.data.data
     }
 
-    StudentGroup.value = null
-    return null
+    // 如果没有找到数据
+    console.error('未找到小组详细信息')
+    StudentGroup.value = null;
+    return null;
   } catch (error) {
-    console.error('获取学生分组信息失败:', error)
+    console.error('获取学生分组信息失败:', error.response ? error.response.data : error)
     StudentGroup.value = null
     return null
   }
@@ -301,10 +419,12 @@ async function loadStudents() {
     }
     console.log('学生分组的列表', list)
     allStudents.value = (list || []).map((s, i) => ({
-      id: s.id || s.studentId || s.sid || i + 1,
-      name: s.name ||'-',
-      sid: s.sid || s.studentId || '-',
-      status: (s.grouped === true || s.status === 'grouped') ? 'unavailable' : 'available'
+      id: s.id|| i + 1,
+      name: s.name || '-',
+      sid: s.studentNumber || '-',
+      status: (s.groupStatus === 'approved') ? 'unavailable' : 'available',
+      phone: s.phone || '-',
+      email: s.email || '-',
     }))
   } catch (e) {
     alert(`加载学生列表失败：${e?.message || e}`)
@@ -316,11 +436,7 @@ async function fetchAndPersistGroupInfo() {
   try {
     const group = await getStudentGroup()
     if (group && typeof group === 'object') {
-      const info = {
-        groupName: group.groupName || '',
-        leaderName: group.leaderName || '',
-        memberNames: Array.isArray(group.memberNames) ? group.memberNames : []
-      }
+      const info = buildCreatedGroupFromApi(group)
       createdGroup.value = info
       if (info.groupName) groupName.value = info.groupName
       try {
@@ -331,25 +447,24 @@ async function fetchAndPersistGroupInfo() {
   } catch (e) { console.warn('获取小组详情失败:', e) }
 }
 
-// 审核状态同步：在“审批中”时，根据接口返回的当前用户记录更新为 approved/rejected/pending
-async function checkMyGroupAudit(list) {
+// 审核状态同步：仅以 /student-group/getByGroupId 返回的 approvalStatus 为准
+async function checkMyGroupAudit() {
   try {
-    if (!Array.isArray(list)) return
-    const myId = String(localStorage.getItem('userId') || '')
-    if (!myId) return
-    const me = list.find(s => String(s.id || s.studentId || s.userId) === myId)
-    if (!me) return
-    const stRaw = me.groupStatus || me.status || ''
-    const st = String(stRaw).toLowerCase()
+    const group = await getStudentGroup()
+    const st = String(group?.approvalStatus || '').toLowerCase()
     const prev = groupStatus.value
     if (st === 'approved') {
       if (prev !== 'approved') {
         groupStatus.value = 'approved'
-        try { localStorage.setItem(GROUP_STATUS_KEY, 'approved') } catch {}
+        try { localStorage.setItem(GROUP_STATUS_KEY, 'approved') } catch (e) { console.error('写入状态approved失败', e) }
         await fetchAndPersistGroupInfo()
-        alert('小组审核通过')
       }
-    } else if (st === 'rejected') {
+    } else if (st === 'pending') {
+      if (prev !== 'pending') {
+        groupStatus.value = 'pending'
+        try { localStorage.setItem(GROUP_STATUS_KEY, 'pending') } catch (e) { console.error('写入状态pending失败', e) }
+      }
+    } else {
       if (prev !== 'none') {
         groupStatus.value = 'none'
         createdGroup.value = null
@@ -357,14 +472,7 @@ async function checkMyGroupAudit(list) {
         try {
           localStorage.setItem(GROUP_STATUS_KEY, 'none')
           localStorage.removeItem(GROUP_INFO_KEY)
-        } catch {}
-        alert('小组申请被拒绝，请重新新建小组')
-      }
-    } else if (st === 'pending') {
-      if (prev !== 'pending') {
-        groupStatus.value = 'pending'
-        try { localStorage.setItem(GROUP_STATUS_KEY, 'pending') } catch {}
-        alert('小组审核中')
+        } catch (e) { console.error('写入/清理本地状态失败', e) }
       }
     }
   } catch (e) { console.warn(e) }
@@ -433,7 +541,7 @@ const membersForTasks = computed(() => {
 
 const canSubmit = computed(() => {
   const count = selectedMembers.value.length
-  return count >= 2 && count <= 4
+  return count >= 2 && count <= 5
 })
 
 // 顶部主按钮逻辑：新建小组 -> 选择组员 -> 选择完成
@@ -478,7 +586,7 @@ function toggleSelect(stu) {
     delete copy[stu.id]
     tasks.value = copy
   } else {
-    if (selectedIds.value.length >= 4) return
+    if (selectedIds.value.length >= 5) return
     selectedIds.value.push(stu.id)
     if (!tasks.value[stu.id]) {
       tasks.value = { ...tasks.value, [stu.id]: '' }
@@ -512,7 +620,7 @@ function onRowClick(row) {
 
 function rowClassName({ row }) {
   if (row.status !== 'available') return 'disabled'
-  if (selectedIds.value.includes(row.id)) return 'selected'
+  if (selectedIds.value?.includes(row.id)) return 'selected'
   return ''
 }
 
@@ -543,7 +651,7 @@ async function submitGroup() {
     const payload = {
       groupName: groupName.value,
       groupLeaderId: leader?.id,
-      memberIds: members.map(m => m.id),
+      memberIds: members.map(m => m?.id ),
       teacherId: (() => {
         const v = localStorage.getItem('userId')
         return v ? Number(v) : undefined
@@ -559,7 +667,8 @@ async function submitGroup() {
       createdGroup.value = {
         groupName: payload.groupName,
         leaderName: leader?.name,
-        memberNames: members.map(m => m.name)
+        memberNames: members.map(m => m.name),
+        taskDescription: taskDescription.value
       }
       // 持久化当前状态与信息
       try {
@@ -582,13 +691,13 @@ if (currentUserId.value != null && !tasks.value[currentUserId.value]) {
   tasks.value = { ...tasks.value, [currentUserId.value]: '' }
 }
 
-function createNewGroup() {
-  selectedIds.value = []
-  groupName.value = ''
-  isCreating.value = true
-  isSelecting.value = false
-  localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: false }))
-}
+// function createNewGroup() {
+//   selectedIds.value = []
+//   groupName.value = ''
+//   isCreating.value = true
+//   isSelecting.value = false
+//   localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: true, selecting: false }))
+// }
 
 function resetAllAndExit() {
   selectedIds.value = []
@@ -776,7 +885,7 @@ const groupNameInputRef = ref(null)
   line-height: 1.4;
   font-weight: 800;
   color: #111827;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
   margin: 4px 0 18px 0;
 }
 .task-inputs .task-title::after {

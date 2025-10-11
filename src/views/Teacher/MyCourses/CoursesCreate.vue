@@ -79,7 +79,7 @@ export default {
     const saveCourse = async (status) => {
       try {
         if (!token.value) { ElMessage.error('用户未登录，请先登录'); router.push('/login'); return }
-        const base = import.meta?.env?.VITE_API_BASE_URL || 'http://39.96.172.21:9999/api'
+        const base = import.meta?.env?.VITE_API_BASE_URL || '/api'
 
         const formData = new FormData()
         formData.append('courseCode', genCourseCode())
@@ -87,7 +87,7 @@ export default {
         formData.append('description', form.description)
         formData.append('teacherId', teacherId.value)
         if (imageFile.value) formData.append('image', imageFile.value)
-        const response = await axios.post(`${base}/course/insert`, formData, { headers: { Authorization: `Bearer ${token.value}` } })
+        const response = await axios.post(`${base}/course/insert`, formData, { headers: { Authorization: `Bearer ${token.value}`, 'Content-Type': 'multipart/form-data' } })
         const body = response?.data
         if (body && Number(body.code) === 200) { ElMessage.success(status === 'published' ? '课程创建成功' : '已保存为草稿'); router.push('/teacher/courses/list') }
         else { ElMessage.error('保存失败: ' + (body?.message || '未知错误')) }

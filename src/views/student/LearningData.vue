@@ -429,7 +429,6 @@ const timeChartOptions = ref({
 })
 
 const updateCharts = () => {}
-// 选中项变化时，图表已根据 selectedCourse 的计算属性联动；此处仅作为手动触发器
 </script>
 
 <style scoped>
@@ -483,8 +482,6 @@ const updateCharts = () => {}
   color: #1f2937;
   margin: 0;
 }
-
-/* 课程选择改回右侧下拉，无需课程 pills 样式 */
 
 .chart-filter select {
   padding: 8px 12px;

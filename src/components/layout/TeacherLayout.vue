@@ -42,12 +42,6 @@
                 <i class="fas fa-plus-circle"></i>
                 <span>创建课程</span>
               </li>
-              <li class="submenu-item"
-                  :class="{active: $route.path === '/teacher/courses/categories'}"
-                  @click="navigateTo('/teacher/courses/categories')">
-                <i class="fas fa-folder"></i>
-                <span>课程分类</span>
-              </li>
             </ul>
           </li>
 
@@ -76,12 +70,12 @@
                 <i class="fas fa-layer-group"></i>
                 <span>分组管理</span>
               </li>
-              <li class="submenu-item"
-                  :class="{active: $route.path === '/teacher/students/performance'}"
-                  @click="navigateTo('/teacher/students/performance')">
-                <i class="fas fa-chart-line"></i>
-                <span>学习表现</span>
-              </li>
+<!--              <li class="submenu-item"-->
+<!--                  :class="{active: $route.path === '/teacher/students/performance'}"-->
+<!--                  @click="navigateTo('/teacher/students/performance')">-->
+<!--                <i class="fas fa-chart-line"></i>-->
+<!--                <span>学习表现</span>-->
+<!--              </li>-->
             </ul>
           </li>
 
@@ -119,15 +113,15 @@
             </ul>
           </li>
 
-          <li class="menu-item">
-            <div class="menu-title" :class="{active: $route.path === '/teacher/analytics'}"
-                 @click="navigateTo('/teacher/analytics')">
-              <div>
-                <i class="fas fa-chart-bar"></i>
-                <span>数据分析</span>
-              </div>
-            </div>
-          </li>
+<!--          <li class="menu-item">-->
+<!--            <div class="menu-title" :class="{active: $route.path === '/teacher/analytics'}"-->
+<!--                 @click="navigateTo('/teacher/analytics')">-->
+<!--              <div>-->
+<!--                <i class="fas fa-chart-bar"></i>-->
+<!--                <span>数据分析</span>-->
+<!--              </div>-->
+<!--            </div>-->
+<!--          </li>-->
 
           <li class="menu-item">
             <div class="menu-title" :class="{active: $route.path === '/teacher/profile'}"
@@ -182,11 +176,12 @@ const showUserMenu = ref(false)
 const teacherName = ref('老师')
 const teacherAvatarChar = computed(() => {
   const n = (teacherName.value || '').trim()
-  return n ? n.charAt(0) : '教'
+  if (!n || n === '老师') return '教'
+  return n.charAt(0)
 })
 const displayTeacherName = computed(() => {
   const n = (teacherName.value || '').trim()
-  if (!n || n === '老师' || /^\d+$/.test(n)) return '老师'
+  if (!n || n === '老师') return '老师'
   // 取第一个字符作为姓氏
   const surname = n.charAt(0)
   return `${surname}老师`
@@ -280,13 +275,15 @@ const navigateTo = (path) => {
 }
 
 onMounted(() => {
+  const isChinese = (s) => /[\u4e00-\u9fa5]/.test(String(s || ''))
   try {
     const u = JSON.parse(localStorage.getItem('userInfo') || 'null')
-    const candidate = (u && (u.name || u.username)) ? String(u.name || u.username).trim() : ''
-    if (candidate && !/^\d+$/.test(candidate)) { teacherName.value = candidate; return }
+    // 仅在拿到中文姓名时启用，避免使用 username 导致显示 a老师
+    const candidate = (u && (u.name || (u.profile && u.profile.name))) ? String(u.name || u.profile.name).trim() : ''
+    if (candidate && isChinese(candidate)) { teacherName.value = candidate; return }
   } catch {}
-  const fallback = localStorage.getItem('userName') || ''
-  teacherName.value = (fallback && !/^\d+$/.test(fallback)) ? fallback : '老师'
+  // 默认只显示“老师”，待拿到中文姓名后再切换为“姓氏+老师”
+  teacherName.value = '老师'
 })
 
 // 根据当前路由自动展开对应的子菜单

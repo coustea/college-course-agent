@@ -8,7 +8,6 @@
       <el-form :model="course" label-width="120px">
         <el-form-item label="课程名称"><el-input v-model="course.courseName" placeholder="请输入课程名称" /></el-form-item>
         <el-form-item label="课程描述"><el-input v-model="course.description" type="textarea" :rows="3" placeholder="请输入课程描述" /></el-form-item>
-        <el-form-item label="封面/资源URL"><el-input v-model="course.resourceUrl" placeholder="/uploads/... 或 http(s)://..." /></el-form-item>
         <el-form-item label="更换封面">
           <input type="file" accept="image/*" @change="onCourseImageChange" />
           <img v-if="imagePreview" :src="imagePreview" alt="预览" class="avatar" />

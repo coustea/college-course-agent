@@ -310,7 +310,7 @@ function handleFileChange(file, fileList) {
   for (const f of fileList) {
     if (validateSingleFile(f)) passed.push(f)
   }
-  // 数量限制
+
   const limit = Number(requirements.value.maxFiles || 0)
   submissionForm.value.files = limit > 0 ? passed.slice(0, limit) : passed
 }
@@ -523,7 +523,7 @@ function submitWork() {
   submitting.value = true;
   (async () => {
     try {
-      // 暂无提交接口：仅做前端占位提示
+
       console.log('提交参数占位:', {
         files: submissionForm.value.files,
         assignmentId: currentAssignment.value?.id,

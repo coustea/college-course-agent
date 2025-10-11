@@ -1,10 +1,6 @@
 import axios from "axios"
-// import {getCurrentInstance} from "vue";
-// import {getCurrentInstance} from "vue";
 
-const BASE = 'http://192.168.1.100:9999'
-// const { proxy } = getCurrentInstance()
-// const BASE_URL = proxy.$baseUrl
+const BASE = 'http://39.96.172.21:9999'
 const http = axios.create({
     baseURL: BASE,
     timeout: 15000

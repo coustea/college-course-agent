@@ -101,45 +101,6 @@
         </el-table>
       </div>
 
-      <!-- 个人提交列表 -->
-      <div class="groups-list" style="margin-top:24px;">
-        <h3>个人提交情况</h3>
-        <el-table :data="personalSubmissions" style="width: 100%" stripe>
-          <el-table-column prop="studentId" label="学生ID" width="120" align="center" />
-          <el-table-column prop="submittedAt" label="提交时间" width="180" align="center">
-            <template #default="scope">
-              {{ scope.row.submittedAt ? formatDateTime(scope.row.submittedAt) : '未提交' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="status" label="提交状态" width="120" align="center">
-            <template #default="scope">
-              <el-tag :type="scope.row.status === 'submitted' ? 'success' : (scope.row.status === 'graded' ? 'primary' : 'info')">
-                {{ scope.row.status || '—' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="score" label="评分" width="100" align="center">
-            <template #default="scope">
-              {{ scope.row.score != null ? scope.row.score : '未评分' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="附件" min-width="240" align="left">
-            <template #default="scope">
-              <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                <el-tag v-for="(f,idx) in scope.row.files" :key="idx" size="small" type="info">
-                  <a :href="normalizeFileUrl(f.url)" target="_blank" style="text-decoration:none;color:inherit;">{{ f.name }}</a>
-                </el-tag>
-                <span v-if="!scope.row.files || scope.row.files.length === 0">—</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="140" align="center">
-            <template #default="scope">
-              <el-button size="small" @click="viewPersonalDetails(scope.row)">查看详情</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
 
       <!-- 检查详情对话框 -->
       <el-dialog
@@ -477,11 +438,9 @@ const fetchAssignment = async () => {
 
 // 拉取分组列表（按课程）
 const fetchGroups = async () => {
-  if (!currentCourseId.value) { groups.value = []; totalGroups.value = 0; submittedCount.value = 0; return }
   try {
-    const params = { courseId: currentCourseId.value }
-    // 后端该接口为 POST，直接使用 POST 以避免 405
-    const resp = await api.post('/student-group/approvalStatus', params)
+    // 拉取全部分组（后端暂未提供按课程筛选）
+    const resp = await api.get('/student-group')
     const raw = resp?.data
     const list = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : [])
     const normalized = list.map(g => {
@@ -489,14 +448,14 @@ const fetchGroups = async () => {
       const name = g.name || g.groupName || `分组#${id ?? ''}`
       const gmRaw = Array.isArray(g.groupMemberList) ? g.groupMemberList : (Array.isArray(g.memberList) ? g.memberList : [])
       const members = (gmRaw.length > 0 ? gmRaw.map(m => m.studentName || m.name || m.username || '') : []).filter(Boolean)
-      const leader = gmRaw.find(m => m.role === 'leader')
+      const leader = gmRaw.find(m => (m.role === 'leader' || m.role === 'LEADER'))
       const leaderName = g.leaderName || (leader?.name) || (leader?.studentName) || '未知'
       return {
         id,
         groupName: name,
         leaderName,
         members,
-        submitTime: null,      // 尚未接入分组提交接口，先置空
+        submitTime: null,
         status: '未提交',
         checkStatus: '未提交',
         score: null,
@@ -514,9 +473,49 @@ const fetchGroups = async () => {
   }
 }
 
+// 拉取小组提交并融合到 groups
+const fetchGroupSubmissions = async () => {
+  try {
+    const resp = await api.get(`/submission/${assignmentId}`)
+    const raw = resp?.data
+    const list = Array.isArray(raw?.data) ? raw.data : []
+    // 以 group_id 对齐
+    const map = new Map()
+    list.forEach(s => {
+      const gid = s.groupId || s.group_id
+      if (!gid) return
+      map.set(Number(gid), s)
+    })
+    groups.value = (groups.value || []).map(g => {
+      const s = map.get(Number(g.id))
+      if (!s) return g
+      let attachments = []
+      try {
+        if (s.submissionFiles) {
+          const arr = JSON.parse(s.submissionFiles)
+          if (Array.isArray(arr)) attachments = arr.map((p) => ({ name: (p.name || String(p).split('/').pop()), url: (p.url || p) }))
+        }
+      } catch {}
+      return {
+        ...g,
+        submitTime: s.submittedAt || s.submitted_at || g.submitTime,
+        status: '已提交',
+        checkStatus: g.checkStatus === '已检查' ? '已检查' : '待检查',
+        content: s.submissionContent || s.submission_content || g.content,
+        attachments
+      }
+    })
+    submittedCount.value = groups.value.filter(x => !!x.submitTime).length
+  } catch (e) {
+    // 忽略错误，保持现状
+  }
+}
+
 onMounted(async () => {
   await fetchAssignment()
   await fetchGroups()
+  // 结合后端小组提交列表，填充每个分组的提交状态
+  await fetchGroupSubmissions()
   // 拉取个人提交
   try {
     const res = await api.get('/personal-submission/by-assignment', { params: { assignmentId }, headers: {} })
