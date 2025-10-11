@@ -31,7 +31,6 @@
     <update id="updateById">
         UPDATE teachers
         <set>
-            <if test="employeeNumber != null">employee_number = #{employeeNumber},</if>
             <if test="name != null">name = #{name},</if>
             <if test="email != null">email = #{email},</if>
             <if test="phone != null">phone = #{phone},</if>
