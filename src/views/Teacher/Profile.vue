@@ -19,16 +19,16 @@
 
         <div class="profile-info">
           <div class="avatar-section">
-            <el-avatar :size="100" :src="teacherInfo.avatar" class="profile-avatar">
-              {{ teacherInfo.name ? teacherInfo.name.charAt(0) : '' }}
-            </el-avatar>
-            <div class="avatar-actions">
-              <el-upload action="#" :show-file-list="false" :before-upload="beforeAvatarUpload"
-                         :http-request="handleAvatarUpload">
-                <el-button type="primary" link>更换头像</el-button>
-              </el-upload>
-            </div>
+          <el-avatar :size="100" :src="teacherInfo.avatar" class="profile-avatar">
+            {{ teacherInfo.name?.substring(0, 1) ||  '' }}
+          </el-avatar>
+          <div class="avatar-actions">
+            <el-upload action="#" :show-file-list="false" :before-upload="beforeAvatarUpload"
+                       :http-request="handleAvatarUpload">
+              <el-button type="primary" link>更换头像</el-button>
+            </el-upload>
           </div>
+        </div>
 
           <div class="info-details">
             <div class="info-grid">
@@ -37,16 +37,16 @@
                 <span>{{ teacherInfo.name || '未设置' }}</span>
               </div>
               <div class="info-item">
-                <label>工号</label>
-                <span>{{ teacherInfo.employee_number || teacherInfo.employeeNumber || '未设置' }}</span>
-              </div>
-              <div class="info-item">
                 <label>学院</label>
                 <span>{{ teacherInfo.department || '未设置' }}</span>
               </div>
               <div class="info-item">
                 <label>职称</label>
                 <span>{{ teacherInfo.title || '未设置' }}</span>
+              </div>
+              <div class="info-item">
+                <label>职务</label>
+                <span>{{ teacherInfo.position || '未设置' }}</span>
               </div>
               <div class="info-item">
                 <label>邮箱</label>
@@ -102,14 +102,30 @@
 
         <el-form-item label="职称" prop="title" :rules="[{ required: true, message: '请选择职称', trigger: 'change' }]">
           <el-select v-model="editForm.title" placeholder="请选择职称">
-            <el-option label="院长" value="院长" />
-            <el-option label="副院长" value="副院长" />
             <el-option label="教授" value="教授" />
             <el-option label="副教授" value="副教授" />
             <el-option label="讲师" value="讲师" />
             <el-option label="助教" value="助教" />
+            <el-option label="研究员" value="研究员" />
+            <el-option label="副研究员" value="副研究员" />
+            <el-option label="实验师" value="实验师" />
           </el-select>
         </el-form-item>
+
+        <el-form-item label="职务" prop="position" :rules="[{ required: true, message: '请选择职务', trigger: 'change' }]">
+          <el-select v-model="editForm.position" placeholder="请选择职务">
+            <el-option label="院长" value="院长" />
+            <el-option label="副院长" value="副院长" />
+            <el-option label="系主任" value="系主任" />
+            <el-option label="教研室主任" value="教研室主任" />
+            <el-option label="行政助理" value="行政助理" />
+            <el-option label="班主任" value="班主任" />
+            <el-option label="无职务" value="无职务" />
+          </el-select>
+        </el-form-item>
+
+
+
 
         <el-form-item label="邮箱" prop="email" :rules="[
           { required: true, message: '请输入邮箱', trigger: 'blur' },
@@ -173,16 +189,6 @@ import axios from 'axios'
 const { proxy } = getCurrentInstance()
 const BASE_URL = proxy.$baseUrl
 
-// 动态后端基址（使用 Vite 代理以避免本地开发 CORS）
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
-// axios 实例（附加 token）
-const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
-  if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
-  return config
-})
-
 // 教师信息
 const teacherInfo = ref({})
 
@@ -226,52 +232,86 @@ const passwordRules = {
   ]
 }
 
-// 获取教师ID（优先登录信息）
-const teacherId = computed(() => {
-  try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) return Number(u.id) } catch (e) { console.error(e) }
-  const id = localStorage.getItem('userId')
-  return id ? Number(id) : null
-})
 
-// 获取教师信息（强匹配后端：优先 id -> username -> employeeNumber；命中后覆盖本地）
+
+// 获取教师ID（优先登录信息）
+const teacherId = localStorage.getItem('userId') || null
+
+// 获取教师信息（通过后端接口）
 const fetchTeacherData = async () => {
   try {
-    // 读取本地登录信息用于匹配键
-    let local = null
-    try { local = JSON.parse(localStorage.getItem('userInfo') || 'null') } catch (e) { console.error(e) }
-    const localId = Number(local?.id) || null
-    const localUsername = local?.username || null
-    const localEmpNo = local?.employeeNumber || local?.employee_number || null
-
-    const res = await api.get('/teacher/list/teachers')
-    const list = Array.isArray(res?.data?.data) ? res.data.data : []
-
-    // 多重匹配：id -> username -> employeeNumber -> teacherId 计算值 -> 首个
-    let found = null
-    if (localId) found = list.find(t => Number(t?.id) === localId) || null
-    if (!found && localUsername) found = list.find(t => (t?.username || '').toString() === localUsername) || null
-    if (!found && localEmpNo) found = list.find(t => (t?.employeeNumber || t?.employee_number || '').toString() === localEmpNo) || null
-    if (!found && teacherId.value) found = list.find(t => Number(t?.id) === Number(teacherId.value)) || null
-    if (!found && list.length) found = list[0]
-
-    if (found) {
-      const mapped = { ...found }
-      if (mapped.employee_number && !mapped.employeeNumber) mapped.employeeNumber = mapped.employee_number
-      teacherInfo.value = mapped
-      try { localStorage.setItem('userInfo', JSON.stringify(mapped)) } catch (e) { console.error(e) }
+    // 获取教师ID
+    const id = localStorage.getItem('userId') || null
+    if (!id) {
+      ElMessage.error('未找到有效的教师ID')
       return
     }
 
-    // 后端未返回任何教师时，回退到本地
-    if (local && typeof local === 'object') {
-      const mapped = { ...local }
-      if (mapped.employee_number && !mapped.employeeNumber) mapped.employeeNumber = mapped.employee_number
-      teacherInfo.value = mapped
+    // 调用后端接口获取教师信息
+    const res = await axios.get(`${BASE_URL}/teacher/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+
+    if (res.data.code === 200 && res.data.data) {
+      const teacher = res.data.data
+      teacherInfo.value = teacher
+
+      // 更新本地存储的用户信息
+      try {
+        localStorage.setItem('userInfo', JSON.stringify(teacher))
+      } catch (e) {
+        console.error('更新本地存储失败:', e)
+      }
+    } else {
+      ElMessage.error(res.data.message || '获取教师信息失败')
     }
   } catch (error) {
     console.error('获取教师数据失败:', error)
+    ElMessage.error(error.response?.data?.message || '获取教师信息失败')
   }
 }
+
+// // 获取教师信息（强匹配后端：优先 id -> username -> employeeNumber；命中后覆盖本地）
+// const fetchTeacherData = async () => {
+//   try {
+//     // 读取本地登录信息用于匹配键
+//     let local = null
+//     try { local = JSON.parse(localStorage.getItem('userInfo') || 'null') } catch (e) { console.error(e) }
+//     const localId = Number(local?.id) || null
+//     const localUsername = local?.username || null
+//
+//     const res = await axios.get('/teacher/list/teachers')
+//     const list = Array.isArray(res?.data?.data) ? res.data.data : []
+//
+//     // 多重匹配：id -> username -> employeeNumber -> teacherId 计算值 -> 首个
+//     let found = null
+//     if (localId) found = list.find(t => Number(t?.id) === localId) || null
+//     if (!found && localUsername) found = list.find(t => (t?.username || '').toString() === localUsername) || null
+//     if (!found && localEmpNo) found = list.find(t => (t?.employeeNumber || t?.employee_number || '').toString() === localEmpNo) || null
+//     if (!found && teacherId.value) found = list.find(t => Number(t?.id) === Number(teacherId.value)) || null
+//     if (!found && list.length) found = list[0]
+//
+//     if (found) {
+//       const mapped = { ...found }
+//       if (mapped.employee_number && !mapped.employeeNumber) mapped.employeeNumber = mapped.employee_number
+//       teacherInfo.value = mapped
+//       try { localStorage.setItem('userInfo', JSON.stringify(mapped)) } catch (e) { console.error(e) }
+//       return
+//     }
+//
+//     // 后端未返回任何教师时，回退到本地
+//     if (local && typeof local === 'object') {
+//       const mapped = { ...local }
+//       if (mapped.employee_number && !mapped.employeeNumber) mapped.employeeNumber = mapped.employee_number
+//       teacherInfo.value = mapped
+//     }
+//   } catch (error) {
+//     console.error('获取教师数据失败:', error)
+//   }
+// }
 
 // 初始化编辑表单
 const initEditForm = () => {
@@ -287,29 +327,23 @@ const saveProfile = async () => {
     await editFormRef.value.validate()
 
     // 使用更可靠的教师ID来源
-    const id = teacherId.value
+    const id = teacherId
     if (!id) {
       ElMessage.error('未找到有效的教师ID')
       return
     }
-
+    console.log('保存个人信息:', editForm)
     // 发送更新请求，修复了多余的空对象参数
-    await axios.put(`${BASE_URL}/teacher/update/teacher/${id}`, editForm
+    const res = await axios.put(`${BASE_URL}/teacher/update/teacher/${id}`, editForm
         ,{
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
     })
-
+    console.log("一调用后端接口更新教师信息:", res)
     // 更新教师信息
     teacherInfo.value = { ...teacherInfo.value, ...editForm }
 
-    // 更新本地存储的用户信息
-    try {
-      localStorage.setItem('userInfo', JSON.stringify(teacherInfo.value))
-    } catch (e) {
-      console.error('更新本地存储失败:', e)
-    }
 
     editDialogVisible.value = false
     ElMessage.success('个人信息更新成功')
@@ -350,11 +384,11 @@ const changePassword = async () => {
     // 获取用户ID（优先 userId，其次 teacherId）
     let uid = null
     try { const u = localStorage.getItem('userId'); if (u) uid = Number(u) } catch {}
-    if (!uid && teacherId.value) uid = Number(teacherId.value)
+    if (!uid && teacherId) uid = Number(teacherId)
     if (!uid) { ElMessage.error('未获取到用户ID'); return }
 
     const payload = { id: uid, password: passwordForm.newPassword }
-    const res = await api.put(`/user/${uid}`, payload)
+    const res = await axios.put(`/user/${uid}`, payload)
     const ok = (res?.data?.code ? Number(res.data.code) === 200 : true)
     if (ok) {
       ElMessage.success('密码修改成功')
