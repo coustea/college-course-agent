@@ -17,7 +17,7 @@ public class GroupMember {
     public enum Status{
         // 待审核，审核通过，审核拒绝
         pending,
-        approved,
+        approval,
         rejected
     }
     private Long id;            // 成员记录ID

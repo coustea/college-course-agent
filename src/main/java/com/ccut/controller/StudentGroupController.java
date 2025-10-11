@@ -113,7 +113,7 @@ public class StudentGroupController {
                     leader.getName(),
                     leader.getClassName(),
                     GroupMember.GroupMemberRole.leader,
-                    GroupMember.Status.approved
+                    GroupMember.Status.approval
             );
             int leaderInsert = groupMemberService.insertMember(leaderMember);
             if (leaderInsert <= 0) {
@@ -143,7 +143,7 @@ public class StudentGroupController {
                         member.getName(),
                         member.getClassName(),
                         GroupMember.GroupMemberRole.member,
-                        GroupMember.Status.approved
+                        GroupMember.Status.approval
                 );
                 int memberInsert = groupMemberService.insertMember(memberEntry);
                 if (memberInsert <= 0) {

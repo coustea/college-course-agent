@@ -20,7 +20,7 @@ public class StudentGroup {
     // === 审批状态枚举 ===
     public enum GroupApprovalStatus {
         pending,   // 待审核
-        approved,  // 审核通过
+        approval,  // 审核通过
         rejected   // 审核拒绝
     }
 

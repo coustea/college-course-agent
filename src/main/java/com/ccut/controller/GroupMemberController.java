@@ -44,7 +44,7 @@ public class GroupMemberController {
             groupMember.setRole(GroupMember.GroupMemberRole.member);
         }
         if (groupMember.getJoinStatus() == null) {
-            groupMember.setJoinStatus(GroupMember.Status.approved);
+            groupMember.setJoinStatus(GroupMember.Status.approval);
         }
         Student student = studentService.selectById(groupMember.getStudentId());
         if(student == null){
