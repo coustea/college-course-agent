@@ -3,16 +3,17 @@
 <mapper namespace="com.ccut.mapper.TeacherAssignmentMapper">
     <insert id="insert" useGeneratedKeys="true" keyProperty="assignmentId">
         INSERT INTO teacher_assignments
-        (teacher_id, assignment_name, description,
+        (teacher_id, teacher_name,assignment_name, description,
          requirements, due_date, attachment_files, created_at)
         VALUES
-        (#{teacherId}, #{assignmentName}, #{description},
+        (#{teacherId}, #{teacherName}, #{assignmentName}, #{description},
          #{requirements}, #{dueDate}, #{attachmentFiles},CURRENT_TIMESTAMP)
     </insert>
     <update id="update">
         UPDATE teacher_assignments
         <set>
             <if test="teacherId != null">teacher_id = #{teacherId},</if>
+            <if test="teacherName != null">teacher_name = #{teacherName}</if>
             <if test="assignmentName != null">assignment_name = #{assignmentName},</if>
             <if test="description != null">description = #{description},</if>
             <if test="requirements != null">requirements = #{requirements},</if>
@@ -29,6 +30,7 @@
     <resultMap id="teacherAssignmentsRM" type="com.ccut.entity.TeacherAssignment">
         <id column="assignment_id" property="assignmentId" />
         <result column="teacher_id" property="teacherId" />
+        <result column="teacher_name" property="teacherName" />
         <result column="assignment_name" property="assignmentName" />
         <result column="description" property="description" />
         <result column="requirements" property="requirements" />

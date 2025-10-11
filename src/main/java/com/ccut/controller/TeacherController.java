@@ -61,8 +61,6 @@ public class TeacherController {
         }
     }
 
-
-
     @PostMapping("/insert/teacher")
     public Result<Teacher> insertTeacher(@RequestBody Teacher teacher){
         try {

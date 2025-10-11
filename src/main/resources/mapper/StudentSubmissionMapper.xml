@@ -4,12 +4,20 @@
     <insert id="insert">
     INSERT INTO student_submissions
     <trim prefix="(" suffix=")" suffixOverrides=",">
+        <if test="submissionId != null">
+            submission_id,
+        </if>
         <if test="assignmentId != null">
             assignment_id,
         </if>
-
-        <if test="studentId != null">
-            student_id,
+        <if test="groupId != null">
+            group_id,
+        </if>
+        <if test="submittedBy != null">
+            submitted_by,
+        </if>
+        <if test="className != null and className != ''">
+            class_name,
         </if>
         <if test="submissionContent != null and submissionContent != ''">
             submission_content,
@@ -17,16 +25,30 @@
         <if test="submissionFiles != null and submissionFiles != ''">
             submission_files,
         </if>
-
-        created_at
+        <if test="submittedAt != null">
+            submitted_at,
+        </if>
+        <if test="status != null">
+            status,
+        </if>
+        created_at,
+        updated_at
     </trim>
     <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+        <if test="submissionId != null">
+            #{submissionId},
+        </if>
         <if test="assignmentId != null">
             #{assignmentId},
         </if>
-
-        <if test="studentId != null">
-            #{studentId},
+        <if test="groupId != null">
+            #{groupId},
+        </if>
+        <if test="submittedBy != null">
+            #{submittedBy},
+        </if>
+        <if test="className != null and className != ''">
+            #{className},
         </if>
         <if test="submissionContent != null and submissionContent != ''">
             #{submissionContent},
@@ -34,10 +56,13 @@
         <if test="submissionFiles != null and submissionFiles != ''">
             #{submissionFiles},
         </if>
-
         <if test="submittedAt != null">
             #{submittedAt},
         </if>
+        <if test="status != null">
+            #{status},
+        </if>
+        CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
     </trim>
 </insert>
@@ -46,7 +71,7 @@
 		<id property="submissionId" column="submission_id"/>
 		<result property="assignmentId" column="assignment_id"/>
 		<result property="groupId" column="group_id"/>
-		<result property="studentId" column="submitted_by"/>
+		<result property="submittedBy" column="submitted_by"/>
 		<result property="submissionContent" column="submission_content"/>
 		<result property="submissionFiles" column="submission_files"/>
 		<result property="submittedAt" column="submitted_at"/>
@@ -66,5 +91,14 @@
 	<select id="selectByGroupId" resultMap="StudentSubmissionRM">
 		SELECT * FROM student_submissions WHERE group_id = #{groupId} ORDER BY submitted_at DESC
 	</select>
+
+    <select id="selectByAssignmentIdAndGroupId" resultType="com.ccut.entity.StudentSubmission">
+        SELECT * FROM student_submissions
+        WHERE assignment_id = #{assignmentId} AND group_id = #{groupId}
+    </select>
+    <select id="selectAll" resultType="com.ccut.entity.StudentSubmission">
+        SELECT * FROM student_submissions
+        ORDER BY created_at DESC
+    </select>
 
 </mapper>
