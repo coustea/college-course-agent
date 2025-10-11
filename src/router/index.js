@@ -20,8 +20,22 @@ const studentRoutes = [
         component: () => import('../views/student/LearningData.vue'),
         meta: {title: '学习数据'}
     },
-    {path: '/group', name: 'Groups', component: () => import('../views/student/Groups.vue'), meta: {title: '学习小组'}},
-    {path: '/work', name: 'Work', component: () => import('../views/student/Work.vue'), meta: {title: '作品/作业'}},
+    {
+        path: '/group',
+        name: 'Groups',
+        component: () => import('../views/student/Groups.vue'),
+        meta: {title: '学习小组'},
+        children: [
+          { path: '', redirect: 'build' },
+          { path: 'build', name: 'GroupBuild', component: () => import('../views/student/Group/BuildGroup.vue'), meta: { title: '新建小组' } },
+          { path: 'mine', name: 'GroupMine', component: () => import('../views/student/Group/MyGroup.vue'), meta: { title: '我的小组' } },
+        ]
+    },
+    {
+        path: '/work',
+        name: 'Work',
+        component: () => import('../views/student/Work.vue'),
+        meta: {title: '作品/作业'}},
     {
         path: '/profile',
         name: 'Profile',

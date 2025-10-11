@@ -12,13 +12,13 @@
           <el-table-column prop="course" label="课程" min-width="180" />
           <el-table-column prop="deadline" label="截止时间" width="180" />
           <el-table-column prop="teacher" label="发布教师" width="140" />
-          <el-table-column label="操作" width="160" align="center">
+          <el-table-column label="操作" width="200" align="center">
             <template #default="{ row }">
               <template v-if="getRowScore(row) != null">
                 <span style="color:#16a34a;font-weight:600;">成绩：{{ getRowScore(row) }}分</span>
               </template>
               <template v-else-if="isRowSubmitted(row)">
-                <span style="color:#b45309;">等待教师批阅</span>
+                <el-button type="warning" size="small" @click="openEdit(row)">修改</el-button>
               </template>
               <template v-else>
                 <el-button type="primary" size="small" @click="openDetail(row)">查看详情</el-button>
@@ -34,7 +34,6 @@
         <el-card class="detail-card" shadow="never" style="margin-top: 12px">
           <el-descriptions :column="2" border>
             <el-descriptions-item label="作业标题">{{ currentAssignment?.title || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="课程">{{ currentAssignment?.course || '-' }}</el-descriptions-item>
             <el-descriptions-item label="截止时间">{{ currentAssignment?.deadline || '-' }}</el-descriptions-item>
             <el-descriptions-item label="发布教师">{{ currentAssignment?.teacher || '-' }}</el-descriptions-item>
             <el-descriptions-item label="说明" :span="2">{{ currentAssignment?.description || '—' }}</el-descriptions-item>
@@ -104,14 +103,20 @@
           <div>作品要求：</div>
           <ul>
             <li v-if="requirements.titleRequired">需要填写作品标题</li>
-            <li v-if="requirements.descriptionRequired">需要填写作品描述<span v-if="requirements.descriptionMaxLen">（不超过 {{ requirements.descriptionMaxLen }} 字）</span></li>
+            <li v-if="requirements.descriptionRequired">需要填写作品描述<span v-if="requirements.descriptionMaxLen">（不超过 {{
+                requirements.descriptionMaxLen
+              }} 字）</span></li>
             <li v-if="requirements.maxFiles">最多上传 {{ requirements.maxFiles }} 个文件</li>
             <li v-if="requirements.maxFileSizeMB">单个文件不超过 {{ requirements.maxFileSizeMB }}MB</li>
             <li v-if="(requirements.allowedExtensions && requirements.allowedExtensions.length)
                        || (requirements.allowedMimeTypes && requirements.allowedMimeTypes.length)">
               允许的类型：
-              <span v-if="requirements.allowedExtensions && requirements.allowedExtensions.length">{{ requirements.allowedExtensions.join(', ') }}</span>
-              <span v-if="requirements.allowedMimeTypes && requirements.allowedMimeTypes.length">（{{ requirements.allowedMimeTypes.join(', ') }}）</span>
+              <span v-if="requirements.allowedExtensions && requirements.allowedExtensions.length">{{
+                  requirements.allowedExtensions.join(', ')
+                }}</span>
+              <span v-if="requirements.allowedMimeTypes && requirements.allowedMimeTypes.length">（{{
+                  requirements.allowedMimeTypes.join(', ')
+                }}）</span>
             </li>
             <li v-if="requirements.extraNotes">{{ requirements.extraNotes }}</li>
           </ul>
@@ -120,7 +125,10 @@
           <div class="deadline-text">{{ deadlineText }}</div>
           <el-tooltip :disabled="canSubmitWork" content="仅组长可提交" placement="top">
             <span>
-              <el-button type="primary" :disabled="!canSubmitWork" :loading="submitting" @click="submitWork">提交作品</el-button>
+              <el-button type="primary" :disabled="!canSubmitWork" :loading="submitting"
+                         @click="isEditing ? submitWorkUpdate() : submitWork()">
+                {{ isEditing ? '提交修改' : '提交作品' }}
+              </el-button>
             </span>
           </el-tooltip>
         </div>
@@ -133,7 +141,7 @@
 import { ref, onMounted, computed,getCurrentInstance} from 'vue'
 import { ElMessage } from 'element-plus'
 import { getWorkSidebarStatus } from '@/services/workApi'
-import axios from "axios";
+import axios from "axios"
 
 const { proxy } = getCurrentInstance()
 const BASE_URL = proxy.$baseUrl
@@ -141,6 +149,7 @@ const BASE_URL = proxy.$baseUrl
 const mode = ref('list')
 const assignments = ref([])
 const currentAssignment = ref(null)
+const isEditing = ref(false)
 
 const submissionForm = ref({
   title: '',
@@ -152,6 +161,7 @@ const GROUP_STATUS_KEY = 'student_group_status'
 const GROUP_INFO_KEY = 'student_group_info'
 const groupStatus = ref('none') 
 const groupInfo = ref(null)
+const groupId = ref(null)
 // 组队与角色
 const currentUserName = computed(() => {
   try { return localStorage.getItem('studentName') || '' } catch { return '' }
@@ -168,8 +178,47 @@ const canSubmitWork = computed(() => {
 })
 const SUBMIT_STATE_KEY = 'assignment_submission_state_v1'
 const GRADES_STATE_KEY = 'assignment_grades_state_v1'
-function readJson(key, def = {}) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def } catch { return def } }
-function writeJson(key, val) { try { localStorage.setItem(key, JSON.stringify(val)) } catch {} }
+
+async function getGroupInfo() {
+  try {
+    const res = await axios.post(
+      `${BASE_URL}/groupMember/getById`,
+      { studentId: localStorage.getItem('userId') }, // 将userId作为对象传递
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        }
+      }
+    );
+
+    console.log(res.data);  // 打印返回结果
+    if (res.data.code === 200){
+      groupId.value = res.data.data.groupId;
+      console.log("groupId:", groupId.value)
+    }
+    return res.data;
+  } catch (err) {
+    console.error("获取小组信息失败：", err);
+  }
+}
+
+
+function readJson(key, def = {}) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : def
+  } catch {
+    return def
+  }
+}
+
+function writeJson(key, val) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val))
+  } catch {
+  }
+}
 
 const deadlineText = ref('截止时间：2025-12-31 23:59')
 const submitting = ref(false)
@@ -215,7 +264,7 @@ const accept = computed(() => {
 
 onMounted(async () => {
   try {
-    
+    await getGroupInfo()
     const data = await getTeachAssignments()
     console.log(data)
     if (data?.code === 200 && Array.isArray(data?.data) && data.data.length > 0) {
@@ -282,7 +331,8 @@ function onGroupUpdated(e) {
     if (typeof detail.status === 'string') groupStatus.value = detail.status
     if (detail.info && typeof detail.info === 'object') groupInfo.value = detail.info
     if (groupStatus.value !== 'approved' && submitScope.value === 'group') submitScope.value = 'individual'
-  } catch {}
+  } catch {
+  }
 }
 
 function onStorageChanged(ev) {
@@ -452,7 +502,7 @@ function normalizeAssignments(data) {
       description: item.description || item.content || '',
       deadline: item.deadline || item.endTime || item.dueTime || item.dueDate || '',
       course: item.courseName || item.course || String(item.courseId ?? ''),
-      teacher: item.teacher || String(item.teacherId ?? ''),
+      teacher: item.teacherName || item.teacher || String(item.teacherId ?? ''),
       attachments
     })
   }
@@ -484,24 +534,61 @@ function normalizeUrl(u) {
 function getMockAssignments() {
   const now = new Date()
   return [
-    { id: 'mock-1', title: '思想道德修养期中报告', course: '思想道德修养与法律基础', deadline: formatDateTime(addDays(now, 7)), teacher: '李老师', description: '围绕社会主义核心价值观撰写2000字分析报告，PDF提交。', attachments: [{ name: '参考模板.docx', url: '/uploads/template.docx' }] },
-    { id: 'mock-2', title: '中国近现代史人物小传', course: '中国近现代史纲要', deadline: formatDateTime(addDays(now, 10)), teacher: '王老师', description: '任选一个近现代历史人物，完成不少于1500字人物小传。' },
-    { id: 'mock-3', title: '形势与政策热点研判', course: '形势与政策', deadline: formatDateTime(addDays(now, 5)), teacher: '张老师', description: '围绕近期时政热点，完成PPT+讲稿并录制5分钟讲解视频。' },
-    { id: 'mock-4', title: '毛泽东思想读书笔记', course: '毛泽东思想和中国特色社会主义理论体系概论', deadline: formatDateTime(addDays(now, 12)), teacher: '赵老师', description: '指定篇目阅读，提交不少于8页读书笔记（图片或PDF）。' },
-    { id: 'mock-5', title: '马克思主义原理思维导图', course: '马克思主义基本原理', deadline: formatDateTime(addDays(now, 3)), teacher: '刘老师', description: '用思维导图工具梳理“实践与认识”的核心概念与关系。' }
+    {
+      id: 'mock-1',
+      title: '思想道德修养期中报告',
+      course: '思想道德修养与法律基础',
+      deadline: formatDateTime(addDays(now, 7)),
+      teacher: '李老师',
+      description: '围绕社会主义核心价值观撰写2000字分析报告，PDF提交。',
+      attachments: [{name: '参考模板.docx', url: '/uploads/template.docx'}]
+    },
+    {
+      id: 'mock-2',
+      title: '中国近现代史人物小传',
+      course: '中国近现代史纲要',
+      deadline: formatDateTime(addDays(now, 10)),
+      teacher: '王老师',
+      description: '任选一个近现代历史人物，完成不少于1500字人物小传。'
+    },
+    {
+      id: 'mock-3',
+      title: '形势与政策热点研判',
+      course: '形势与政策',
+      deadline: formatDateTime(addDays(now, 5)),
+      teacher: '张老师',
+      description: '围绕近期时政热点，完成PPT+讲稿并录制5分钟讲解视频。'
+    },
+    {
+      id: 'mock-4',
+      title: '毛泽东思想读书笔记',
+      course: '毛泽东思想和中国特色社会主义理论体系概论',
+      deadline: formatDateTime(addDays(now, 12)),
+      teacher: '赵老师',
+      description: '指定篇目阅读，提交不少于8页读书笔记（图片或PDF）。'
+    },
+    {
+      id: 'mock-5',
+      title: '马克思主义原理思维导图',
+      course: '马克思主义基本原理',
+      deadline: formatDateTime(addDays(now, 3)),
+      teacher: '刘老师',
+      description: '用思维导图工具梳理“实践与认识”的核心概念与关系。'
+    }
   ]
 }
 
 function openDetail(a) {
   currentAssignment.value = a
   mode.value = 'detail'
+  isEditing.value = false
 }
 
 function backToList() {
   mode.value = 'list'
+  isEditing.value = false
 }
-
-function submitWork() {
+async function submitWork() {
   if (requirements.value.titleRequired && !submissionForm.value.title) {
     ElMessage.error('请填写作品标题')
     return
@@ -520,39 +607,96 @@ function submitWork() {
   for (const f of submissionForm.value.files) {
     if (!validateSingleFile(f)) return
   }
-  submitting.value = true;
-  (async () => {
-    try {
+  submitting.value = true
 
-      console.log('提交参数占位:', {
-        files: submissionForm.value.files,
-        assignmentId: currentAssignment.value?.id,
-        content: submissionForm.value.description
+  try {
+    // 构建FormData对象以适配后端接口
+    const formData = new FormData()
+
+    // 添加必要参数
+    formData.append('assignmentId', currentAssignment.value?.id)
+    console.log('assignmentId:', currentAssignment.value?.id)
+    formData.append('groupId', groupId.value)
+    formData.append('studentId', localStorage.getItem('userId'))
+
+    // 添加作业内容（注意：此处改为content以匹配后端参数名）
+    if (submissionForm.value.description) {
+      formData.append('content', submissionForm.value.description)  // 修改这里
+    }
+
+    // 添加文件
+    if (submissionForm.value.files && submissionForm.value.files.length > 0) {
+      submissionForm.value.files.forEach(file => {
+        formData.append('files', file.raw || file) // 兼容不同格式
       })
-      ElMessage.info('提交接口待接入，已记录表单参数')
+    }
+
+    // 调用后端上传接口
+    const response = await axios.post(`${BASE_URL}/submission/upload`, formData, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+
+    if (response.data.code === 200) {
+      ElMessage.success('提交成功')
+
       // 记录提交状态并广播
       const id = currentAssignment.value?.id
       if (id) {
+        const payload = {
+          title: submissionForm.value.title,
+          description: submissionForm.value.description,
+          files: submissionForm.value.files
+        }
         const state = readJson(SUBMIT_STATE_KEY, {})
-        state[id] = { status: 'submitted', by: String(currentUserName.value || ''), at: Date.now() }
+        state[id] = {status: 'submitted', by: String(currentUserName.value || ''), at: Date.now(), lastPayload: payload}
         writeJson(SUBMIT_STATE_KEY, state)
         submissionState.value = state
-        try { window.dispatchEvent(new StorageEvent('storage', { key: SUBMIT_STATE_KEY })) } catch {}
+        window.dispatchEvent(new StorageEvent('storage', {key: SUBMIT_STATE_KEY}))
       }
+
       // 返回列表
       backToList()
-      submissionForm.value = { title: '', description: '', files: [] }
+      submissionForm.value = {title: '', description: '', files: []}
+
       try {
-        const data = await getWorkSidebarStatus()
+        const data = getWorkSidebarStatus()
         localStorage.setItem('work_sidebar_status', JSON.stringify(data || {}))
-        window.dispatchEvent(new CustomEvent('work-sidebar-updated', { detail: data || {} }))
-      } catch (e) { console.error(e) }
-    } catch (e) {
-      ElMessage.error('提交失败，请稍后重试')
-    } finally {
-      submitting.value = false
+        window.dispatchEvent(new CustomEvent('work-sidebar-updated', {detail: data || {}}))
+      } catch (e) {
+        console.error(e)
+      }
+    } else {
+      ElMessage.error(response.data.msg || '提交失败')
     }
-  })()
+  } catch (e) {
+    ElMessage.error('提交失败，请稍后重试: ' + (e.response?.data?.msg || e.message))
+  } finally {
+    submitting.value = false
+  }
+}
+
+
+
+function openEdit(row) {
+  openDetail(row)
+  isEditing.value = true
+  try {
+    const state = readJson(SUBMIT_STATE_KEY, {})
+    const id = row?.id
+    const last = id ? state[id]?.lastPayload : null
+    if (last && typeof last === 'object') {
+      submissionForm.value.title = last.title || ''
+      submissionForm.value.description = last.description || ''
+      submissionForm.value.files = Array.isArray(last.files) ? last.files : []
+    }
+  } catch {}
+}
+
+function submitWorkUpdate() {
+  submitWork()
 }
 </script>
 
