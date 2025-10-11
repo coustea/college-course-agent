@@ -41,7 +41,6 @@
           </div>
           <div class="teacher-actions" @click.stop>
             <button class="btn-secondary" @click.stop="openStudentManager(course)">学生管理</button>
-            <button class="btn-secondary" @click.stop="editCourse(course)">修改课程</button>
             <button class="btn-primary" @click.stop="editCourseMaterials(course)">编辑课程内容</button>
             <button class="btn-danger" @click.stop="deleteCourse(course)">删除课程</button>
           </div>
