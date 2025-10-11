@@ -387,8 +387,10 @@ const changePassword = async () => {
     if (!uid && teacherId) uid = Number(teacherId)
     if (!uid) { ElMessage.error('未获取到用户ID'); return }
 
-    const payload = { id: uid, password: passwordForm.newPassword }
-    const res = await axios.put(`/user/${uid}`, payload)
+  const payload = { id: uid, password: passwordForm.newPassword }
+  const base = import.meta?.env?.VITE_API_BASE_URL || '/api'
+  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+  const res = await axios.put(`${base}/user/${uid}`, payload, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
     const ok = (res?.data?.code ? Number(res.data.code) === 200 : true)
     if (ok) {
       ElMessage.success('密码修改成功')
