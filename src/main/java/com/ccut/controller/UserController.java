@@ -148,8 +148,9 @@ public class UserController {
                 student.setPassword(studentNumber);
                 student.setStudentNumber(studentNumber);
                 student.setName(name);
-                student.setStatus(Student.Status.IN_SCHOOL);
                 student.setClassName(className);
+                student.setGroupStatus("pending");
+                student.setStatus(Student.Status.IN_SCHOOL);
                 students.add(student);
             }
         }

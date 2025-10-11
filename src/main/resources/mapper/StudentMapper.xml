@@ -13,6 +13,7 @@
             <if test="major != null">major,</if>
             <if test="grade != null">grade,</if>
             <if test="status != null">status,</if>
+            <if test="groupStatus != null">group_status,</if>
         </trim>
         ) VALUES (
         <trim suffixOverrides=",">
@@ -25,6 +26,7 @@
             <if test="major != null">#{major},</if>
             <if test="grade != null">#{grade},</if>
             <if test="status != null">#{status},</if>
+            <if test="groupStatus != null">#{groupStatus},</if>
         </trim>
         )
     </insert>
@@ -40,6 +42,7 @@
             <if test="major != null">major = #{major},</if>
             <if test="grade != null">grade = #{grade},</if>
             <if test="status != null">status = #{status},</if>
+            <if test="groupStatus != null">group_status = #{groupStatus},</if>
         </set>
         WHERE id = #{id}
     </update>
@@ -54,9 +57,10 @@
         <result property="major" column="major"/>
         <result property="grade" column="grade"/>
         <result property="status" column="status"/>
+        <result property="groupStatus" column="group_status"/>
     </resultMap>
     <select id="getStudentByStudentNumber" resultMap="StudentRM">
-        SELECT id, student_number, name, email, phone, class_name, major, grade, status
+        SELECT id, student_number, name, email, phone, class_name, major, grade, status, group_status
         FROM students
         WHERE student_number = #{studentNumber}
     </select>
@@ -84,7 +88,7 @@
         ORDER BY id DESC
     </select>
     <select id="selectByClassName" resultMap="StudentRM">
-        SELECT id, student_number, name, email, phone, class_name, major, grade, status
+        SELECT id, student_number, name, email, phone, class_name, major, grade, status,group_status
         FROM students
         WHERE class_name = #{className}
 

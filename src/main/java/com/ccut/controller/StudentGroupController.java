@@ -111,6 +111,7 @@ public class StudentGroupController {
                     groupId,
                     groupLeaderId,
                     leader.getName(),
+                    leader.getClassName(),
                     GroupMember.GroupMemberRole.leader,
                     GroupMember.Status.approved
             );
@@ -118,6 +119,9 @@ public class StudentGroupController {
             if (leaderInsert <= 0) {
                 throw new RuntimeException("插入组长成员失败");
             }
+            // 更新组长状态为已加入
+            leader.setGroupStatus("approved");
+            studentService.updateById(leader);
 
             // === 5. 插入其他成员 ===
             for (Long memberId : memberIds) {
@@ -137,6 +141,7 @@ public class StudentGroupController {
                         groupId,
                         memberId,
                         member.getName(),
+                        member.getClassName(),
                         GroupMember.GroupMemberRole.member,
                         GroupMember.Status.approved
                 );
@@ -144,6 +149,9 @@ public class StudentGroupController {
                 if (memberInsert <= 0) {
                     throw new RuntimeException("插入成员失败: " + member.getName());
                 }
+                // 更新成员状态为已加入
+                member.setGroupStatus("approved");
+                studentService.updateById(member);
             }
 
             log.info("创建小组及成员成功, groupId={}", groupId);

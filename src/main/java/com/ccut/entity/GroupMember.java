@@ -36,4 +36,14 @@ public class GroupMember {
         this.role = role;
         this.joinStatus = joinStatus;
     }
+
+
+    public GroupMember(Long groupId,Long studentId, String studentName,String className, GroupMemberRole role, Status joinStatus) {
+        this.groupId = groupId;
+        this.studentId = studentId;
+        this.studentName = studentName;
+        this.className = className;
+        this.role = role;
+        this.joinStatus = joinStatus;
+    }
 }

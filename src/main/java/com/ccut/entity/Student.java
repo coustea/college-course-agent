@@ -23,4 +23,5 @@ public enum Status{
     private String major; // 专业
     private String grade; // 年级
     private Status status;// 学生状态
+    private String groupStatus;// 加入状态
 }
