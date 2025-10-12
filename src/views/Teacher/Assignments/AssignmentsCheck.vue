@@ -54,11 +54,11 @@
             <template #default="scope">
               <el-tag
                 v-for="member in scope.row.members"
-                :key="member"
+                :key="member.studentId || member.name"
                 size="small"
                 style="margin: 2px;"
               >
-                {{ member }}
+                {{ member.name || member }}
               </el-tag>
             </template>
           </el-table-column>
@@ -83,7 +83,7 @@
           </el-table-column>
           <el-table-column prop="score" label="评分" width="100" align="center">
             <template #default="scope">
-              {{ scope.row.score !== null ? scope.row.score : '未评分' }}
+              {{ scope.row.checkStatus === '已检查' ? '已评分' : '未评分' }}
             </template>
           </el-table-column>
           <el-table-column label="操作" width="300" align="center">
@@ -141,39 +141,37 @@
           </div>
 
           <div class="grading-form" style="margin-top: 20px;">
-            <h4>检查评分</h4>
-            <el-form :model="gradingForm" label-width="80px">
-              <el-form-item label="得分">
-                <el-input-number
-                  v-model="gradingForm.score"
-                  :min="0"
-                  :max="100"
-                  placeholder="请输入得分"
-                />
-                <span class="score-total">/ 100</span>
-              </el-form-item>
-              <el-form-item label="评语">
-                <el-input
-                  v-model="gradingForm.comment"
-                  type="textarea"
-                  :rows="4"
-                  placeholder="请输入评语"
-                />
-              </el-form-item>
-              <el-form-item label="检查结果">
-                <el-radio-group v-model="gradingForm.result">
-                  <el-radio label="通过">通过</el-radio>
-                  <el-radio label="需修改">需修改</el-radio>
-                  <el-radio label="不通过">不通过</el-radio>
-                </el-radio-group>
-              </el-form-item>
-            </el-form>
+            <h4>小组成员评分</h4>
+            <el-table :data="selectedGroupMembers" style="width: 100%" size="small" border>
+              <el-table-column prop="studentId" label="学生ID" width="120" align="center" />
+              <el-table-column prop="name" label="姓名" width="140" align="center" />
+              <el-table-column label="得分" width="180" align="center">
+                <template #default="scope">
+                  <el-input-number v-model="groupGrading[scope.row.studentId].score" :min="0" :max="100" />
+                </template>
+              </el-table-column>
+              <el-table-column label="等级" width="160" align="center">
+                <template #default="scope">
+                  <el-select v-model="groupGrading[scope.row.studentId].level" placeholder="选择等级" style="width: 120px">
+                    <el-option label="优秀" value="优秀" />
+                    <el-option label="良好" value="良好" />
+                    <el-option label="合格" value="合格" />
+                    <el-option label="不及格" value="不及格" />
+                  </el-select>
+                </template>
+              </el-table-column>
+              <el-table-column label="评语">
+                <template #default="scope">
+                  <el-input v-model="groupGrading[scope.row.studentId].feedback" placeholder="评语（可选）" />
+                </template>
+              </el-table-column>
+            </el-table>
           </div>
         </div>
 
         <template #footer>
           <el-button @click="detailDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitCheck">提交检查</el-button>
+          <el-button type="primary" @click="submitGroupGrades">提交评分</el-button>
         </template>
       </el-dialog>
 
@@ -266,8 +264,11 @@ const currentCourseId = ref(null)
 
 // 小组数据（动态）
 const groups = ref([])
+const groupSubmissionIdMap = ref(new Map())
 
 const selectedGroup = ref(null)
+const selectedGroupMembers = ref([])
+const groupGrading = reactive({})
 const highlightedMember = ref('')
 const detailDialogVisible = ref(false)
 
@@ -318,10 +319,15 @@ const getCheckStatusType = (status) => {
 
 const viewGroupDetails = (group) => {
   selectedGroup.value = group
-  // 初始化表单数据
-  gradingForm.score = group.score
-  gradingForm.comment = ''
-  gradingForm.result = '通过'
+  // 初始化每个成员的评分项
+  selectedGroupMembers.value = (group.members || []).map(m => (typeof m === 'string' ? { name: m, studentId: null } : m))
+  selectedGroupMembers.value.forEach(m => {
+    const sid = m.studentId
+    if (sid == null) return
+    if (!groupGrading[sid]) groupGrading[sid] = { score: null, level: '', feedback: '' }
+  })
+  // 预填已评分结果
+  tryPrefillExistingGrades()
   detailDialogVisible.value = true
 }
 
@@ -447,7 +453,12 @@ const fetchGroups = async () => {
       const id = g.id || g.groupId || g.group_id
       const name = g.name || g.groupName || `分组#${id ?? ''}`
       const gmRaw = Array.isArray(g.groupMemberList) ? g.groupMemberList : (Array.isArray(g.memberList) ? g.memberList : [])
-      const members = (gmRaw.length > 0 ? gmRaw.map(m => m.studentName || m.name || m.username || '') : []).filter(Boolean)
+      const members = (gmRaw.length > 0
+        ? gmRaw.map(m => ({
+            studentId: m.studentId || m.id || m.memberId || m.userId || null,
+            name: m.studentName || m.name || m.username || ''
+          }))
+        : []).filter(x => x.name)
       const leader = gmRaw.find(m => (m.role === 'leader' || m.role === 'LEADER'))
       const leaderName = g.leaderName || (leader?.name) || (leader?.studentName) || '未知'
       return {
@@ -486,6 +497,7 @@ const fetchGroupSubmissions = async () => {
       if (!gid) return
       map.set(Number(gid), s)
     })
+    groupSubmissionIdMap.value = map
     groups.value = (groups.value || []).map(g => {
       const s = map.get(Number(g.id))
       if (!s) return g
@@ -511,11 +523,81 @@ const fetchGroupSubmissions = async () => {
   }
 }
 
+// 拉取各小组评分，只有当存在评分时，才将检查状态标记为“已检查”，并计算显示小组分数（均分）
+const fetchGradesForGroups = async () => {
+  const entries = (groups.value || []).map(g => ({ gid: Number(g.id), sub: groupSubmissionIdMap.value.get(Number(g.id)) }))
+  const tasks = entries
+    .filter(e => e.sub && (e.sub.submissionId || e.sub.submission_id))
+    .map(async (e) => {
+      try {
+        const sid = e.sub.submissionId || e.sub.submission_id
+        const r = await api.get(`/grading/group/${sid}`)
+        const arr = Array.isArray(r?.data?.data) ? r.data.data : []
+        // 有评分即更新状态与分数
+        const scored = arr.filter(x => x && x.score != null)
+        if (scored.length > 0) {
+          const avg = Math.round(scored.reduce((s, x) => s + Number(x.score || 0), 0) / scored.length)
+          const idx = groups.value.findIndex(g => Number(g.id) === e.gid)
+          if (idx >= 0) {
+            groups.value[idx] = { ...groups.value[idx], checkStatus: '已检查', score: avg }
+          }
+        }
+      } catch { /* ignore */ }
+    })
+  await Promise.all(tasks)
+}
+
+const submitGroupGrades = async () => {
+  try {
+    const sub = groupSubmissionIdMap.value.get(Number(selectedGroup.value?.id))
+    if (!sub) { ElMessage.error('未找到该小组提交记录'); return }
+    const payload = {
+      submissionId: sub.submissionId || sub.submission_id,
+      teacherName: (JSON.parse(localStorage.getItem('userInfo') || 'null')?.name) || '',
+      members: selectedGroupMembers.value
+        .filter(m => m.studentId != null)
+        .map(m => ({
+          studentId: m.studentId,
+          score: groupGrading[m.studentId]?.score ?? null,
+          level: groupGrading[m.studentId]?.level || '',
+          feedback: groupGrading[m.studentId]?.feedback || ''
+        }))
+    }
+    if (!Array.isArray(payload.members) || payload.members.length === 0) { ElMessage.error('没有可提交的成员评分'); return }
+    await api.post('/grading/group', payload)
+    ElMessage.success('已提交小组成员评分')
+    detailDialogVisible.value = false
+  } catch (e) {
+    ElMessage.error('提交评分失败')
+  }
+}
+
+const tryPrefillExistingGrades = async () => {
+  try {
+    const sub = groupSubmissionIdMap.value.get(Number(selectedGroup.value?.id))
+    if (!sub) return
+    const sid = sub.submissionId || sub.submission_id
+    if (!sid) return
+    const resp = await api.get(`/grading/group/${sid}`)
+    const raw = resp?.data
+    const list = Array.isArray(raw?.data) ? raw.data : []
+    list.forEach(it => {
+      const st = Number(it.studentId)
+      if (!groupGrading[st]) groupGrading[st] = { score: null, level: '', feedback: '' }
+      groupGrading[st].score = it.score
+      groupGrading[st].level = it.level || ''
+      groupGrading[st].feedback = it.feedback || ''
+    })
+  } catch {}
+}
+
 onMounted(async () => {
   await fetchAssignment()
   await fetchGroups()
   // 结合后端小组提交列表，填充每个分组的提交状态
   await fetchGroupSubmissions()
+  // 根据评分结果更新检查状态与小组分数
+  await fetchGradesForGroups()
   // 拉取个人提交
   try {
     const res = await api.get('/personal-submission/by-assignment', { params: { assignmentId }, headers: {} })
