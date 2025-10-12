@@ -1,5 +1,4 @@
 package com.ccut.config;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -8,10 +7,11 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.nio.file.Paths;
-
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
+
+    @Value("${file.upload-dir:/home/project/uploads}")
+    private String uploadDir;
 
     @Autowired
     private JwtInterceptor jwtInterceptor;
@@ -25,20 +25,18 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // 将 /uploads/** 映射到项目运行目录下的 uploads 目录
-        String uploadPath = Paths.get("uploads").toAbsolutePath().toUri().toString();
+        String location = "file:" + (uploadDir.endsWith("/") ? uploadDir : uploadDir + "/");
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations(uploadPath);
-
+                .addResourceLocations(location);
     }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-
         registry.addMapping("/api/**")
                 .allowedOriginPatterns("*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*")
+                .allowCredentials(true)
                 .maxAge(3600);
 
         registry.addMapping("/uploads/**")
@@ -48,5 +46,3 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .maxAge(3600);
     }
 }
-
-
