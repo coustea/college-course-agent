@@ -67,6 +67,17 @@
 		  AND student_id = #{studentId}
 	</update>
 
+	<select id="selectBySubmissionId" resultType="com.ccut.entity.StudentMemberScore">
+		SELECT submission_id AS submissionId,
+		       student_id    AS studentId,
+		       score,
+		       level,
+		       feedback,
+		       graded_at     AS gradedAt
+		FROM student_member_scores
+		WHERE submission_id = #{submissionId}
+	</select>
+
 </mapper>
 
 

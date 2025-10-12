@@ -32,6 +32,8 @@ public interface StudentMemberScoreMapper {
 	                                               @Param("feedback") String feedback,
 	                                               @Param("gradedAt") java.time.LocalDateTime gradedAt);
 
+	java.util.List<StudentMemberScore> selectBySubmissionId(@Param("submissionId") Long submissionId);
+
 }
 
 

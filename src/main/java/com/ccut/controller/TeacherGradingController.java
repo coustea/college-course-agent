@@ -65,6 +65,17 @@ public class TeacherGradingController {
 			return Result.error(500, e.getMessage());
 		}
 	}
+
+	@GetMapping("/group/{submissionId}")
+	public Result<List<StudentMemberScore>> getGroupGrades(@PathVariable Long submissionId) {
+		try {
+			if (submissionId == null) return Result.error(400, "submissionId 不能为空");
+			return Result.success(studentMemberScoreMapper.selectBySubmissionId(submissionId));
+		} catch (Exception e) {
+			log.error("查询小组评分失败", e);
+			return Result.error(500, e.getMessage());
+		}
+	}
 }
 
 
