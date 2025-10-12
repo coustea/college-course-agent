@@ -136,7 +136,11 @@ public class UserController {
 
                 String studentNumber = formatter.formatCellValue(row.getCell(1), evaluator).trim();
                 String name = formatter.formatCellValue(row.getCell(2), evaluator).trim();
-                String className = formatter.formatCellValue(row.getCell(4), evaluator).trim();
+
+                // 新增：读取学生状态（假设在第4列，即E列）
+                String statusString = formatter.formatCellValue(row.getCell(4), evaluator).trim();
+                // 注意：将读取班级的列索引从 4 调整为 7（H列），以匹配您提供的文件片段中的班级位置
+                String className = formatter.formatCellValue(row.getCell(7), evaluator).trim();
 
                 // 过滤无效行
                 if (!studentNumber.matches("\\d{6,}") || name.isEmpty() || !className.matches("\\d+")) {
@@ -150,7 +154,18 @@ public class UserController {
                 student.setName(name);
                 student.setClassName(className);
                 student.setGroupStatus("pending");
-                student.setStatus(Student.Status.IN_SCHOOL);
+
+                // ======== 修改点：根据状态设置枚举值 ========
+                Student.Status studentStatus = Student.Status.IN_SCHOOL; // 默认在校
+                if ("实习".equals(statusString)) {
+                    // 如果读取到的状态是“实习”，则设置为校外实习
+                    studentStatus = Student.Status.OFF_CAMPUS_INTERNSHIP;
+                } else if (statusString.isEmpty()) {
+                    // 如果状态为空，保持默认的 IN_SCHOOL（在校），这里可以省略 else if
+                }
+                student.setStatus(studentStatus);
+                // ===================================
+
                 students.add(student);
             }
         }
