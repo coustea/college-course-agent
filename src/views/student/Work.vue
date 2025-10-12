@@ -9,8 +9,8 @@
         <el-empty description="暂无作业" v-if="assignments.length === 0" />
         <el-table v-else :data="assignments" border stripe style="width: 100%">
           <el-table-column prop="title" label="作业标题" min-width="220" />
-          <el-table-column prop="course" label="课程" min-width="180" />
           <el-table-column prop="deadline" label="截止时间" width="180" />
+          <el-table-column prop="publishedAt" label="发布时间" width="180" />
           <el-table-column prop="teacher" label="发布教师" width="140" />
           <el-table-column label="操作" width="200" align="center">
             <template #default="{ row }">
@@ -173,8 +173,8 @@ const isLeader = computed(() => {
 })
 const canSubmitWork = computed(() => {
   if (groupStatus.value === 'approved') return isLeader.value
-  if (groupStatus.value === 'pending') return false
-  return true
+  return groupStatus.value !== 'pending'
+
 })
 const SUBMIT_STATE_KEY = 'assignment_submission_state_v1'
 const GRADES_STATE_KEY = 'assignment_grades_state_v1'
@@ -199,7 +199,7 @@ async function getGroupInfo() {
     }
     return res.data;
   } catch (err) {
-    console.error("获取小组信息失败：", err);
+    console.error("获取小组信息失败：", err)
   }
 }
 
@@ -266,7 +266,7 @@ onMounted(async () => {
   try {
     await getGroupInfo()
     const data = await getTeachAssignments()
-    console.log(data)
+    console.log("获取教师分配的作品:",data)
     if (data?.code === 200 && Array.isArray(data?.data) && data.data.length > 0) {
       const first = data.data[0] || {}
       const dl = first.deadline || first.endTime || first.dueTime || first.dueDate
@@ -317,7 +317,7 @@ const getTeachAssignments = async () =>{
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     })
-    console.log(res.data)
+    console.log("获取作品列表:",res.data)
     if (res.data.code === 200) {
       return res.data
     }
@@ -327,10 +327,10 @@ const getTeachAssignments = async () =>{
 
 function onGroupUpdated(e) {
   try {
-    const detail = e?.detail || {}
+    const detail = e?.detail
     if (typeof detail.status === 'string') groupStatus.value = detail.status
     if (detail.info && typeof detail.info === 'object') groupInfo.value = detail.info
-    if (groupStatus.value !== 'approved' && submitScope.value === 'group') submitScope.value = 'individual'
+    // if (groupStatus.value !== 'approved' && submitScope.value === 'group') submitScope.value = 'individual'
   } catch {
   }
 }
@@ -480,29 +480,28 @@ function normalizeAssignments(data) {
   const arr = Array.isArray(data?.assignments) ? data.assignments : (Array.isArray(data?.data) ? data.data : [])
   for (const item of arr) {
     let attachments = []
-    try {
-      const raw = item?.attachmentFiles ?? item?.attachments ?? []
-      const arrA = typeof raw === 'string' ? (JSON.parse(raw || '[]') || []) : raw
-      if (Array.isArray(arrA)) {
-        attachments = arrA.map((a, i) => {
-          if (typeof a === 'string') {
-            const name = a.split('/').pop() || `附件${i + 1}`
-            return { name, url: a }
-          }
-          return {
-            name: a?.name || a?.fileName || a?.title || `附件${i + 1}`,
-            url: a?.url || a?.fileUrl || a?.resourceUrl || a?.path || ''
-          }
-        }).filter(x => !!x.url)
-      }
-    } catch {}
+    const raw = item.attachmentFiles
+    const arrA = typeof raw === 'string' ? (JSON.parse(raw || '[]') || []) : raw
+    if (Array.isArray(arrA)) {
+      attachments = arrA.map((a, i) => {
+        if (typeof a === 'string') {
+          const name = a.split('/').pop() || `附件${i + 1}`
+          return { name, url: a }
+        }
+        return {
+          name: a?.name || a?.fileName || a?.title || `附件${i + 1}`,
+          url: a?.url || a?.fileUrl || a?.resourceUrl || a?.path || ''
+        }
+      }).filter(x => !!x.url)
+    }
+
     list.push({
-      id: item.id ?? item.assignmentId ?? `${item.title || '作业'}`,
-      title: item.title || item.name || '作业',
-      description: item.description || item.content || '',
-      deadline: item.deadline || item.endTime || item.dueTime || item.dueDate || '',
-      course: item.courseName || item.course || String(item.courseId ?? ''),
-      teacher: item.teacherName || item.teacher || String(item.teacherId ?? ''),
+      id: item.assignmentId,
+      title: item.assignmentName,
+      description: item.description,
+      deadline: item.dueDate,
+      publishedAt: item.createdAt || item.created_at || item.publishTime || item.publishedAt || '',
+      teacher: item.teacherName,
       attachments
     })
   }
@@ -603,7 +602,6 @@ async function submitWork() {
     return
   }
 
-  // 文件大小/类型复核
   for (const f of submissionForm.value.files) {
     if (!validateSingleFile(f)) return
   }
@@ -621,16 +619,16 @@ async function submitWork() {
 
     // 添加作业内容（注意：此处改为content以匹配后端参数名）
     if (submissionForm.value.description) {
-      formData.append('content', submissionForm.value.description)  // 修改这里
+      formData.append('content', submissionForm.value.description)
     }
 
     // 添加文件
     if (submissionForm.value.files && submissionForm.value.files.length > 0) {
       submissionForm.value.files.forEach(file => {
-        formData.append('files', file.raw || file) // 兼容不同格式
+        formData.append('files', file.raw || file)
       })
     }
-
+    console.log('提交上传的参数', formData)
     // 调用后端上传接口
     const response = await axios.post(`${BASE_URL}/submission/upload`, formData, {
       headers: {
@@ -641,8 +639,6 @@ async function submitWork() {
 
     if (response.data.code === 200) {
       ElMessage.success('提交成功')
-
-      // 记录提交状态并广播
       const id = currentAssignment.value?.id
       if (id) {
         const payload = {

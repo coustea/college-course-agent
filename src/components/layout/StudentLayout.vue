@@ -28,7 +28,7 @@
 <!--          </li>目前不用-->
 
           <li class="menu-item">
-            <div class="menu-title" :class="{active: $route.path.startsWith('/group')}" @click="isGroupOpen = !isGroupOpen">
+            <div class="menu-title" :class="{active: $route.path === '/group'}" @click="isGroupOpen = !isGroupOpen">
               <div>
                 <i class="fas fa-users"></i>
                 <span>学习分组</span>
@@ -36,8 +36,14 @@
               <i class="fas fa-chevron-up" :class="{active: isGroupOpen}" />
             </div>
             <ul v-show="isGroupOpen" class="submenu">
-              <li class="submenu-item" :class="{active: $route.path === '/group/build'}" @click="navigateTo('/group/build')">新建小组</li>
-              <li class="submenu-item" :class="{active: $route.path === '/group/mine'}" @click="navigateTo('/group/mine')">我的小组</li>
+              <li class="submenu-item" :class="{active: $route.path === '/group/build'}" @click="navigateTo('/group/build')">
+                <i class="fas fa-user-plus sub-icon"></i>
+                <span>新建小组</span>
+              </li>
+              <li class="submenu-item" :class="{active: $route.path === '/group/mine'}" @click="navigateTo('/group/mine')">
+                <i class="fas fa-users sub-icon"></i>
+                <span>我的小组</span>
+              </li>
             </ul>
           </li>
 
@@ -516,10 +522,14 @@ provide('updateStudentContact', updateStudentContact)
 .menu-item {
   position: relative;
 }
-.submenu { list-style:none; padding: 0 0 8px 40px; margin: 0; }
-.submenu-item { padding: 10px 0; cursor:pointer; color:#cbd5e1; }
+.submenu { list-style:none; padding: 0 0 8px 20px; margin: 0; }
+.submenu-item { padding: 10px 0; cursor:pointer; color:#cbd5e1; display:flex; align-items:center; gap:12px; position: relative; padding-left: 9px; }
 .submenu-item:hover { color:#fff; }
+.submenu-item:hover::after { content: ''; position: absolute; left: -20px; right: 0; top: 0; bottom: 0; background-color: rgba(255, 255, 255, 0.1); }
 .submenu-item.active { color:#fff; font-weight:600; }
+.submenu-item.active::after { content: ''; position: absolute; left: -20px; right: 0; top: 0; bottom: 0; background-color: rgba(255, 255, 255, 0.2); }
+.submenu-item.active::before { content: ''; position: absolute; left: -20px; top: 0; bottom: 0; width: 4px; background: #ffffff; }
+.submenu-item .sub-icon { width: 18px; text-align:center; font-size: 18px; margin-right: 12px; }
 
 .menu-title {
   display: flex;

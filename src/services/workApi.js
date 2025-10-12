@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const BASE = 'http://39.96.172.21:9999'
+const BASE = 'http://192.168.52.75:9999'
 
 const http = axios.create({
   baseURL: BASE,
@@ -25,7 +25,6 @@ function toUrl(u) {
   return `${BASE.replace(/\/$/, '')}/${s.replace(/^\//, '')}`
 }
 
-// params 可携带 userId/classId/courseId 等筛选维度
 export async function getWorkSidebarStatus(signal) {
   const profile = localStorage.getItem('profile')
   const className = profile?.className
@@ -35,7 +34,6 @@ export async function getWorkSidebarStatus(signal) {
   return resp?.data?.data ?? resp?.data ?? {}
 }
 
-// 通用上传函数（multipart/form-data，仅文件）
 async function uploadTo(url, payload = {}, signal) {
   const files = Array.isArray(payload?.files) ? payload.files : []
   const form = new FormData()
@@ -59,21 +57,10 @@ async function uploadTo(url, payload = {}, signal) {
 }
 
 // 提交接口暂时移除，等待后续重写
-export async function submitPersonalWork() {
-  throw new Error('提交接口已移除，将在后续重写后恢复')
-}
-export async function submitTeamWork() {
-  throw new Error('提交接口已移除，将在后续重写后恢复')
-}
+
 export async function submitWork() {
   throw new Error('提交接口已移除，将在后续重写后恢复')
 }
 
-export default {
-  getWorkSidebarStatus,
-  submitWork,
-  submitPersonalWork,
-  submitTeamWork
-}
 
 

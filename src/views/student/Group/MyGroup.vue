@@ -8,6 +8,7 @@
           <span>{{ createdGroup?.groupName || '—' }}</span>
           <span class="status-chip status-pending" v-if="groupStatus==='pending'">审批中</span>
           <span class="status-chip status-approved" v-if="groupStatus==='approved'">已组队</span>
+          <span class="status-chip status-rejected" v-if="groupStatus==='rejected'">已驳回</span>
         </div>
         <div class="group-summary-members">
           <span class="group-summary-label">成员：</span>
@@ -24,6 +25,9 @@
           <span class="group-summary-label">分工：</span>
           <span>{{ createdGroup?.taskDescription || '—' }}</span>
         </div>
+        <div class="group-summary-actions" v-if="groupStatus==='rejected'">
+          <el-button type="primary" @click="reselectAfterRejected">更改小组成员</el-button>
+        </div>
       </div>
     </div>
   </div>
@@ -31,13 +35,17 @@
 
 <script setup>
 import { ref, onMounted, getCurrentInstance } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 
 const { proxy } = getCurrentInstance()
 const BASE_URL = proxy?.$baseUrl
+const router = useRouter()
 
 const groupStatus = ref('none')
 const createdGroup = ref(null)
+// 保存当前小组成员的学号（含组长）
+const currentGroupMemberSids = ref([])
 
 onMounted(async () => { await refreshMyGroup() })
 
@@ -46,42 +54,69 @@ async function refreshMyGroup() {
     const userId = localStorage.getItem('userId')
     if (!userId) { setNone(); return }
     const token = localStorage.getItem('token')
-    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+    const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data'}
     const fd1 = new FormData(); fd1.append('studentId', userId)
-    const res = await axios.post(`${BASE_URL}/groupMember/getById`, fd1, { headers })
-    console.log(res)
+    const res = await axios.post(`${BASE_URL}/groupMember/getById`, fd1, {headers})
     if (!(res?.data?.code === 200) || !res?.data?.data?.groupId) { setNone(); return }
+
     const groupId = res.data.data.groupId
     const fd2 = new FormData(); fd2.append('groupId', groupId)
-    const response = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd2, { headers })
-    console.log(response)
+    const response = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd2, {headers})
     if (response?.data?.code === 200 && response?.data?.data) {
       const group = response.data.data
       const st = String(group?.approvalStatus || '').toLowerCase()
-      groupStatus.value = (st === 'pending' || st === 'approval' || st === 'approved') ? (st === 'approval' ? 'approved' : st) : 'none'
+      groupStatus.value = st === 'approval' ? 'approved' : (st === 'pending' ? 'pending' : (st === 'rejected' ? 'rejected' : 'none'))
+      // 成员信息与学号收集
+      const members = Array.isArray(group.groupMemberList) ? group.groupMemberList : []
+      const leaderName = members?.[0]?.studentName || group.leaderName || ''
+      const leaderSid = members?.[0]?.studentNumber || ''
+      const restNames = members.slice(1).map(m => m.studentName).filter(Boolean)
+      const restSids = members.slice(1).map(m => m.studentNumber).filter(Boolean)
+      currentGroupMemberSids.value = [leaderSid, ...restSids].filter(Boolean)
       createdGroup.value = {
         groupName: group.groupName || '',
-        leaderName: group.groupMemberList?.[0]?.studentName || group.leaderName || '',
-        memberNames: Array.isArray(group.groupMemberList) ? group.groupMemberList.slice(1).map(m => m.studentName).filter(Boolean) : (group.memberNames || []),
+        leaderName,
+        memberNames: restNames,
         taskDescription: group.groupDescription || ''
       }
     } else { setNone() }
   } catch { setNone() }
 }
 
-function setNone() { groupStatus.value = 'none'; createdGroup.value = null }
+function setNone() {
+  groupStatus.value = 'none'
+  createdGroup.value = null
+  currentGroupMemberSids.value = []
+}
+
+function reselectAfterRejected() {
+  try {
+    const sids = (currentGroupMemberSids.value || []).map(String)
+    localStorage.setItem('rejected_group_member_sids', JSON.stringify(sids))
+    // 进入新建小组并直接打开选择模式
+    localStorage.setItem('student_groups_ui_state', JSON.stringify({ creating: true, selecting: true }))
+    router.push('/group/build')
+  } catch {
+    router.push('/group/build')
+  }
+}
 </script>
 
 <style scoped>
 .block-section { margin-top: 14px; }
-.group-summary-card { background:#f8fafc; border:1px solid #e5e7eb; border-radius:8px; padding:12px; }
-.group-summary-header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.group-summary-label { font-weight:600; }
-.status-pending { background:#ffeaa7; color:#d35400; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-.status-approved { background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-.member-chip { display:inline-flex; align-items:center; gap:6px; background:#f1f5f9; border:1px solid #e2e8f0; padding:6px 10px; border-radius:999px; font-size:12px; color:#1f2937; margin-right:6px; }
-.leader-mark { background:#eef2ff; color:#2563eb; border:1px solid #c7d2fe; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-.member-mark { background:#ecfeff; color:#0891b2; border:1px solid #a5f3fc; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
+
+.group-summary-card { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+.group-summary-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.group-summary-label { font-weight: 600; }
+
+.status-pending { background: #ffeaa7; color: #d35400; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.status-approved { background: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.status-rejected { background: #fee2e2; color: #b91c1c; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+
+.member-chip { display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 999px; font-size: 12px; color: #1f2937; margin-right: 6px; }
+.leader-mark { background: #eef2ff; color: #2563eb; border: 1px solid #c7d2fe; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.member-mark { background: #ecfeff; color: #0891b2; border: 1px solid #a5f3fc; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.group-summary-actions { margin-top: 10px; }
 </style>
 
 
