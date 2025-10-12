@@ -35,6 +35,7 @@
 
 <script setup>
 import { ref, onMounted, getCurrentInstance } from 'vue'
+import { getStudentsByClassName} from '@/services/groupApi'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 
@@ -66,12 +67,17 @@ async function refreshMyGroup() {
       const group = response.data.data
       const st = String(group?.approvalStatus || '').toLowerCase()
       groupStatus.value = st === 'approval' ? 'approved' : (st === 'pending' ? 'pending' : (st === 'rejected' ? 'rejected' : 'none'))
-      // 成员信息与学号收集
+      // 成员信息与学号收集（基于角色判断）
       const members = Array.isArray(group.groupMemberList) ? group.groupMemberList : []
-      const leaderName = members?.[0]?.studentName || group.leaderName || ''
-      const leaderSid = members?.[0]?.studentNumber || ''
-      const restNames = members.slice(1).map(m => m.studentName).filter(Boolean)
-      const restSids = members.slice(1).map(m => m.studentNumber).filter(Boolean)
+      const roleOf = (m) => String(m?.role || m?.memberRole || m?.position || '').toLowerCase()
+      let leaderIdx = members.findIndex(m => m?.isLeader === true || m?.leader === true || roleOf(m) === 'leader')
+      if (leaderIdx < 0) leaderIdx = 0
+      const leaderItem = members[leaderIdx] || {}
+      const leaderName = leaderItem?.studentName || group.leaderName || ''
+      const leaderSid = String(leaderItem?.studentNumber || '')
+      const rest = members.filter((_, i) => i !== leaderIdx)
+      const restNames = rest.map(m => m.studentName).filter(Boolean)
+      const restSids = rest.map(m => m.studentNumber).filter(Boolean)
       currentGroupMemberSids.value = [leaderSid, ...restSids].filter(Boolean)
       createdGroup.value = {
         groupName: group.groupName || '',
@@ -89,16 +95,25 @@ function setNone() {
   currentGroupMemberSids.value = []
 }
 
-function reselectAfterRejected() {
+async function reselectAfterRejected() {
+  const sids = (currentGroupMemberSids.value || []).map(String)
+  // 一次性列表（供 Build 页面覆写）
+  localStorage.setItem('rejected_group_member_sids', JSON.stringify(sids))
+  // 额外：生成状态覆盖映射（sid -> available），供其他页面需要时使用
   try {
-    const sids = (currentGroupMemberSids.value || []).map(String)
-    localStorage.setItem('rejected_group_member_sids', JSON.stringify(sids))
-    // 进入新建小组并直接打开选择模式
-    localStorage.setItem('student_groups_ui_state', JSON.stringify({ creating: true, selecting: true }))
-    router.push('/group/build')
-  } catch {
-    router.push('/group/build')
-  }
+    const className = localStorage.getItem('className')
+    const list = await getStudentsByClassName(className)
+    const overrides = {}
+    const sidSet = new Set(sids)
+    for (const stu of (list || [])) {
+      const sid = String(stu.studentNumber || stu.sid || '')
+      if (sid && sidSet.has(sid)) overrides[sid] = 'available'
+    }
+    localStorage.setItem('student_status_overrides', JSON.stringify(overrides))
+  } catch {}
+  // 进入新建小组并直接打开选择模式
+  localStorage.setItem('student_groups_ui_state', JSON.stringify({ creating: true, selecting: true }))
+  router.push('/group/build')
 }
 </script>
 

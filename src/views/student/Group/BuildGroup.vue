@@ -126,7 +126,7 @@ const myId = ref(null)
 const myFallbackName = ref('我')
 const uiStateStorageKey = 'student_groups_ui_state'
 const GROUP_STATUS_KEY = 'student_group_status'
-// 被驳回小组成员（含组长）的学号缓存键
+
 const REJECTED_SIDS_KEY = 'rejected_group_member_sids'
 onMounted(async () => {
   try {
@@ -144,13 +144,16 @@ onMounted(async () => {
     let rejectedSids = []
     try { rejectedSids = JSON.parse(localStorage.getItem(REJECTED_SIDS_KEY) || '[]') } catch {}
     const rejectedSet = new Set((rejectedSids || []).map(x => String(x)))
+    // 读取全局覆盖（sid -> 'available'），来自“我的小组”点击后设置
+    let overrides = {}
+    try { overrides = JSON.parse(localStorage.getItem('student_status_overrides') || '{}') } catch {}
 
     allStudents.value = list.map((s, i) => {
       const groupStatusRaw = String(s.groupStatus || s.status || '').toLowerCase()
       let mappedUnavailable = (groupStatusRaw === 'approval')
       // 若该学生在被驳回小组名单中，则强制视为可选（未组队）
       const sidStr = String(s.studentNumber || s.sid || '')
-      if (sidStr && rejectedSet.has(sidStr)) mappedUnavailable = false
+      if (sidStr && (rejectedSet.has(sidStr) || overrides[sidStr] === 'available')) mappedUnavailable = false
       return {
         id: s.id|| i + 1,
         name: s.name || '-',
@@ -162,6 +165,7 @@ onMounted(async () => {
     })
     // 清理一次性缓存
     try { localStorage.removeItem(REJECTED_SIDS_KEY) } catch {}
+    try { localStorage.removeItem('student_status_overrides') } catch {}
   } catch (e) { alert(`加载学生列表失败：${e?.message || e}`) }
 })
 
@@ -291,13 +295,6 @@ async function submitGroup() {
 .select-hint {
   color: #6b7280;
   font-size: 14px;
-}
-
-.filters-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
 }
 
 .filters-row .keyword-input {
@@ -440,14 +437,6 @@ async function submitGroup() {
 
 .members-empty {
   color: #9ca3af;
-}
-
-.members-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
-  justify-content: center;
 }
 
 .member-chip {
