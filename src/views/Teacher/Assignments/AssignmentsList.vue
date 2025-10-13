@@ -77,7 +77,7 @@
             {{ formatDate(scope.row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right" align="center">
+        <el-table-column label="操作" width="320" fixed="right" align="center">
           <template #default="scope">
             <el-button
               size="small"
@@ -85,6 +85,19 @@
               @click="checkAssignment(scope.row)"
             >
               检查情况
+            </el-button>
+            <el-button
+              size="small"
+              @click="editAssignment(scope.row)"
+            >
+              修改
+            </el-button>
+            <el-button
+              size="small"
+              type="danger"
+              @click="confirmDelete(scope.row)"
+            >
+              删除
             </el-button>
           </template>
         </el-table-column>
@@ -115,7 +128,7 @@ import { Search, Plus } from '@element-plus/icons-vue'
 import axios from 'axios'
 
 // 动态后端基址 + token 拦截
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token') || localStorage.getItem('userToken')
@@ -268,32 +281,36 @@ export default {
       router.push(`/teacher/assignments/detail/${assignment.id}`)
     }
 
-    const deleteAssignment = async (id) => {
+    const editAssignment = async (row) => {
       try {
-        await ElMessageBox.confirm(
-          '确定要删除这个检查项目吗？',
-          '删除确认',
-          {
-            confirmButtonText: '删除',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-        )
+        const { value } = await ElMessageBox.prompt('修改标题', '编辑', {
+          inputValue: row.title || '',
+          confirmButtonText: '保存',
+          cancelButtonText: '取消'
+        })
+        if (value == null) return
+        const payload = { assignmentName: value }
+        await api.put(`/teacherAssignments/${row.id}`, payload)
+        row.title = value
+        ElMessage.success('修改成功')
+      } catch (e) {
+        if (e !== 'cancel') ElMessage.error('修改失败')
+      }
+    }
 
-        // 实际API调用
-        // await api.delete(`/assignments/${id}`)
-
-        // 模拟删除
-        const index = assignments.value.findIndex(a => a.id === id)
-        if (index !== -1) {
-          assignments.value.splice(index, 1)
-          ElMessage.success('检查项目删除成功')
-        }
-      } catch (error) {
-        if (error !== 'cancel') {
-          console.error('删除检查项目失败:', error)
-          ElMessage.error('删除检查项目失败')
-        }
+    const confirmDelete = async (row) => {
+      try {
+        await ElMessageBox.confirm('确定要删除这个检查项目吗？', '删除确认', {
+          confirmButtonText: '删除',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        await api.delete(`/teacherAssignments/${row.id}`)
+        const index = assignments.value.findIndex(a => a.id === row.id)
+        if (index !== -1) assignments.value.splice(index, 1)
+        ElMessage.success('删除成功')
+      } catch (e) {
+        if (e !== 'cancel') ElMessage.error('删除失败')
       }
     }
 
@@ -369,25 +386,11 @@ export default {
       }
     }
 
-    // 获取检测项目列表：GET /api/teacherAssignments/{teacherId}
+    // 获取检测项目列表：GET /api/teacherAssignments（全部）
     const fetchAssignments = async () => {
       loading.value = true
       try {
-        // 获取教师ID（userInfo.id -> teacherId 本地 -> 后端列表首个）
-        let teacherId = null
-        try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) teacherId = Number(u.id) } catch (e) { console.error(e) }
-        if (!teacherId) { const tid = localStorage.getItem('teacherId'); if (tid) teacherId = Number(tid) }
-        if (!teacherId) {
-          try {
-            const tRes = await api.get('/teacher/list/teachers')
-            const tRaw = tRes?.data
-            const tList = (tRaw && Number(tRaw.code) === 200 && Array.isArray(tRaw.data)) ? tRaw.data : []
-            if (tList.length > 0) teacherId = Number(tList[0].id)
-          } catch (e) { console.error(e) }
-        }
-        if (!teacherId) { ElMessage.error('未获取到教师ID'); assignments.value = []; return }
-
-        const res = await api.get(`/teacherAssignments/${teacherId}`)
+        const res = await api.get(`/teacherAssignments`)
         const raw = res?.data
         const list = (raw && Number(raw.code) === 200 && Array.isArray(raw.data)) ? raw.data : []
         // 映射为表格需要的字段
@@ -454,7 +457,8 @@ export default {
       getStatusType,
       checkAssignment,
       viewDetails,
-      deleteAssignment,
+      editAssignment,
+      confirmDelete,
       handleSizeChange,
       handleCurrentChange,
       fetchAssignments,
