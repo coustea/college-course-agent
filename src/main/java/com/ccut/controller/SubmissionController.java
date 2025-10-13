@@ -72,7 +72,7 @@ public class SubmissionController {
      *  学生：上传作业
      */
     @PostMapping("/upload")
-    public Result<String> upload(
+    public Result<StudentSubmission> upload(
             @RequestParam("assignmentId") Long assignmentId,
             @RequestParam("groupId") Long groupId,
             @RequestParam("studentId") Long studentId,
@@ -145,7 +145,11 @@ public class SubmissionController {
             studentSubmission.setSubmissionFiles(submissionFilesJson);
 
             int inserted = submissionMapper.insert(studentSubmission);
-            return inserted > 0 ? Result.success("提交成功") : Result.error(500, "提交失败");
+            if (inserted > 0 && studentSubmission.getSubmissionId() != null) {
+                StudentSubmission saved = submissionMapper.selectById(studentSubmission.getSubmissionId());
+                return Result.success(saved);
+            }
+            return Result.error(500, "提交失败");
 
         } catch (Exception e) {
             log.error("文件上传失败: {}", e.getMessage(), e);
