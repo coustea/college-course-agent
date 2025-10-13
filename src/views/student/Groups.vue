@@ -2,7 +2,7 @@
   <div class="groups-wrapper">
   <div class="header">
     <h1 class="page-title">学习分组</h1>
-  </div>
+    </div>
     <router-view />
   </div>
 </template>
