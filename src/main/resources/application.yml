@@ -47,7 +47,7 @@ mybatis:
 
 # === 日志系统（使用 logback-spring.xml） ===
 logging:
-  config: classpath:logback-spring.xml
+#  config: classpath:logback-spring.xml
   level:
     com.ccut.mapper: debug   # 打印SQL语句
 
@@ -55,4 +55,4 @@ file:
   #windows
 #  upload-dir: D:/develop/ccut/backend/uploads
   # ubuntu
-  upload-dir: /home/project/uploads
+  upload-dir: /home/coustea/develop/Project/ccut/backend/uploads

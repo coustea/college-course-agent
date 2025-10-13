@@ -1,15 +1,12 @@
 package com.ccut.controller;
 
-
 import com.ccut.entity.FileInfo;
 import com.ccut.entity.Result;
 import com.ccut.entity.Teacher;
 import com.ccut.entity.TeacherAssignment;
 import com.ccut.service.Impl.TeacherAssignmentServiceImpl;
 import com.ccut.service.Impl.TeacherServiceImpl;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +16,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -38,22 +34,22 @@ public class TeacherAssignmentController {
     @Autowired
     private TeacherServiceImpl teacherService;
 
-
-
     @Autowired
     private TeacherAssignmentServiceImpl teacherAssignmentService;
 
+    // 允许配置基础上传路径
+    @Value("${file.upload-dir}")
+    private String uploadBaseDir;
 
     @PostMapping("/byClassName")
     public Result<List<TeacherAssignment>> getAssignmentsByClassName(@RequestParam String className) {
         List<TeacherAssignment> teacherAssignments = teacherAssignmentService.selectByClassName(className);
-        if(teacherAssignments == null){
+        if (teacherAssignments == null) {
             log.error("未找到，className is {}", className);
             return Result.error(404, "未找到");
         }
         return Result.success(teacherAssignments);
     }
-
 
     @PostMapping
     public Result<TeacherAssignment> insert(
@@ -65,26 +61,24 @@ public class TeacherAssignmentController {
     ) throws Exception {
 
         Teacher teacher = teacherService.selectById(teacherId);
-        if(teacher == null){
+        if (teacher == null) {
             log.error("未找到，teacherId is {}", teacherId);
             return Result.error(404, "未找到");
         }
 
-
         List<FileInfo> fileInfos = new ArrayList<>();
 
         if (files != null && files.length > 0) {
-            // 获取项目运行目录
-            Path projectRoot = Paths.get("").toAbsolutePath();
-            log.info("projectRoot: {}", projectRoot);
+            //  使用配置文件路径作为根目录
+            Path basePath = Paths.get(uploadBaseDir, "homework", "teacher");
+            String dateDir = LocalDate.now().toString();
+            Path uploadDir = basePath.resolve(dateDir);
+            Files.createDirectories(uploadDir);
+
+            log.info("文件保存路径: {}", uploadDir);
 
             for (MultipartFile file : files) {
                 if (file == null || file.isEmpty()) continue;
-
-                // 按日期生成目录：uploads/homework/teacher/yyyy-MM-dd
-                String dateDir = LocalDate.now().toString();
-                Path uploadDir = projectRoot.resolve(Paths.get("uploads", "homework", "teacher", dateDir));
-                Files.createDirectories(uploadDir);
 
                 // 安全文件名：UUID + 原扩展名
                 String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
@@ -98,8 +92,8 @@ public class TeacherAssignmentController {
                 Path target = uploadDir.resolve(saveFileName);
                 file.transferTo(target.toFile());
 
-                // 数据库存相对路径
-                String relativePath = "uploads/homework/teacher/" + dateDir + "/" + saveFileName;
+                // 数据库存相对路径（供前端访问）
+                String relativePath = "/uploads/homework/teacher/" + dateDir + "/" + saveFileName;
                 fileInfos.add(new FileInfo(originalFilename, relativePath, ext, file.getSize()));
             }
         }
@@ -112,10 +106,7 @@ public class TeacherAssignmentController {
         teacherAssignment.setAttachmentFiles(attachmentJson);
         teacherAssignment.setTeacherName(teacher.getName());
 
-
-
         if (dueDate != null && !dueDate.isEmpty()) {
-            // 解析到分钟，秒固定为 0
             LocalDateTime dateTime = LocalDateTime.parse(dueDate, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
             teacherAssignment.setDueDate(dateTime.withSecond(0));
         }
@@ -124,7 +115,6 @@ public class TeacherAssignmentController {
         teacherAssignment.setUpdatedAt(LocalDateTime.now().withSecond(0));
 
         teacherAssignmentService.insert(teacherAssignment);
-
         return Result.success(teacherAssignment);
     }
 
@@ -147,7 +137,6 @@ public class TeacherAssignmentController {
                 }
             }
 
-            // 用 HashMap 代替 Map.of，避免 null 报错
             Map<String, Object> assignmentMap = new HashMap<>();
             assignmentMap.put("assignmentId", assignment.getAssignmentId());
             assignmentMap.put("teacherId", assignment.getTeacherId());
@@ -162,10 +151,6 @@ public class TeacherAssignmentController {
         return Result.success(responseList);
     }
 
-    /**
-     * 新增：按课程ID查询教师发布的作品/作业
-     * 示例：GET /api/teacherAssignments/by-course/40
-     */
     @GetMapping("/by-course/{courseId}")
     public Result<List<Map<String, Object>>> selectByCourseId(@PathVariable Long courseId) {
         try {
@@ -207,41 +192,35 @@ public class TeacherAssignmentController {
             @RequestBody TeacherAssignment teacherAssignment
     ) {
         try {
-            if (assignmentId == null || teacherAssignment == null){
-                log.error("参数错误,teacherAssignment: {} ",teacherAssignment);
+            if (assignmentId == null || teacherAssignment == null) {
+                log.error("参数错误,teacherAssignment: {}", teacherAssignment);
                 return Result.error(400, "参数错误");
             }
             teacherAssignment.setAssignmentId(assignmentId);
             teacherAssignmentService.update(teacherAssignment);
             return Result.success(teacherAssignment);
         } catch (Exception e) {
-            log.error("更新失败,assignmentId: {},teacherAssignment: {}",assignmentId,teacherAssignment,e);
+            log.error("更新失败,assignmentId: {},teacherAssignment: {}", assignmentId, teacherAssignment, e);
             return Result.error(500, "更新失败");
         }
     }
 
     @DeleteMapping("/{assignmentId}")
-    public Result<TeacherAssignment> delete(
-            @PathVariable Long assignmentId
-    ) {
+    public Result<TeacherAssignment> delete(@PathVariable Long assignmentId) {
         try {
-            if (assignmentId == null){
-                log.error("参数错误,assignmentId: {} ",assignmentId);
+            if (assignmentId == null) {
+                log.error("参数错误,assignmentId: {}", assignmentId);
                 return Result.error(400, "参数错误");
             }
 
             teacherAssignmentService.delete(assignmentId);
             return Result.success();
         } catch (Exception e) {
-            log.error("删除失败,assignmentId: {},e: {}",assignmentId,e);
+            log.error("删除失败,assignmentId: {},e: {}", assignmentId, e);
             return Result.error(500, "删除失败");
         }
     }
 
-    /**
-     * 获取全部作品/作业列表
-     * 示例：GET /api/teacherAssignments
-     */
     @GetMapping
     public Result<List<Map<String, Object>>> selectAll() {
         try {

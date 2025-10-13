@@ -6,13 +6,16 @@ import com.ccut.service.CourseService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/course")
@@ -22,17 +25,22 @@ public class CourseController {
     @Autowired
     private CourseService courseService;
 
+    @Value("${file.upload-dir}")
+    private String uploadDir;
+
     @PostMapping(value = "/insert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Result<Course> insert(@RequestParam(value = "course", required = false) String courseJson,
-                                 @RequestParam(value = "courseCode", required = false) String courseCode,
-                                 @RequestParam(value = "courseName", required = false) String courseName,
-                                 @RequestParam(value = "description", required = false) String description,
-                                 @RequestParam(value = "teacherId", required = false) Long teacherId,
-                                 @RequestPart(value = "image", required = false) MultipartFile image){
+    public Result<Course> insert(
+            @RequestParam(value = "course", required = false) String courseJson,
+            @RequestParam(value = "courseCode", required = false) String courseCode,
+            @RequestParam(value = "courseName", required = false) String courseName,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "teacherId", required = false) Long teacherId,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
         try {
             Course course;
+
             if (courseJson != null && !courseJson.isEmpty()) {
-                ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                ObjectMapper mapper = new ObjectMapper();
                 course = mapper.readValue(courseJson, Course.class);
             } else {
                 course = new Course();
@@ -41,30 +49,44 @@ public class CourseController {
                 course.setDescription(description);
                 course.setTeacherId(teacherId);
             }
+
             if (image != null && !image.isEmpty()) {
-                LocalDate date = java.time.LocalDate.now();
-                Path baseDir = java.nio.file.Paths.get("uploads").toAbsolutePath();
+                LocalDate date = LocalDate.now();
+
+                // 使用配置的 uploadDir
+                Path baseDir = Paths.get(uploadDir).toAbsolutePath();
+                log.info("uploadDir: {}", baseDir);
                 Files.createDirectories(baseDir);
-                Path uploadDir = baseDir.resolve(date.toString());
-                Files.createDirectories(uploadDir);
+
+                Path uploadDateDir = baseDir.resolve(date.toString());
+                Files.createDirectories(uploadDateDir);
+
                 String original = image.getOriginalFilename();
-                String ext = null;
-                if (original != null && original.contains(".")) {
-                    ext = original.substring(original.lastIndexOf('.') + 1).toLowerCase();
+                String ext = (original != null && original.contains("."))
+                        ? original.substring(original.lastIndexOf('.') + 1)
+                        : "";
+
+                String filename = UUID.randomUUID().toString().replace("-", "");
+                if (!ext.isEmpty()) {
+                    filename += "." + ext;
                 }
-                String filename = java.util.UUID.randomUUID().toString().replace("-", "");
-                if (ext != null && !ext.isEmpty()) filename = filename + "." + ext;
-                Path target = uploadDir.resolve(filename);
-                Files.createDirectories(target.getParent());
+
+                Path target = uploadDateDir.resolve(filename);
                 image.transferTo(target.toFile());
+
+                //  与 WebMvcConfig 中 /uploads/** 保持一致
                 String url = "/uploads/" + date + "/" + filename;
                 course.setResourceUrl(url);
             }
+
             int n = courseService.insert(course);
-            if (n > 0) return Result.success(course);
+            if (n > 0) {
+                return Result.success(course);
+            }
             return Result.error(500, "添加失败");
+
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error("课程上传失败: {}", e.getMessage(), e);
             return Result.error(500, e.getMessage());
         }
     }

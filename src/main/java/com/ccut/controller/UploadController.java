@@ -17,10 +17,14 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 
 @RestController
 @RequestMapping("/api")
 public class UploadController {
+
+    @Value("${upload.base-dir:uploads}") // 默认仍为 uploads
+    private String baseDir;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String, Object> upload(@RequestPart("file") MultipartFile file) throws IOException {
@@ -31,25 +35,19 @@ public class UploadController {
             return resp;
         }
 
-        // 基础上传目录：运行目录下 uploads/yyyy-MM-dd
         String dateDir = LocalDate.now().toString();
-        Path uploadDir = Paths.get("uploads", dateDir);
+        Path uploadDir = Paths.get(baseDir, dateDir).toAbsolutePath();
         Files.createDirectories(uploadDir);
 
-        // 生成安全文件名：uuid + 原始扩展名
         String original = file.getOriginalFilename();
         String ext = StringUtils.getFilenameExtension(original);
         String filename = UUID.randomUUID().toString().replace("-", "");
-        if (StringUtils.hasText(ext)) {
-            filename = filename + "." + ext.toLowerCase();
-        }
+        if (StringUtils.hasText(ext)) filename = filename + "." + ext.toLowerCase();
 
         Path target = uploadDir.resolve(filename);
         file.transferTo(target.toFile());
 
-        // 返回可直接访问的相对 URL，由静态资源映射 /uploads/** 提供
         String url = "/uploads/" + dateDir + "/" + filename;
-
         Map<String, Object> data = new HashMap<>();
         data.put("url", url);
         resp.put("success", true);
@@ -57,5 +55,3 @@ public class UploadController {
         return resp;
     }
 }
-
-
