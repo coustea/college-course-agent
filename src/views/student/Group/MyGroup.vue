@@ -96,9 +96,8 @@ function setNone() {
 
 async function reselectAfterRejected() {
   try {
-    // 组内学号：第一个为组长，其余为成员
     const sids = Array.isArray(currentGroupMemberSids.value) ? currentGroupMemberSids.value : []
-    const leaderSid = sids[0] || ''
+    const leaderSid = sids[0]
     const memberSids = sids.slice(1)
 
     // 标记“第一次创建的小组成员”（仅用于显示删除按钮的范围）

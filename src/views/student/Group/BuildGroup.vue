@@ -124,10 +124,6 @@ const isCreating = ref(false)
 const isSelecting = ref(false)
 const isUpdate = ref(false)
 
-// 首次小组（被驳回后重新选择）成员的学号列表，仅这些成员显示“删除”按钮（不含组长）
-const firstGroupMemberSids = ref([])
-const firstGroupLeaderSid = ref('')
-
 const myId = ref(null)
 const mySid = ref('')
 const myFallbackName = localStorage.getItem('studentName')
@@ -154,9 +150,7 @@ onMounted(async () => {
     const className = localStorage.getItem('className')
     const list = await getStudentsByClassName(className)
     console.log('学生分组的列表', list)
-    // 读取首次小组成员与组长学号（由我的小组页面进入时写入）
-    try { firstGroupMemberSids.value = JSON.parse(localStorage.getItem('first_group_member_sids') || '[]') || [] } catch { firstGroupMemberSids.value = [] }
-    try { firstGroupLeaderSid.value = String(localStorage.getItem('first_group_leader_sid') || '') } catch { firstGroupLeaderSid.value = '' }
+    //（删除按钮逻辑已移除，此处不再读取首次小组成员/组长学号）
     // 读取被驳回小组成员学号列表与覆盖（sid -> 'available'）
     const rejectedSids = JSON.parse(localStorage.getItem(REJECTED_SIDS_KEY) || '[]')
     const rejectedSet = new Set((rejectedSids || []).map(x => String(x)))
@@ -219,14 +213,7 @@ function rowClassName({ row }) {
   if (selectedIds.value.includes(row.id)) return 'selected'
   return ''
 }
-// 是否属于首次小组成员（非组长）
-function isFirstGroupNonLeader(row) {
-  if (!row) return false
-  const sidStr = String(row.sid || '')
-  if (!sidStr) return false
-  if (firstGroupLeaderSid.value && sidStr === String(firstGroupLeaderSid.value)) return false
-  return Array.isArray(firstGroupMemberSids.value) && firstGroupMemberSids.value.includes(sidStr)
-}
+//（删除按钮判定逻辑已移除）
 function isSelf(stu) {
   if (!stu) return false
   if (mySid.value) return String(stu.sid) === String(mySid.value)
@@ -244,20 +231,7 @@ function toggleSelect(stu) {
     selectedIds.value.push(stu.id)
   }
 }
-// 删除首次小组中的该成员：后续将把其状态覆盖为未组队
-function removeInitialMember(row) {
-  if (!row) return
-  const sidStr = String(row.sid || '')
-  if (!sidStr) return
-  // 从首次名单中去除，UI 立即反馈
-  firstGroupMemberSids.value = (firstGroupMemberSids.value || []).filter(s => String(s) !== sidStr)
-  try { localStorage.setItem('first_group_member_sids', JSON.stringify(firstGroupMemberSids.value)) } catch {}
-  // 选择集中若存在则移除
-  const idx = selectedIds.value.indexOf(row.id)
-  if (idx >= 0) selectedIds.value.splice(idx, 1)
-  // 这里仅做占位，覆盖逻辑在下一步实现
-  console.log('待覆盖为未组队：', sidStr)
-}
+//（删除按钮处理逻辑已移除）
 function startCreate() {
   isCreating.value = true
   isSelecting.value = false

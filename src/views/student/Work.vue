@@ -153,8 +153,7 @@
           <div v-if="gradeMembers.length">
             <div v-for="m in gradeMembers" :key="m.name" style="display:flex;align-items:center;gap:10px;margin:8px 0;">
               <span style="font-weight:600;min-width:120px;">{{ m.name }}</span>
-              <el-tag v-if="m.role==='leader'" type="success">组长</el-tag>
-              <el-tag v-else>组员</el-tag>
+              <span :class="levelClass(m.level)"><span class="dot"></span>{{ levelText(m.level) }}</span>
               <span style="margin-left:12px;color:#111827;font-weight:600;">{{ m.score != null ? (m.score + ' 分') : '暂无成绩' }}</span>
             </div>
           </div>
@@ -180,6 +179,22 @@ const currentAssignment = ref(null)
 const isEditing = ref(false)
 // 成绩查看
 const gradeMembers = ref([])
+function levelTagType(level) {
+  const key = String(level || '').toLowerCase()
+  const map = { excellent: 'success', good: 'primary', average: 'warning', concern: 'danger' }
+  return map[key] || 'info'
+}
+function levelText(level) {
+  const key = String(level || '').toLowerCase()
+  const map = { excellent: '优秀', good: '良好', average: '一般', concern: '需关注' }
+  return map[key] || (level || '-')
+}
+function levelClass(level) {
+  const key = String(level || '').toLowerCase()
+  const allow = ['excellent', 'good', 'average', 'concern']
+  const k = allow.includes(key) ? key : 'unknown'
+  return `level-chip level-${k}`
+}
 
 const submissionForm = ref({
   title: '',
@@ -666,11 +681,11 @@ async function fetchGrades(row) {
     const data = resp.data.data || resp.data
     console.log("获取成绩响应",resp.data)
     console.log("获取成绩",data)
-    // 兼容多结构：[{name,role,score}] 或 {members:[...]} 或 studentScores
+    // 兼容多结构：[{name,role,score,level}] 或 {members:[...]} 或 studentScores
     const list = Array.isArray(data) ? data : (Array.isArray(data?.members) ? data.members : (Array.isArray(data?.studentScores) ? data.studentScores : []))
     gradeMembers.value = list.map(m => ({
       name: m.name || m.studentName || '-',
-      role: (String(m.role || m.memberRole || '').toLowerCase() === 'leader' || m.isLeader) ? 'leader' : 'member',
+      level: (m.level || m.performanceLevel || m.gradeLevel || m.levelName || ''),
       score: (m.score != null ? Number(m.score) : (m.grade != null ? Number(m.grade) : null))
     }))
   } catch (e) {
@@ -995,6 +1010,5 @@ async function submitWorkUpdate() {
   border: 1px dashed #e5e7eb;
   border-radius: 8px;
 }
-
 
 </style>
