@@ -99,7 +99,7 @@
         <button class="btn btn-yellow" @click="reselect">重新选择</button>
         <el-tooltip content="可选择 2~5 人为组员" placement="top">
           <span class="tooltip-wrapper">
-            <button class="btn btn-blue" :disabled="!canSubmit" @click="submitGroup">提交申请 ({{ selectedMembers.length }}/5)</button>
+            <button class="btn btn-blue" :disabled="!canSubmit" @click="submitGroup">{{ isUpdate ? '重新申请' : '提交申请' }} ({{ selectedMembers.length }}/5)</button>
           </span>
         </el-tooltip>
         <button class="btn btn-yellow" @click="cancelCreate">取消新建</button>
@@ -111,6 +111,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { getStudentsByClassName, createStudentGroup } from '@/services/groupApi'
+import { updateStudentGroup } from '@/services/groupApi'
 
 const allStudents = ref([])
 const keyword = ref('')
@@ -121,6 +122,7 @@ const taskDescription = ref('')
 
 const isCreating = ref(false)
 const isSelecting = ref(false)
+const isUpdate = ref(false)
 
 const myId = ref(null)
 const myFallbackName = ref('我')
@@ -147,6 +149,8 @@ onMounted(async () => {
     // 读取全局覆盖（sid -> 'available'），来自“我的小组”点击后设置
     let overrides = {}
     try { overrides = JSON.parse(localStorage.getItem('student_status_overrides') || '{}') } catch {}
+    // 标记是否处于“重新申请”模式
+    isUpdate.value = (Array.isArray(rejectedSids) && rejectedSids.length > 0) || (overrides && Object.keys(overrides).length > 0)
 
     allStudents.value = list.map((s, i) => {
       const groupStatusRaw = String(s.groupStatus || s.status || '').toLowerCase()
@@ -252,8 +256,8 @@ async function submitGroup() {
       teacherId: (() => { const v = localStorage.getItem('userId'); return v ? Number(v) : undefined })(),
       groupDescription: taskDescription.value
     }
-    console.log('提交小组信息', payload)
-    const res = await createStudentGroup(payload)
+    console.log(isUpdate.value ? '重新申请小组信息' : '提交小组信息', payload)
+    const res = isUpdate.value ? await updateStudentGroup(payload) : await createStudentGroup(payload)
     const code = Number(res?.code ?? res?.status ?? 0)
     if (code === 200) {
       try { localStorage.setItem(GROUP_STATUS_KEY, 'pending') } catch {}

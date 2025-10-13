@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const BASE = 'http://192.168.52.75:9999'
+const BASE = 'http://39.96.172.21:9999'
 const http = axios.create({
     baseURL: BASE,
     timeout: 15000
@@ -44,7 +44,16 @@ export async function createStudentGroup(payload, signal) {
     return resp?.data
 }
 
+// 重新提交小组申请（被驳回后的再次申请）
+export async function updateStudentGroup(payload, signal) {
+    const url = toUrl(`/api/student-group/updata`)
+    const resp = await http.post(url, payload, { signal })
+    console.log('重新申请学生分组', resp.data)
+    return resp?.data
+}
+
 export default {
     getStudentsByClassName,
-    createStudentGroup
+    createStudentGroup,
+    updateStudentGroup
 }

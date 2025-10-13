@@ -183,7 +183,7 @@ async function getGroupInfo() {
   try {
     const res = await axios.post(
       `${BASE_URL}/groupMember/getById`,
-      { studentId: localStorage.getItem('userId') }, // 将userId作为对象传递
+      { studentId: localStorage.getItem('userId') },
       {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -192,10 +192,40 @@ async function getGroupInfo() {
       }
     );
 
-    console.log(res.data);  // 打印返回结果
+    console.log("再次获取小组信息用来判断组长:",res.data)
     if (res.data.code === 200){
       groupId.value = res.data.data.groupId;
       console.log("groupId:", groupId.value)
+      // 继续获取小组详情，基于角色判断出组长
+      if (groupId.value) {
+        const headers = {Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'multipart/form-data'}
+        const fd = new FormData(); fd.append('groupId', groupId.value)
+        const detail = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd, { headers })
+        console.log('group detail', detail?.data)
+        if (detail?.data?.code === 200 && detail?.data?.data) {
+          const group = detail.data.data
+          const st = String(group?.approvalStatus || '').toLowerCase()
+          groupStatus.value = st === 'approval' ? 'approved' : (st === 'pending' ? 'pending' : (st === 'rejected' ? 'rejected' : 'none'))
+          const members = Array.isArray(group.groupMemberList) ? group.groupMemberList : []
+          const roleOf = (m) => String(m?.role || m?.memberRole || m?.position || '').toLowerCase()
+          let leaderIdx = members.findIndex(m => m?.isLeader === true || m?.leader === true || roleOf(m) === 'leader')
+          if (leaderIdx < 0) leaderIdx = 0
+          const leaderItem = members[leaderIdx] || {}
+          const leaderName = leaderItem?.studentName || group.leaderName || ''
+          const restNames = members.filter((_, i) => i !== leaderIdx).map(m => m.studentName).filter(Boolean)
+          groupInfo.value = {
+            groupName: group.groupName || '',
+            leaderName,
+            memberNames: restNames,
+            taskDescription: group.groupDescription || ''
+          }
+          // 持久化，供其他页面/刷新后的 isLeader 计算
+          try {
+            localStorage.setItem(GROUP_STATUS_KEY, groupStatus.value)
+            localStorage.setItem(GROUP_INFO_KEY, JSON.stringify(groupInfo.value))
+          } catch {}
+        }
+      }
     }
     return res.data;
   } catch (err) {
@@ -602,38 +632,26 @@ async function submitWork() {
     return
   }
 
+  // 文件大小/类型复核（如果后端暂不接收文件，也保持前端校验逻辑，以便将来恢复上传）
   for (const f of submissionForm.value.files) {
     if (!validateSingleFile(f)) return
   }
   submitting.value = true
 
   try {
-    // 构建FormData对象以适配后端接口
-    const formData = new FormData()
-
-    // 添加必要参数
-    formData.append('assignmentId', currentAssignment.value?.id)
-    console.log('assignmentId:', currentAssignment.value?.id)
-    formData.append('groupId', groupId.value)
-    formData.append('studentId', localStorage.getItem('userId'))
-
-    // 添加作业内容（注意：此处改为content以匹配后端参数名）
-    if (submissionForm.value.description) {
-      formData.append('content', submissionForm.value.description)
+    // 使用 JSON 直接传参，不再使用 FormData
+    const payload = {
+      assignmentId: currentAssignment.value?.id,
+      groupId: groupId.value,
+      studentId: localStorage.getItem('userId'),
+      content: submissionForm.value.description,
+      title: submissionForm.value.title || ''
     }
 
-    // 添加文件
-    if (submissionForm.value.files && submissionForm.value.files.length > 0) {
-      submissionForm.value.files.forEach(file => {
-        formData.append('files', file.raw || file)
-      })
-    }
-    console.log('提交上传的参数', formData)
-    // 调用后端上传接口
-    const response = await axios.post(`${BASE_URL}/submission/upload`, formData, {
+    const response = await axios.post(`${BASE_URL}/submission/upload`, payload, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'multipart/form-data'
+        'Content-Type': 'application/json'
       }
     })
 
@@ -641,13 +659,8 @@ async function submitWork() {
       ElMessage.success('提交成功')
       const id = currentAssignment.value?.id
       if (id) {
-        const payload = {
-          title: submissionForm.value.title,
-          description: submissionForm.value.description,
-          files: submissionForm.value.files
-        }
         const state = readJson(SUBMIT_STATE_KEY, {})
-        state[id] = {status: 'submitted', by: String(currentUserName.value || ''), at: Date.now(), lastPayload: payload}
+        state[id] = {status: 'submitted', by: String(currentUserName.value || ''), at: Date.now(), lastPayload: { ...payload, files: submissionForm.value.files }}
         writeJson(SUBMIT_STATE_KEY, state)
         submissionState.value = state
         window.dispatchEvent(new StorageEvent('storage', {key: SUBMIT_STATE_KEY}))
