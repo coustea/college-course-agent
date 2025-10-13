@@ -152,4 +152,53 @@ public class SubmissionController {
             return Result.error(500, "文件上传失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 学生：修改已提交的作业（允许更新文本与附件）
+     */
+    @PutMapping("/{submissionId}")
+    public Result<String> updateSubmission(
+            @PathVariable Long submissionId,
+            @RequestParam(value = "content", required = false) String submissionContent,
+            @RequestParam(value = "files", required = false) List<MultipartFile> files
+    ) {
+        try {
+            // 若有文件，保存并生成新的 JSON
+            String submissionFilesJson = null;
+            if (files != null && !files.isEmpty()) {
+                String baseUploadPath = uploadDir.endsWith("/") ? uploadDir : uploadDir + "/";
+                String dateDir = LocalDate.now().toString();
+                Path baseDir = Paths.get(baseUploadPath, "submission", dateDir);
+                Files.createDirectories(baseDir);
+
+                List<FileInfo> fileInfos = new ArrayList<>();
+                for (MultipartFile file : files) {
+                    if (file == null || file.isEmpty()) continue;
+                    String originalFilename = file.getOriginalFilename();
+                    String ext = "";
+                    if (originalFilename != null && originalFilename.contains(".")) {
+                        ext = originalFilename.substring(originalFilename.lastIndexOf('.') + 1).toLowerCase();
+                    }
+                    String filename = UUID.randomUUID().toString().replace("-", "");
+                    if (!ext.isEmpty()) filename += "." + ext;
+                    Path target = baseDir.resolve(filename);
+                    file.transferTo(target.toFile());
+                    String relativePath = "/uploads/submission/" + dateDir + "/" + filename;
+                    fileInfos.add(new FileInfo(originalFilename, relativePath, ext, file.getSize()));
+                }
+                submissionFilesJson = fileInfos.isEmpty() ? null : new ObjectMapper().writeValueAsString(fileInfos);
+            }
+
+            StudentSubmission patch = new StudentSubmission();
+            patch.setSubmissionId(submissionId);
+            if (submissionContent != null) patch.setSubmissionContent(submissionContent);
+            if (submissionFilesJson != null) patch.setSubmissionFiles(submissionFilesJson);
+
+            int n = submissionMapper.updateById(patch);
+            return n > 0 ? Result.success("更新成功") : Result.error(404, "未找到或未变更");
+        } catch (Exception e) {
+            log.error("更新提交失败: {}", e.getMessage(), e);
+            return Result.error(500, "更新提交失败: " + e.getMessage());
+        }
+    }
 }
