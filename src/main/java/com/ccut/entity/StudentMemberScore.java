@@ -14,6 +14,7 @@ public class StudentMemberScore {
     private Long memberId;
     private Long submissionId;
     private Long studentId;
+    private String studentName;
     private Integer score;
     private String level ;
     private String feedback;

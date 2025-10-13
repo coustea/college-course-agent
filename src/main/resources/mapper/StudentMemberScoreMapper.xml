@@ -67,16 +67,18 @@
 		  AND student_id = #{studentId}
 	</update>
 
-	<select id="selectBySubmissionId" resultType="com.ccut.entity.StudentMemberScore">
-		SELECT submission_id AS submissionId,
-		       student_id    AS studentId,
-		       score,
-		       level,
-		       feedback,
-		       graded_at     AS gradedAt
-		FROM student_member_scores
-		WHERE submission_id = #{submissionId}
-	</select>
+    <select id="selectBySubmissionId" resultType="com.ccut.entity.StudentMemberScore">
+        SELECT sms.submission_id AS submissionId,
+               sms.student_id    AS studentId,
+               s.name            AS studentName,
+               sms.score,
+               sms.level,
+               sms.feedback,
+               sms.graded_at     AS gradedAt
+        FROM student_member_scores sms
+        LEFT JOIN students s ON s.id = sms.student_id
+        WHERE sms.submission_id = #{submissionId}
+    </select>
 
 </mapper>
 
