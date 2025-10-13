@@ -124,8 +124,13 @@ const isCreating = ref(false)
 const isSelecting = ref(false)
 const isUpdate = ref(false)
 
+// 首次小组（被驳回后重新选择）成员的学号列表，仅这些成员显示“删除”按钮（不含组长）
+const firstGroupMemberSids = ref([])
+const firstGroupLeaderSid = ref('')
+
 const myId = ref(null)
-const myFallbackName = ref('我')
+const mySid = ref('')
+const myFallbackName = localStorage.getItem('studentName')
 const uiStateStorageKey = 'student_groups_ui_state'
 const GROUP_STATUS_KEY = 'student_group_status'
 
@@ -139,23 +144,36 @@ onMounted(async () => {
         isSelecting.value = !!ui.selecting
       }
 
+    // 读取当前用户 id 与学号（用于“本人”标注）
+
+    const idStr = localStorage.getItem('userId')
+    if (idStr) myId.value = idStr
+    const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
+    mySid.value = String(localStorage.getItem('studentNumber') || saved?.studentNumber || saved?.sid || '')
+
     const className = localStorage.getItem('className')
     const list = await getStudentsByClassName(className)
     console.log('学生分组的列表', list)
-    // 读取被驳回的小组成员学号列表（一次性使用）
-    let rejectedSids = []
-    try { rejectedSids = JSON.parse(localStorage.getItem(REJECTED_SIDS_KEY) || '[]') } catch {}
+    // 读取首次小组成员与组长学号（由我的小组页面进入时写入）
+    try { firstGroupMemberSids.value = JSON.parse(localStorage.getItem('first_group_member_sids') || '[]') || [] } catch { firstGroupMemberSids.value = [] }
+    try { firstGroupLeaderSid.value = String(localStorage.getItem('first_group_leader_sid') || '') } catch { firstGroupLeaderSid.value = '' }
+    // 读取被驳回小组成员学号列表与覆盖（sid -> 'available'）
+    const rejectedSids = JSON.parse(localStorage.getItem(REJECTED_SIDS_KEY) || '[]')
     const rejectedSet = new Set((rejectedSids || []).map(x => String(x)))
-    // 读取全局覆盖（sid -> 'available'），来自“我的小组”点击后设置
-    let overrides = {}
-    try { overrides = JSON.parse(localStorage.getItem('student_status_overrides') || '{}') } catch {}
-    // 标记是否处于“重新申请”模式
+    const overrides = JSON.parse(localStorage.getItem('student_status_overrides') || '{}')
+    // 标记是否处于“重新申请/覆盖展示”模式
     isUpdate.value = (Array.isArray(rejectedSids) && rejectedSids.length > 0) || (overrides && Object.keys(overrides).length > 0)
 
     allStudents.value = list.map((s, i) => {
       const groupStatusRaw = String(s.groupStatus || s.status || '').toLowerCase()
-      let mappedUnavailable = (groupStatusRaw === 'approval')
-      // 若该学生在被驳回小组名单中，则强制视为可选（未组队）
+      // 默认与后端同步：已审批通过或已分组标记为已组队
+      let mappedUnavailable = (
+        groupStatusRaw === 'approval' ||
+        groupStatusRaw === 'approved' ||
+        s.grouped === true ||
+        s.status === 'grouped'
+      )
+      // 若该学生在覆盖名单中，则强制视为可选（未组队）
       const sidStr = String(s.studentNumber || s.sid || '')
       if (sidStr && (rejectedSet.has(sidStr) || overrides[sidStr] === 'available')) mappedUnavailable = false
       return {
@@ -167,9 +185,6 @@ onMounted(async () => {
         email: s.email || '-',
       }
     })
-    // 清理一次性缓存
-    try { localStorage.removeItem(REJECTED_SIDS_KEY) } catch {}
-    try { localStorage.removeItem('student_status_overrides') } catch {}
   } catch (e) { alert(`加载学生列表失败：${e?.message || e}`) }
 })
 
@@ -204,8 +219,18 @@ function rowClassName({ row }) {
   if (selectedIds.value.includes(row.id)) return 'selected'
   return ''
 }
+// 是否属于首次小组成员（非组长）
+function isFirstGroupNonLeader(row) {
+  if (!row) return false
+  const sidStr = String(row.sid || '')
+  if (!sidStr) return false
+  if (firstGroupLeaderSid.value && sidStr === String(firstGroupLeaderSid.value)) return false
+  return Array.isArray(firstGroupMemberSids.value) && firstGroupMemberSids.value.includes(sidStr)
+}
 function isSelf(stu) {
-  return !!(myId.value != null && stu && String(stu.id) === String(myId.value))
+  if (!stu) return false
+  if (mySid.value) return String(stu.sid) === String(mySid.value)
+  return !!(myId.value != null && String(stu.id) === String(myId.value))
 }
 function isSelected(id) { return selectedIds.value.includes(id) }
 function toggleSelect(stu) {
@@ -218,6 +243,20 @@ function toggleSelect(stu) {
     if (selectedIds.value.length >= 5) return
     selectedIds.value.push(stu.id)
   }
+}
+// 删除首次小组中的该成员：后续将把其状态覆盖为未组队
+function removeInitialMember(row) {
+  if (!row) return
+  const sidStr = String(row.sid || '')
+  if (!sidStr) return
+  // 从首次名单中去除，UI 立即反馈
+  firstGroupMemberSids.value = (firstGroupMemberSids.value || []).filter(s => String(s) !== sidStr)
+  try { localStorage.setItem('first_group_member_sids', JSON.stringify(firstGroupMemberSids.value)) } catch {}
+  // 选择集中若存在则移除
+  const idx = selectedIds.value.indexOf(row.id)
+  if (idx >= 0) selectedIds.value.splice(idx, 1)
+  // 这里仅做占位，覆盖逻辑在下一步实现
+  console.log('待覆盖为未组队：', sidStr)
 }
 function startCreate() {
   isCreating.value = true
@@ -242,6 +281,9 @@ function cancelCreate() {
   isSelecting.value = false
   selectedIds.value = []
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: false, selecting: false}))
+  // 仅在取消时清理覆盖键
+  try { localStorage.removeItem('student_status_overrides') } catch {}
+  try { localStorage.removeItem(REJECTED_SIDS_KEY) } catch {}
 }
 
 async function submitGroup() {
@@ -267,6 +309,9 @@ async function submitGroup() {
       isSelecting.value = false
       selectedIds.value = []
       try { localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: false, selecting: false })) } catch {}
+      // 仅在提交成功后清理覆盖键
+      try { localStorage.removeItem('student_status_overrides') } catch {}
+      try { localStorage.removeItem(REJECTED_SIDS_KEY) } catch {}
     } else {
       alert(`提交失败：${res?.message || code || '未知错误'}`)
     }
@@ -475,7 +520,9 @@ async function submitGroup() {
   margin-top: 16px;
 }
 
-.tooltip-wrapper { display: inline-block; }
+.tooltip-wrapper {
+  display: inline-block;
+}
 
 .btn {
   padding: 12px 26px;
@@ -504,14 +551,25 @@ async function submitGroup() {
 .btn-yellow:hover {
   background: #f59e0b;
 }
-.fa-icon { margin-right: 6px; }
 
-/* 额外：缩小头部左侧两个搜索框尺寸 + 提示文案样式 */
-.header-filters .keyword-input { width: 320px; }
-.header-filters .status-select { width: 140px; }
-.choose-hint { color: #9ca3af; font-size: 13px; white-space: nowrap; }
+.fa-icon {
+  margin-right: 6px;
+}
 
-/* 仅在任务分工的“组员”区覆盖为与组长一致的字体样式 */
+.header-filters .keyword-input {
+  width: 320px;
+}
+
+.header-filters .status-select {
+  width: 140px;
+}
+
+.choose-hint {
+  color: #9ca3af;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .role-members .member-chip {
   background: transparent;
   border: none;

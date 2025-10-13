@@ -26,7 +26,7 @@
           <span>{{ createdGroup?.taskDescription || '—' }}</span>
         </div>
         <div class="group-summary-actions" v-if="groupStatus==='rejected'">
-          <el-button type="primary" @click="reselectAfterRejected">更改小组成员</el-button>
+          <el-button type="primary" @click="reselectAfterRejected">更改小组信息</el-button>
         </div>
       </div>
     </div>
@@ -35,7 +35,6 @@
 
 <script setup>
 import { ref, onMounted, getCurrentInstance } from 'vue'
-import { getStudentsByClassName} from '@/services/groupApi'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 
@@ -96,42 +95,115 @@ function setNone() {
 }
 
 async function reselectAfterRejected() {
-  const sids = (currentGroupMemberSids.value || []).map(String)
-  // 一次性列表（供 Build 页面覆写）
-  localStorage.setItem('rejected_group_member_sids', JSON.stringify(sids))
-  // 额外：生成状态覆盖映射（sid -> available），供其他页面需要时使用
   try {
-    const className = localStorage.getItem('className')
-    const list = await getStudentsByClassName(className)
-    const overrides = {}
-    const sidSet = new Set(sids)
-    for (const stu of (list || [])) {
-      const sid = String(stu.studentNumber || stu.sid || '')
-      if (sid && sidSet.has(sid)) overrides[sid] = 'available'
-    }
-    localStorage.setItem('student_status_overrides', JSON.stringify(overrides))
-  } catch {}
-  // 进入新建小组并直接打开选择模式
-  localStorage.setItem('student_groups_ui_state', JSON.stringify({ creating: true, selecting: true }))
-  router.push('/group/build')
+    // 组内学号：第一个为组长，其余为成员
+    const sids = Array.isArray(currentGroupMemberSids.value) ? currentGroupMemberSids.value : []
+    const leaderSid = sids[0] || ''
+    const memberSids = sids.slice(1)
+
+    // 标记“第一次创建的小组成员”（仅用于显示删除按钮的范围）
+    try { localStorage.setItem('first_group_member_sids', JSON.stringify(memberSids)) } catch {}
+    try { localStorage.setItem('first_group_leader_sid', String(leaderSid || '')) } catch {}
+
+    // 清理覆盖与被删除名单（进入页面后由用户逐一删除）
+    try { localStorage.removeItem('student_status_overrides') } catch {}
+    try { localStorage.removeItem('rejected_group_member_sids') } catch {}
+
+    // 进入“新建小组-选择队员”界面
+    try { localStorage.setItem('student_groups_ui_state', JSON.stringify({ creating: true, selecting: true })) } catch {}
+    router.push({ name: 'GroupBuild' })
+  } catch (e) {
+    alert(`跳转失败，请重试：${e?.message || e}`)
+  }
 }
 </script>
 
 <style scoped>
-.block-section { margin-top: 14px; }
+.block-section {
+  margin-top: 14px;
+}
 
-.group-summary-card { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
-.group-summary-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.group-summary-label { font-weight: 600; }
+.group-summary-card {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+}
 
-.status-pending { background: #ffeaa7; color: #d35400; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.status-approved { background: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.status-rejected { background: #fee2e2; color: #b91c1c; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.group-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 
-.member-chip { display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 999px; font-size: 12px; color: #1f2937; margin-right: 6px; }
-.leader-mark { background: #eef2ff; color: #2563eb; border: 1px solid #c7d2fe; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.member-mark { background: #ecfeff; color: #0891b2; border: 1px solid #a5f3fc; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.group-summary-actions { margin-top: 10px; }
+.group-summary-label {
+  font-weight: 600;
+}
+
+.status-pending {
+  background: #ffeaa7;
+  color: #d35400;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-approved {
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #1f2937;
+  margin-right: 6px;
+}
+
+.leader-mark {
+  background: #eef2ff;
+  color: #2563eb;
+  border: 1px solid #c7d2fe;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.member-mark {
+  background: #ecfeff;
+  color: #0891b2;
+  border: 1px solid #a5f3fc;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.group-summary-actions {
+  margin-top: 10px;
+}
 </style>
 
 

@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const BASE = 'http://39.96.172.21:9999'
+const BASE = 'http://192.168.1.102:9999'
 
 const http = axios.create({
   baseURL: BASE,
@@ -26,36 +26,19 @@ function toUrl(u) {
 }
 
 export async function getWorkSidebarStatus(signal) {
-  const profile = localStorage.getItem('profile')
-  const className = profile?.className
-  const url = toUrl(`api/teacherAssignments/byClassName`)
-  const resp = await http.post(url, { className, signal })
+  // 兼容两种来源：localStorage.className 或 profile.className
+  let className = localStorage.getItem('className')
+  console.log("className班级:",className)
+  if (!className) {
+    try { const p = JSON.parse(localStorage.getItem('profile') || 'null'); className = p?.className || '' } catch {}
+  }
+  const url = toUrl(`/api/teacherAssignments/byClassName`)
+  const form = new FormData()
+  form.append('className', className)
+  const resp = await http.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' }, signal })
   console.log("作品作业的列表",resp.data)
   return resp?.data?.data ?? resp?.data ?? {}
 }
-
-async function uploadTo(url, payload = {}, signal) {
-  const files = Array.isArray(payload?.files) ? payload.files : []
-  const form = new FormData()
-  if (payload.assignmentId != null) form.append('assignmentId', String(payload.assignmentId))
-  if (payload.studentId != null) form.append('studentId', String(payload.studentId))
-  if (payload.content != null) form.append('content', String(payload.content))
-  // 后端要求单文件字段名为 file，只取第一个文件
-  const first = files[0]
-  if (first) {
-    const raw = first?.raw ?? first
-    if (raw) form.append('file', raw, raw.name || 'file')
-  }
-  console.log(0)
-  const resp = await http.post(url, form, { headers: {
-    Authorization: `Bearer ${localStorage.getItem('token')}`,
-    'Content-Type': 'multipart/form-data',
-  }, signal })
-  console.log(1)
-  console.log("上传的作品作业状态",resp.data)
-  return resp.data
-}
-
 // 提交接口暂时移除，等待后续重写
 
 export async function submitWork() {

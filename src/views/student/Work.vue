@@ -12,16 +12,19 @@
           <el-table-column prop="deadline" label="截止时间" width="180" />
           <el-table-column prop="publishedAt" label="发布时间" width="180" />
           <el-table-column prop="teacher" label="发布教师" width="140" />
-          <el-table-column label="操作" width="200" align="center">
+          <el-table-column label="操作" width="260" align="center">
             <template #default="{ row }">
               <template v-if="getRowScore(row) != null">
                 <span style="color:#16a34a;font-weight:600;">成绩：{{ getRowScore(row) }}分</span>
+                <el-button style="margin-left:8px" size="small" @click="openGrade(row)">查看成绩</el-button>
               </template>
               <template v-else-if="isRowSubmitted(row)">
                 <el-button type="warning" size="small" @click="openEdit(row)">修改</el-button>
+                <el-button style="margin-left:8px" size="small" @click="openGrade(row)">查看成绩</el-button>
               </template>
               <template v-else>
                 <el-button type="primary" size="small" @click="openDetail(row)">查看详情</el-button>
+                <el-button style="margin-left:8px" size="small" @click="openGrade(row)">查看成绩</el-button>
               </template>
             </template>
           </el-table-column>
@@ -29,7 +32,7 @@
       </div>
 
       <!-- 详情模式：沿用原提交流程 -->
-      <div v-else class="submission-form">
+      <div v-else-if="mode === 'detail'" class="submission-form">
         <el-page-header title="返回" @back="backToList" :content="currentAssignment?.title || '提交新作品'" />
         <el-card class="detail-card" shadow="never" style="margin-top: 12px">
           <el-descriptions :column="2" border>
@@ -133,6 +136,31 @@
           </el-tooltip>
         </div>
       </div>
+
+      <!-- 成绩查看模式 -->
+      <div v-else-if="mode === 'grade'" class="submission-form">
+        <el-page-header title="返回" @back="backToList" :content="(currentAssignment?.title || '') + ' - 成绩'" />
+        <el-card class="detail-card" shadow="never" style="margin-top: 12px">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="作业标题">{{ currentAssignment?.title || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="截止时间">{{ currentAssignment?.deadline || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="发布教师">{{ currentAssignment?.teacher || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="说明" :span="2">{{ currentAssignment?.description || '—' }}</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+        <el-card class="detail-card" shadow="never" style="margin-top: 12px">
+          <div class="attach-title" style="margin-bottom:8px;">小组成绩</div>
+          <div v-if="gradeMembers.length">
+            <div v-for="m in gradeMembers" :key="m.name" style="display:flex;align-items:center;gap:10px;margin:8px 0;">
+              <span style="font-weight:600;min-width:120px;">{{ m.name }}</span>
+              <el-tag v-if="m.role==='leader'" type="success">组长</el-tag>
+              <el-tag v-else>组员</el-tag>
+              <span style="margin-left:12px;color:#111827;font-weight:600;">{{ m.score != null ? (m.score + ' 分') : '暂无成绩' }}</span>
+            </div>
+          </div>
+          <div v-else class="attachments-empty">暂无成绩</div>
+        </el-card>
+      </div>
     </div>
   </div>
 </template>
@@ -150,6 +178,8 @@ const mode = ref('list')
 const assignments = ref([])
 const currentAssignment = ref(null)
 const isEditing = ref(false)
+// 成绩查看
+const gradeMembers = ref([])
 
 const submissionForm = ref({
   title: '',
@@ -193,14 +223,18 @@ async function getGroupInfo() {
     );
 
     console.log("再次获取小组信息用来判断组长:",res.data)
-    if (res.data.code === 200){
+    if (res.data.code === 200) {
       groupId.value = res.data.data.groupId;
       console.log("groupId:", groupId.value)
       // 继续获取小组详情，基于角色判断出组长
       if (groupId.value) {
-        const headers = {Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'multipart/form-data'}
-        const fd = new FormData(); fd.append('groupId', groupId.value)
-        const detail = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd, { headers })
+        const headers = {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data'
+        }
+        const fd = new FormData();
+        fd.append('groupId', groupId.value)
+        const detail = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd, {headers})
         console.log('group detail', detail?.data)
         if (detail?.data?.code === 200 && detail?.data?.data) {
           const group = detail.data.data
@@ -211,7 +245,7 @@ async function getGroupInfo() {
           let leaderIdx = members.findIndex(m => m?.isLeader === true || m?.leader === true || roleOf(m) === 'leader')
           if (leaderIdx < 0) leaderIdx = 0
           const leaderItem = members[leaderIdx] || {}
-          const leaderName = leaderItem?.studentName || group.leaderName || ''
+          const leaderName = leaderItem?.studentName || group.leaderName
           const restNames = members.filter((_, i) => i !== leaderIdx).map(m => m.studentName).filter(Boolean)
           groupInfo.value = {
             groupName: group.groupName || '',
@@ -220,10 +254,8 @@ async function getGroupInfo() {
             taskDescription: group.groupDescription || ''
           }
           // 持久化，供其他页面/刷新后的 isLeader 计算
-          try {
-            localStorage.setItem(GROUP_STATUS_KEY, groupStatus.value)
-            localStorage.setItem(GROUP_INFO_KEY, JSON.stringify(groupInfo.value))
-          } catch {}
+          localStorage.setItem(GROUP_STATUS_KEY, groupStatus.value)
+          localStorage.setItem(GROUP_INFO_KEY, JSON.stringify(groupInfo.value))
         }
       }
     }
@@ -273,12 +305,12 @@ function loadSubmissionState() {
 const submissionState = ref({})
 const gradesState = ref({})
 function isRowSubmitted(row) {
-  const id = row?.id
-  const state = submissionState.value || {}
+  const id = String(row?.id ?? row?.assignmentId ?? '')
+  const state = submissionState.value 
   return !!(id && state[id] && state[id].status === 'submitted')
 }
 function getRowScore(row) {
-  const id = row?.id
+  const id = String(row?.id ?? row?.assignmentId ?? '')
   const g = gradesState.value || {}
   const v = id ? g[id]?.score : null
   return typeof v === 'number' ? v : null
@@ -306,10 +338,9 @@ onMounted(async () => {
       }
     }
     try { applyRequirements(data || {}) } catch (e) { console.error(e) }
-    try {
+    
       const serverAssignments = normalizeAssignments(data || {})
       if (serverAssignments.length > 0) assignments.value = serverAssignments
-    } catch {}
     try {
       localStorage.setItem('work_sidebar_status', JSON.stringify(data || {}))
       window.dispatchEvent(new CustomEvent('work-sidebar-updated', { detail: data || {} }))
@@ -329,7 +360,9 @@ onMounted(async () => {
   }
 
   // 仍保留状态读取（用于其他文案或权限），但不影响提交方式
-  try { loadGroupStatusFromStorage() } catch {}
+   loadGroupStatusFromStorage() 
+  // 新增：初始加载本地已提交/成绩状态，避免刷新后按钮回退
+   loadSubmissionState() 
 
   // 监听来自“学习分组”页面的状态更新
   try { window.addEventListener('student-group-updated', onGroupUpdated) } catch {}
@@ -510,27 +543,29 @@ function normalizeAssignments(data) {
   const arr = Array.isArray(data?.assignments) ? data.assignments : (Array.isArray(data?.data) ? data.data : [])
   for (const item of arr) {
     let attachments = []
-    const raw = item.attachmentFiles
-    const arrA = typeof raw === 'string' ? (JSON.parse(raw || '[]') || []) : raw
-    if (Array.isArray(arrA)) {
-      attachments = arrA.map((a, i) => {
-        if (typeof a === 'string') {
-          const name = a.split('/').pop() || `附件${i + 1}`
-          return { name, url: a }
-        }
-        return {
-          name: a?.name || a?.fileName || a?.title || `附件${i + 1}`,
-          url: a?.url || a?.fileUrl || a?.resourceUrl || a?.path || ''
-        }
-      }).filter(x => !!x.url)
-    }
-
+    try {
+      const raw = item?.attachmentFiles ?? item?.attachments ?? []
+      const arrA = typeof raw === 'string' ? (JSON.parse(raw || '[]') || []) : raw
+      if (Array.isArray(arrA)) {
+        attachments = arrA.map((a, i) => {
+          if (typeof a === 'string') {
+            const name = a.split('/').pop() || `附件${i + 1}`
+            return { name, url: a }
+          }
+          return {
+            name: a?.name || a?.fileName || a?.title || `附件${i + 1}`,
+            url: a?.url || a?.fileUrl || a?.resourceUrl || a?.path || ''
+          }
+        }).filter(x => !!x.url)
+      }
+    } catch {}
     list.push({
-      id: item.assignmentId,
-      title: item.assignmentName,
+      // 使用后端 assignmentId 作为唯一键，避免回退为标题导致第一行误命中
+      id: item.assignmentId ?? item.id,
+      title: item.assignmentName || '作业',
       description: item.description,
       deadline: item.dueDate,
-      publishedAt: item.createdAt || item.created_at || item.publishTime || item.publishedAt || '',
+      publishedAt: item.createdAt,
       teacher: item.teacherName,
       attachments
     })
@@ -613,6 +648,37 @@ function openDetail(a) {
   isEditing.value = false
 }
 
+function openGrade(row) {
+  currentAssignment.value = row
+  mode.value = 'grade'
+  fetchGrades(row).catch(() => { gradeMembers.value = [] })
+}
+
+async function fetchGrades(row) {
+  try {
+    const assignmentId = row?.id || row?.assignmentId
+    const key = assignmentId != null ? String(assignmentId) : ''
+    const saved = key ? readJson(SUBMIT_STATE_KEY, {})[key] : null
+    const submissionId = saved?.submissionId || assignmentId
+    const token = localStorage.getItem('token')
+    const resp = await axios.get(`${BASE_URL}/grading/group/${submissionId}`,
+     { headers: { Authorization: `Bearer ${token}` } })
+    const data = resp.data.data || resp.data
+    console.log("获取成绩响应",resp.data)
+    console.log("获取成绩",data)
+    // 兼容多结构：[{name,role,score}] 或 {members:[...]} 或 studentScores
+    const list = Array.isArray(data) ? data : (Array.isArray(data?.members) ? data.members : (Array.isArray(data?.studentScores) ? data.studentScores : []))
+    gradeMembers.value = list.map(m => ({
+      name: m.name || m.studentName || '-',
+      role: (String(m.role || m.memberRole || '').toLowerCase() === 'leader' || m.isLeader) ? 'leader' : 'member',
+      score: (m.score != null ? Number(m.score) : (m.grade != null ? Number(m.grade) : null))
+    }))
+  } catch (e) {
+    console.error('获取成绩失败', e)
+    gradeMembers.value = []
+  }
+}
+
 function backToList() {
   mode.value = 'list'
   isEditing.value = false
@@ -632,35 +698,59 @@ async function submitWork() {
     return
   }
 
-  // 文件大小/类型复核（如果后端暂不接收文件，也保持前端校验逻辑，以便将来恢复上传）
   for (const f of submissionForm.value.files) {
     if (!validateSingleFile(f)) return
   }
   submitting.value = true
 
   try {
-    // 使用 JSON 直接传参，不再使用 FormData
-    const payload = {
-      assignmentId: currentAssignment.value?.id,
-      groupId: groupId.value,
-      studentId: localStorage.getItem('userId'),
-      content: submissionForm.value.description,
-      title: submissionForm.value.title || ''
+    // 构建FormData对象以适配后端接口
+    const formData = new FormData()
+
+    // 添加必要参数
+    formData.append('assignmentId', currentAssignment.value?.id)
+    console.log('assignmentId:', currentAssignment.value?.id)
+    formData.append('groupId', groupId.value)
+    formData.append('studentId', localStorage.getItem('userId'))
+    if (submissionForm.value.title) {
+      formData.append('title', submissionForm.value.title)
     }
 
-    const response = await axios.post(`${BASE_URL}/submission/upload`, payload, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
+    // 添加作业内容（注意：此处改为content以匹配后端参数名）
+    if (submissionForm.value.description) {
+      formData.append('content', submissionForm.value.description)
+    }
+
+    // 添加文件
+    if (submissionForm.value.files && submissionForm.value.files.length > 0) {
+      submissionForm.value.files.forEach(file => {
+        formData.append('files', file.raw || file)
+      })
+    }
+    console.log('提交上传的参数', formData)
+    // 调用后端上传接口
+    console.log('开始上传到:', `${BASE_URL}/submission/upload`)
+    const response = await axios.post(`${BASE_URL}/submission/upload`, formData, {
+      headers: { 
+        Authorization: `Bearer ${localStorage.getItem('token')}` ,
+        'Content-Type': 'multipart/form-data'
       }
     })
-
+    console.log("提交作业响应",response.data)
     if (response.data.code === 200) {
       ElMessage.success('提交成功')
-      const id = currentAssignment.value?.id
-      if (id) {
+      const id = currentAssignment.value?.id || currentAssignment.value?.assignmentId
+      const key = id != null ? String(id) : ''
+      if (key) {
+        const payload = {
+          title: submissionForm.value.title,
+          description: submissionForm.value.description,
+          files: submissionForm.value.files
+        }
+        
+        const newSubmissionId = response?.data?.data?.submissionId || response?.data?.data?.id || response?.data?.submissionId || null
         const state = readJson(SUBMIT_STATE_KEY, {})
-        state[id] = {status: 'submitted', by: String(currentUserName.value || ''), at: Date.now(), lastPayload: { ...payload, files: submissionForm.value.files }}
+        state[key] = {status: 'submitted', by: String(currentUserName.value || ''), at: Date.now(), lastPayload: payload, submissionId: newSubmissionId}
         writeJson(SUBMIT_STATE_KEY, state)
         submissionState.value = state
         window.dispatchEvent(new StorageEvent('storage', {key: SUBMIT_STATE_KEY}))
@@ -680,21 +770,21 @@ async function submitWork() {
     } else {
       ElMessage.error(response.data.msg || '提交失败')
     }
-  } catch (e) {
-    ElMessage.error('提交失败，请稍后重试: ' + (e.response?.data?.msg || e.message))
-  } finally {
-    submitting.value = false
-  }
+    } catch (e) {
+    console.error('提交接口错误', e?.response || e)
+    const msg = e?.response?.data?.msg || e?.message || '未知错误'
+    ElMessage.error('提交失败，请稍后重试: ' + msg)
+    } finally {
+      submitting.value = false
+    }
 }
-
-
 
 function openEdit(row) {
   openDetail(row)
   isEditing.value = true
   try {
     const state = readJson(SUBMIT_STATE_KEY, {})
-    const id = row?.id
+    const id = String(row?.id ?? row?.assignmentId ?? '')
     const last = id ? state[id]?.lastPayload : null
     if (last && typeof last === 'object') {
       submissionForm.value.title = last.title || ''
@@ -704,9 +794,105 @@ function openEdit(row) {
   } catch {}
 }
 
-function submitWorkUpdate() {
-  submitWork()
+async function submitWorkUpdate() {
+  if (requirements.value.titleRequired && !submissionForm.value.title) {
+    ElMessage.error('请填写作品标题')
+    return
+  }
+  if (requirements.value.descriptionRequired && !submissionForm.value.description) {
+    ElMessage.error('请填写作品描述')
+    return
+  }
+  const maxLen = Number(requirements.value.descriptionMaxLen || 0)
+  if (maxLen > 0 && submissionForm.value.description && submissionForm.value.description.length > maxLen) {
+    ElMessage.error(`作品描述不能超过 ${maxLen} 个字符`)
+    return
+  }
+
+  for (const f of submissionForm.value.files) {
+    if (!validateSingleFile(f)) return
+  }
+  submitting.value = true
+
+  try {
+    // 构建FormData对象以适配后端接口
+    const formData = new FormData()
+
+    // 添加必要参数
+    formData.append('assignmentId', currentAssignment.value?.id)
+    console.log('assignmentId:', currentAssignment.value?.id)
+    formData.append('groupId', groupId.value)
+    formData.append('studentId', localStorage.getItem('userId'))
+    if (submissionForm.value.title) {
+      formData.append('title', submissionForm.value.title)
+    }
+
+    // 添加作业内容（注意：此处改为content以匹配后端参数名）
+    if (submissionForm.value.description) {
+      formData.append('content', submissionForm.value.description)
+    }
+
+    // 添加文件
+    if (submissionForm.value.files && submissionForm.value.files.length > 0) {
+      submissionForm.value.files.forEach(file => {
+        formData.append('files', file.raw || file)
+      })
+    }
+    console.log('修改提交的参数', formData)
+    // 调用后端上传接口
+    const assignId = currentAssignment.value?.id
+    const key = assignId != null ? String(assignId) : ''
+    const saved = key ? readJson(SUBMIT_STATE_KEY, {})[key] : null
+    const submissionId = saved?.submissionId || assignId
+    console.log('用于修改的提交ID:', submissionId)
+    console.log('开始上传到:', `${BASE_URL}/submission/${submissionId}`)
+    const response = await axios.put(`${BASE_URL}/submission/${submissionId}`, formData, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}` ,
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    console.log("提交修改",response.data)
+    if (response.data.code === 200) {
+      ElMessage.success('修改已提交')
+      if (key) {
+        const payload = {
+          title: submissionForm.value.title,
+          description: submissionForm.value.description,
+          files: submissionForm.value.files
+        }
+        const state = readJson(SUBMIT_STATE_KEY, {})
+        // 保留 submissionId（可能后端在修改时返回也可再次覆盖）
+        const newSubmissionId = response?.data?.data?.submissionId || response?.data?.data?.id || response?.data?.submissionId || submissionId
+        state[key] = {status: 'submitted', by: String(currentUserName.value || ''), at: Date.now(), lastPayload: payload, submissionId: newSubmissionId}
+        writeJson(SUBMIT_STATE_KEY, state)
+        submissionState.value = state
+        window.dispatchEvent(new StorageEvent('storage', {key: SUBMIT_STATE_KEY}))
+      }
+
+      // 返回列表
+      backToList()
+      submissionForm.value = {title: '', description: '', files: []}
+
+      try {
+        const data = getWorkSidebarStatus()
+        localStorage.setItem('work_sidebar_status', JSON.stringify(data || {}))
+        window.dispatchEvent(new CustomEvent('work-sidebar-updated', {detail: data || {}}))
+    } catch (e) {
+        console.error(e)
+      }
+    } else {
+      ElMessage.error(response.data.msg || '提交失败')
+    }
+  } catch (e) {
+    console.error('提交接口错误', e?.response || e)
+    const msg = e?.response?.data?.msg || e?.message || '未知错误'
+    ElMessage.error('提交失败，请稍后重试: ' + msg)
+    } finally {
+      submitting.value = false
+    }
 }
+
 </script>
 
 <style scoped>
@@ -735,40 +921,6 @@ function submitWorkUpdate() {
   margin-bottom:16px; 
   box-shadow: 0 2px 6px rgba(0,0,0,.04); 
 }
-.assignment-items { 
-  display:flex; 
-  flex-direction:column; 
-  gap:12px; 
-}
-.assignment-item { 
-  display:flex; 
-  justify-content:space-between;
-  align-items:flex-start; 
-  border:1px solid #eef2f7; 
-  border-radius:10px; 
-  padding:12px; 
-}
-.assignment-main { 
-  max-width: 60%; 
-}
-.assignment-title { 
-  font-weight:600; 
-  color:#1e293b; 
-  margin-bottom:6px; 
-}
-.assignment-desc { 
-  color:#64748b; 
-  font-size:13px; 
-}
-.assignment-meta { 
-  display:flex; 
-  gap:10px; 
-  align-items:center; 
-}
-.assignment-meta .deadline { 
-  color:#6b7280; 
-  font-size:12px; 
-}
 
 .submission-form {
   background: #fff;
@@ -778,28 +930,8 @@ function submitWorkUpdate() {
   margin-bottom: 16px;
   box-shadow: 0 2px 6px rgba(0,0,0,.04);
 }
-.detail-header { 
-  display:flex; 
-  align-items:center; 
-  justify-content:space-between;
-  margin-bottom:8px; 
-}
-.detail-title { 
-  font-weight:600; 
-  color:#1e293b; 
-}
-.submission-form .el-form { 
-  margin: 16px 0; 
-}
-.form-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 14px 0;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #f1f5f9;
-}
-.form-row { 
+
+.form-row {
   margin-bottom: 14px; 
 }
 
@@ -835,17 +967,34 @@ function submitWorkUpdate() {
   line-height: 1.8; 
 }
 
-.submit-scope { display:flex; align-items:center; gap:12px; }
-.status-chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-.st-none { background:#ffebee; color:#c62828; }
-.st-pending { background:#fff7ed; color:#b45309; }
-.st-approved { background:#e8f5e9; color:#2e7d32; }
+.attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-.attachments { display:flex; flex-direction:column; gap:8px; }
-.attachment-item { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid #eef2f7; border-radius:8px; }
-.attach-title { font-weight:600; color:#1e293b; margin-bottom:8px; }
-.attachments-empty { color:#94a3b8; font-size:13px; padding:8px; border:1px dashed #e5e7eb; border-radius:8px; }
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+}
 
-/* 兼容相对地址的下载链接 */
+.attach-title {
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.attachments-empty {
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 8px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
+}
+
 
 </style>

@@ -153,21 +153,21 @@
       </div>
     </div>
   </div>
-  <Question
-      v-if="enableQuestions"
-      v-model="questionVisible"
-      :questions="questionList"
-      title="知识检查"
-      :closable="false"
-      :requireAll="true"
-      @submit="onQuestionSubmit"
-  />
+<!--  <Question-->
+<!--      v-if="enableQuestions"-->
+<!--      v-model="questionVisible"-->
+<!--      :questions="questionList"-->
+<!--      title="知识检查"-->
+<!--      :closable="false"-->
+<!--      :requireAll="true"-->
+<!--      @submit="onQuestionSubmit"-->
+<!--  />-->
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { fetchQuestions, submitExamAnswers, hasQuestionShown, markQuestionShown, generateExamAndQuestions } from '@/services/questionApi'
-import Question from '@/components/Question.vue'
+import { fetchQuestions, submitExamAnswers, hasQuestionShown, markQuestionShown} from '@/services/questionApi'
+// import Question from '@/components/Question.vue'
 
 
 const props = defineProps({
@@ -393,8 +393,7 @@ function handleKeydown(e) {
     }
     if (e.key === 'ArrowRight') {
       e.preventDefault()
-      seekBy(5) // 受限：不允许超过当前进度
-      return
+      seekBy(5)
     }
   } catch (e) { console.error(e) }
 }
