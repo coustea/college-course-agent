@@ -26,7 +26,7 @@ import java.util.UUID;
 @RequestMapping("/api/submission")
 public class SubmissionController {
 
-    @Value("${file.upload-dir:/home/project/uploads}")
+    @Value("${file.upload-dir}")
     private String uploadDir;
 
     @Autowired

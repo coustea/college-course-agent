@@ -4,9 +4,9 @@ spring:
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
-    username: root
-    password: 206719
+    url: jdbc:mysql://39.96.172.21:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
+    username: ccut
+    password: Aa123456
     hikari:
       pool-name: HikariCP
       maximum-pool-size: 50        # 最大连接数（并发能力提升）
@@ -52,4 +52,7 @@ logging:
     com.ccut.mapper: debug   # 打印SQL语句
 
 file:
+  #windows
+#  upload-dir: D:/develop/ccut/backend/uploads
+  # ubuntu
   upload-dir: /home/project/uploads
