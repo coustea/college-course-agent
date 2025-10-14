@@ -376,7 +376,7 @@ export default {
         // 获取教师ID（userInfo.id -> teacherId 本地 -> 后端列表首个）
         let teacherId = null
         try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) teacherId = Number(u.id) } catch (e) { console.error(e) }
-        if (!teacherId) { const tid = localStorage.getItem('teacherId'); if (tid) teacherId = Number(tid) }
+        if (!teacherId) { const tid = localStorage.getItem('userId'); if (tid) teacherId = Number(tid) }
         if (!teacherId) {
           try {
             const tRes = await api.get('/teacher/list/teachers')

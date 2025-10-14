@@ -53,10 +53,10 @@
           <el-table-column prop="members" label="组员" width="200" align="center">
             <template #default="scope">
               <el-tag
-                v-for="member in scope.row.members"
-                :key="member"
-                size="small"
-                style="margin: 2px;"
+                  v-for="member in scope.row.members"
+                  :key="member"
+                  size="small"
+                  style="margin: 2px;"
               >
                 {{ member }}
               </el-tag>
@@ -89,9 +89,9 @@
           <el-table-column label="操作" width="300" align="center">
             <template #default="scope">
               <el-button
-                size="small"
-                @click="viewGroupDetails(scope.row)"
-                :disabled="!scope.row.submitTime"
+                  size="small"
+                  @click="viewGroupDetails(scope.row)"
+                  :disabled="!scope.row.submitTime"
               >
                 查看详情
               </el-button>
@@ -104,11 +104,11 @@
 
       <!-- 检查详情对话框 -->
       <el-dialog
-        v-model="detailDialogVisible"
-        :title="`${selectedGroup?.groupName} - 检查详情`"
-        width="80%"
-        top="50px"
-        class="centered-dialog"
+          v-model="detailDialogVisible"
+          :title="`${selectedGroup?.groupName} - 检查详情`"
+          width="80%"
+          top="50px"
+          class="centered-dialog"
       >
         <div v-if="selectedGroup">
           <el-descriptions title="基本信息" border>
@@ -134,6 +134,7 @@
               <div v-for="(file, index) in selectedGroup.attachments" :key="index" class="attachment-item">
                 <i class="fas fa-file"></i>
                 <span>{{ file.name }}</span>
+                <el-button link type="primary" @click="previewFile(file)">预览</el-button>
                 <el-button link type="primary" @click="downloadFile(file)">下载</el-button>
               </div>
               <p v-if="selectedGroup.attachments.length === 0">该小组未提交附件</p>
@@ -145,19 +146,19 @@
             <el-form :model="gradingForm" label-width="80px">
               <el-form-item label="得分">
                 <el-input-number
-                  v-model="gradingForm.score"
-                  :min="0"
-                  :max="100"
-                  placeholder="请输入得分"
+                    v-model="gradingForm.score"
+                    :min="0"
+                    :max="100"
+                    placeholder="请输入得分"
                 />
                 <span class="score-total">/ 100</span>
               </el-form-item>
               <el-form-item label="评语">
                 <el-input
-                  v-model="gradingForm.comment"
-                  type="textarea"
-                  :rows="4"
-                  placeholder="请输入评语"
+                    v-model="gradingForm.comment"
+                    type="textarea"
+                    :rows="4"
+                    placeholder="请输入评语"
                 />
               </el-form-item>
               <el-form-item label="检查结果">
@@ -179,10 +180,10 @@
 
       <!-- 个人提交详情对话框 -->
       <el-dialog
-        v-model="personalDialogVisible"
-        :title="`个人提交详情 - 学生ID: ${selectedPersonal?.studentId || ''}`"
-        width="60%"
-        top="80px"
+          v-model="personalDialogVisible"
+          :title="`个人提交详情 - 学生ID: ${selectedPersonal?.studentId || ''}`"
+          width="60%"
+          top="80px"
       >
         <div v-if="selectedPersonal">
           <el-descriptions title="基本信息" border>
@@ -207,6 +208,7 @@
               <div v-for="(file, index) in selectedPersonal.files" :key="index" class="attachment-item">
                 <i class="fas fa-file"></i>
                 <span>{{ file.name }}</span>
+                <el-button link type="primary" @click="previewFile(file)">预览</el-button>
                 <el-button link type="primary" @click="downloadFile(file)">下载</el-button>
               </div>
               <p v-if="!selectedPersonal.files || selectedPersonal.files.length === 0">无</p>
@@ -236,9 +238,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, computed, watch, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
 const route = useRoute()
@@ -246,7 +248,7 @@ const router = useRouter()
 const assignmentId = route.params.id
 
 // axios 实例
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://192.168.1.108:9999/api')
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   try {
@@ -355,6 +357,64 @@ const downloadFile = async (file) => {
       window.URL.revokeObjectURL(blobUrl)
     } catch {}
   }
+}
+
+const previewFile = async (file) => {
+  const url = normalizeFileUrl(file.url || file)
+  const fileName = file.name || url.split('/').pop()
+  const fileExt = fileName.toLowerCase().split('.').pop()
+
+  // 图片预览：png, jpg, jpeg, gif, webp
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(fileExt)) {
+    ElMessageBox({
+      title: fileName,
+      message: h('img', { src: url, style: 'max-width: 100%; max-height: 500px;' }),
+      showCancelButton: true,
+      confirmButtonText: '下载',
+      cancelButtonText: '关闭'
+    }).then(() => {
+      downloadFile(file)
+    }).catch(() => {})
+    return
+  }
+
+  // PDF 预览
+  if (fileExt === 'pdf') {
+    window.open(`/pdfjs/web/viewer.html?file=${encodeURIComponent(url)}`, '_blank')
+    return
+  }
+
+  // 文本类：txt, js, css, html, json 等
+  if (['txt', 'js', 'css', 'html', 'json', 'xml', 'md'].includes(fileExt)) {
+    try {
+      const res = await axios.get(url)
+      ElMessageBox({
+        title: fileName,
+        message: h('pre', { style: 'white-space: pre-wrap; max-height: 500px; overflow-y: auto;' }, res.data),
+        showConfirmButton: false,
+        cancelButtonText: '关闭',
+        showCancelButton: true
+      })
+    } catch {
+      ElMessage.warning('无法加载文本内容')
+    }
+    return
+  }
+
+  // Office 文件（使用第三方服务或后端转换）
+  if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(fileExt)) {
+    // 使用 Microsoft Online Viewer
+    const officePreviewUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`
+    window.open(officePreviewUrl, '_blank')
+    return
+  }
+
+  // 其他格式默认下载
+  ElMessageBox.confirm(`不支持预览该文件类型（.${fileExt}），是否下载？`, '提示', {
+    type: 'warning'
+  }).then(() => {
+    downloadFile(file)
+  }).catch(() => {})
 }
 
 const submitCheck = () => {
@@ -542,7 +602,7 @@ onMounted(async () => {
   } catch (e) {
     // 尝试使用绝对后端基址作为降级
     try {
-      const fallbackBase = (window?.location?.port === '5173' || window?.location?.port === '4173') ? 'http://localhost:9999/api' : API_BASE
+      const fallbackBase = (window?.location?.port === '5173' || window?.location?.port === '4173') ? 'http://192.168.1.108:9999/api' : API_BASE
       const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
       const res2 = await axios.get(`${fallbackBase}/personal-submission/by-assignment`, { params: { assignmentId }, headers: token ? { Authorization: `Bearer ${token}` } : {} })
       const raw2 = res2?.data
