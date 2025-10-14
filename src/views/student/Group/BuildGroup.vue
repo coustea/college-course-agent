@@ -12,6 +12,7 @@
       <div class="header-actions">
         <span v-if="isSelecting" class="select-hint">请选择 2 ~ 5 名组员</span>
         <span v-if="!isCreating || isSelecting" class="choose-hint">可选择 2~5 人为组员</span>
+        <el-button v-if="showFinishFromEdit && (!isCreating || isSelecting)" @click="finishReselectFromEdit" type="success" plain>重新选择完成</el-button>
         <span v-if="!isCreating || isSelecting" class="selected-count">已选择 {{ selectedMembers.length }} 人</span>
         <el-button v-if="!isCreating" type="primary" @click="startCreate">新建小组</el-button>
         <el-button v-else-if="isSelecting" type="primary" @click="finishSelecting">选择完成</el-button>
@@ -110,6 +111,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getStudentsByClassName, createStudentGroup } from '@/services/groupApi'
 import { updateStudentGroup } from '@/services/groupApi'
 
@@ -123,6 +125,10 @@ const taskDescription = ref('')
 const isCreating = ref(false)
 const isSelecting = ref(false)
 const isUpdate = ref(false)
+const showFinishFromEdit = ref(false)
+
+// 路由实例（用于“重新选择完成”返回我的小组）
+const router = useRouter()
 
 const myId = ref(null)
 const mySid = ref('')
@@ -134,14 +140,13 @@ const REJECTED_SIDS_KEY = 'rejected_group_member_sids'
 onMounted(async () => {
   try {
     // 恢复 UI 状态
-      const ui = JSON.parse(localStorage.getItem(uiStateStorageKey) || 'null')
-      if (ui && typeof ui === 'object') {
-        isCreating.value = !!ui.creating
-        isSelecting.value = !!ui.selecting
-      }
+    const ui = JSON.parse(localStorage.getItem(uiStateStorageKey) || 'null')
+    if (ui && typeof ui === 'object') {
+      isCreating.value = !!ui.creating
+      isSelecting.value = !!ui.selecting
+    }
 
     // 读取当前用户 id 与学号（用于“本人”标注）
-
     const idStr = localStorage.getItem('userId')
     if (idStr) myId.value = idStr
     const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
@@ -150,8 +155,27 @@ onMounted(async () => {
     const className = localStorage.getItem('className')
     const list = await getStudentsByClassName(className)
     console.log('学生分组的列表', list)
-    //（删除按钮逻辑已移除，此处不再读取首次小组成员/组长学号）
-    // 读取被驳回小组成员学号列表与覆盖（sid -> 'available'）
+
+    showFinishFromEdit.value = localStorage.getItem('from_group_edit') === '1'
+
+
+    const draftName = localStorage.getItem('edit_group_name_draft')
+    const draftTask = localStorage.getItem('edit_group_task_draft')
+    if (draftName) groupName.value = draftName
+    if (draftTask) taskDescription.value = draftTask
+    // 基础成员：未删除的成员（由我的小组传入，按学生ID对齐）
+    try {
+      const baseIds = JSON.parse(localStorage.getItem('base_member_student_ids') || '[]')
+      if (Array.isArray(baseIds) && baseIds.length) {
+        const idSet = new Set(
+          (allStudents.value || [])
+            .filter(s => baseIds.includes(Number(s.id) || s.id))
+            .map(s => s.id)
+        )
+        selectedIds.value = Array.from(idSet)
+      }
+    } catch {}
+
     const rejectedSids = JSON.parse(localStorage.getItem(REJECTED_SIDS_KEY) || '[]')
     const rejectedSet = new Set((rejectedSids || []).map(x => String(x)))
     const overrides = JSON.parse(localStorage.getItem('student_status_overrides') || '{}')
@@ -162,16 +186,16 @@ onMounted(async () => {
       const groupStatusRaw = String(s.groupStatus || s.status || '').toLowerCase()
       // 默认与后端同步：已审批通过或已分组标记为已组队
       let mappedUnavailable = (
-        groupStatusRaw === 'approval' ||
-        groupStatusRaw === 'approved' ||
-        s.grouped === true ||
-        s.status === 'grouped'
+          groupStatusRaw === 'approval' ||
+          groupStatusRaw === 'approved' ||
+          s.grouped === true ||
+          s.status === 'grouped'
       )
       // 若该学生在覆盖名单中，则强制视为可选（未组队）
       const sidStr = String(s.studentNumber || s.sid || '')
       if (sidStr && (rejectedSet.has(sidStr) || overrides[sidStr] === 'available')) mappedUnavailable = false
       return {
-        id: s.id|| i + 1,
+        id: s.id || i + 1,
         name: s.name || '-',
         sid: s.studentNumber || '-',
         status: mappedUnavailable ? 'unavailable' : 'available',
@@ -179,18 +203,20 @@ onMounted(async () => {
         email: s.email || '-',
       }
     })
-  } catch (e) { alert(`加载学生列表失败：${e?.message || e}`) }
+  } catch (e) {
+    alert(`加载学生列表失败：${e?.message || e}`)
+  }
 })
 
 const filteredStudents = computed(() => {
   const k = keyword.value.trim()
   return (allStudents.value || [])
-    .filter(s => {
-      if (statusFilter.value === 'available') return s.status === 'available'
-      if (statusFilter.value === 'unavailable') return s.status !== 'available'
-      return true
-    })
-    .filter(s => !k || s.name.includes(k) || String(s.sid).includes(k))
+      .filter(s => {
+        if (statusFilter.value === 'available') return s.status === 'available'
+        if (statusFilter.value === 'unavailable') return s.status !== 'available'
+        return true
+      })
+      .filter(s => !k || s.name.includes(k) || String(s.sid).includes(k))
 })
 
 const selectedMembers = computed(() => allStudents.value.filter(s => selectedIds.value.includes(s.id)))
@@ -208,18 +234,23 @@ function onRowClick(row) {
   if (row?.status !== 'available') return
   toggleSelect(row)
 }
-function rowClassName({ row }) {
+
+function rowClassName({row}) {
   if (row.status !== 'available') return 'disabled'
   if (selectedIds.value.includes(row.id)) return 'selected'
   return ''
 }
-//（删除按钮判定逻辑已移除）
+
 function isSelf(stu) {
   if (!stu) return false
   if (mySid.value) return String(stu.sid) === String(mySid.value)
   return !!(myId.value != null && String(stu.id) === String(myId.value))
 }
-function isSelected(id) { return selectedIds.value.includes(id) }
+
+function isSelected(id) {
+  return selectedIds.value.includes(id)
+}
+
 function toggleSelect(stu) {
   if (stu.status !== 'available') return
   if (isSelf(stu)) return
@@ -231,33 +262,54 @@ function toggleSelect(stu) {
     selectedIds.value.push(stu.id)
   }
 }
-//（删除按钮处理逻辑已移除）
+
 function startCreate() {
   isCreating.value = true
   isSelecting.value = false
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: true, selecting: false}))
 }
+
 function enterSelecting() {
   isSelecting.value = true
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: true, selecting: true}))
 }
+
 function finishSelecting() {
   isSelecting.value = false
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: true, selecting: false}))
 }
+
+function finishReselectFromEdit() {
+  // 计算“新增选择”成员（相对于基础成员）并带回我的小组页面用于临时展示
+  try {
+    const baseIds = JSON.parse(localStorage.getItem('base_member_student_ids') || '[]')
+    const baseSet = new Set((Array.isArray(baseIds) ? baseIds : []).map(v => Number(v)))
+    const nowSet = new Set(selectedIds.value || [])
+    const addedInfos = (allStudents.value || [])
+      .filter(s => nowSet.has(s.id) && !baseSet.has(Number(s.id)))
+      .map(s => ({ studentId: s.id, name: s.name }))
+    localStorage.setItem('added_member_infos', JSON.stringify(addedInfos))
+  } catch {}
+  try { localStorage.setItem('group_edit_auto_open', '1') } catch {}
+  localStorage.removeItem('student_groups_ui_state')
+  localStorage.removeItem('from_group_edit')
+  router.push('/group/mine')
+}
+
 function reselect() {
   selectedIds.value = []
   isSelecting.value = true
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: true, selecting: true}))
 }
+
 function cancelCreate() {
   isCreating.value = false
   isSelecting.value = false
   selectedIds.value = []
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: false, selecting: false}))
-  // 仅在取消时清理覆盖键
-  try { localStorage.removeItem('student_status_overrides') } catch {}
-  try { localStorage.removeItem(REJECTED_SIDS_KEY) } catch {}
+  localStorage.removeItem('student_status_overrides')
+  localStorage.removeItem(REJECTED_SIDS_KEY)
+
 }
 
 async function submitGroup() {
@@ -269,23 +321,28 @@ async function submitGroup() {
       groupName: groupName.value,
       groupLeaderId: leaderId,
       memberIds: members.map(m => m.id),
-      teacherId: (() => { const v = localStorage.getItem('userId'); return v ? Number(v) : undefined })(),
+      teacherId: (() => {
+        const v = localStorage.getItem('userId');
+        return v ? Number(v) : undefined
+      })(),
       groupDescription: taskDescription.value
     }
     console.log(isUpdate.value ? '重新申请小组信息' : '提交小组信息', payload)
     const res = isUpdate.value ? await updateStudentGroup(payload) : await createStudentGroup(payload)
     const code = Number(res?.code ?? res?.status ?? 0)
     if (code === 200) {
-      try { localStorage.setItem(GROUP_STATUS_KEY, 'pending') } catch {}
+      try {
+        localStorage.setItem(GROUP_STATUS_KEY, 'pending')
+      } catch {
+      }
       alert('已提交小组审批')
       // 回到初始态
       isCreating.value = false
       isSelecting.value = false
       selectedIds.value = []
-      try { localStorage.setItem(uiStateStorageKey, JSON.stringify({ creating: false, selecting: false })) } catch {}
-      // 仅在提交成功后清理覆盖键
-      try { localStorage.removeItem('student_status_overrides') } catch {}
-      try { localStorage.removeItem(REJECTED_SIDS_KEY) } catch {}
+      localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: false, selecting: false}))
+      localStorage.removeItem('student_status_overrides')
+      localStorage.removeItem(REJECTED_SIDS_KEY)
     } else {
       alert(`提交失败：${res?.message || code || '未知错误'}`)
     }
