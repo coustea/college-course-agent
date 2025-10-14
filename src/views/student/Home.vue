@@ -148,7 +148,7 @@ const router = useRouter()
 const route = useRoute()
 const { proxy } = getCurrentInstance()
 const BASE_URL = proxy.$baseUrl
-
+const userName = ref('')
 
 const getStudentById = async () => {
   console.log('getStudentById called')
@@ -323,13 +323,6 @@ const enrollSelectedStudents = async () => {
     enrolling.value = false
   }
 }
-
-const editCourse = (course) => {
-  const id = course.id || course.courseId
-  if (!id) return
-  router.push(`/teacher/courses/edit/${id}`)
-}
-
 const editCourseMaterials = (course) => {
   const id = course.id || course.courseId
   if (!id) return
@@ -436,34 +429,6 @@ function ensureDocChapters(course) {
   margin-right: 10px;
 }
 
-.search-filters {
-  display: flex;
-  gap: 15px;
-}
-
-.filter-btn {
-  padding: 8px 16px;
-  background: #f0f5ff;
-  border: none;
-  border-radius: 6px;
-  color: #2563eb;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.filter-btn.active {
-  background: #2563eb;
-  color: white;
-}
-
-.filter-btn:hover {
-  background: #dbeafe;
-}
-
-.filter-btn.active:hover {
-  background: #2563eb;
-}
-
 .courses-container {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -558,6 +523,7 @@ function ensureDocChapters(course) {
   gap: 4px;
   margin-top: 8px;
 }
+
 .btn-primary {
   padding: 4px 8px;
   background: #2563eb;
@@ -567,7 +533,11 @@ function ensureDocChapters(course) {
   cursor: pointer;
   font-size: 12px;
 }
-.btn-primary:hover { background: #1d4ed8; }
+
+.btn-primary:hover {
+  background: #1d4ed8;
+}
+
 .btn-secondary {
   padding: 4px 8px;
   background: #64748b;
@@ -577,9 +547,18 @@ function ensureDocChapters(course) {
   cursor: pointer;
   font-size: 12px;
 }
-.btn-secondary:hover { background: #475569; }
 
-.student-manager .toolbar { display: flex; gap: 10px; justify-content: space-between; margin-bottom: 10px; }
+.btn-secondary:hover {
+  background: #475569;
+}
+
+.student-manager .toolbar {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
 .btn-danger {
   padding: 4px 8px;
   background: #ef4444;
@@ -589,7 +568,10 @@ function ensureDocChapters(course) {
   cursor: pointer;
   font-size: 12px;
 }
-.btn-danger:hover { background: #dc2626; }
+
+.btn-danger:hover {
+  background: #dc2626;
+}
 
 .no-results {
   text-align: center;
@@ -645,10 +627,6 @@ function ensureDocChapters(course) {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
-  }
-
-  .search-filters {
-    flex-wrap: wrap;
   }
 
   .courses-container {

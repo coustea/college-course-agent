@@ -86,6 +86,27 @@ const handleLogin = async () => {
       localStorage.setItem("userName",res.data.data.username)
       localStorage.setItem("token",res.data.data.token)
       console.log('token', res.data.data.token)
+      // 登录成功后，立即拉取教师个人信息
+      try {
+        const tid = res.data.data.userId
+        const token = res.data.data.token
+        const infoResp = await axios.get(`${BASE_URL}/teacher/${tid}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        const teacher = infoResp?.data?.data || null
+        if (teacher) {
+          localStorage.setItem('userInfo', JSON.stringify(teacher))
+          if (teacher.id != null) localStorage.setItem('teacherId', String(teacher.id))
+          const currentUser = { id: teacher.id ?? tid, name: teacher.name || res.data.data.username, teacherId: teacher.id ?? tid }
+          localStorage.setItem('currentUser', JSON.stringify(currentUser))
+        } else {
+          // 兜底：至少写入 teacherId，便于后续页面可用
+          localStorage.setItem('teacherId', String(tid))
+        }
+      } catch (e) {
+        // 忽略错误，继续跳转
+        try { localStorage.setItem('teacherId', String(res.data.data.userId)) } catch {}
+      }
       await router.push('/teacher')
     } else if (role.value === 'student'&& res.data.code === 200) {
       localStorage.setItem("userId",res.data.data.userId)
