@@ -69,6 +69,16 @@ public class GroupMemberController {
 
         int res = groupMemberService.deleteMember(studentId, groupId);
         if(res > 0){
+            try {
+                // 同步更新学生表的分组状态为 pending（待申请）
+                Student stu = studentService.selectById(studentId);
+                if (stu != null) {
+                    stu.setGroupStatus("pending");
+                    studentService.updateById(stu);
+                }
+            } catch (Exception e) {
+                log.warn("删除成员后更新学生group_status失败: studentId={}, err={}", studentId, e.getMessage());
+            }
             return Result.success("删除成功");
         }
         log.error("删除失败，studentId is {}", studentId);

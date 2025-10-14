@@ -9,4 +9,5 @@ public interface GroupMemberMapper {
     GroupMember selectById(Long id);
     int insertMember(GroupMember groupMember);
     int deleteMember(@Param("studentId") Long studentId, @Param("groupId") Long groupId);
+    java.util.List<GroupMember> selectByGroupId(@Param("groupId") Long groupId);
 }

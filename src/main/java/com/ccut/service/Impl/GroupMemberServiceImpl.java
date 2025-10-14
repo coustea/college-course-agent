@@ -26,4 +26,9 @@ public class GroupMemberServiceImpl implements GroupMemberService {
     public int insertMember(GroupMember groupMember) {
         return groupMemberMapper.insertMember(groupMember);
     }
+
+    @Override
+    public java.util.List<GroupMember> selectByGroupId(Long groupId) {
+        return groupMemberMapper.selectByGroupId(groupId);
+    }
 }

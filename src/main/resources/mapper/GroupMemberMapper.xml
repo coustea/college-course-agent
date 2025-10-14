@@ -24,5 +24,11 @@
         WHERE student_id = #{studentId}
     </select>
 
+    <select id="selectByGroupId" resultType="com.ccut.entity.GroupMember">
+        SELECT * FROM group_members
+        WHERE group_id = #{groupId}
+        ORDER BY role DESC, join_time DESC
+    </select>
+
 
 </mapper>

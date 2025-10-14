@@ -10,6 +10,7 @@ import com.ccut.service.Impl.StudentGroupServiceImpl;
 import com.ccut.service.Impl.StudentServiceImpl;
 import com.ccut.service.Impl.TeacherServiceImpl;
 import lombok.extern.slf4j.Slf4j;
+import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -189,6 +190,92 @@ public class StudentGroupController {
             log.error("更新学生分组信息时发生异常: ", e);
             return Result.error(500, "系统异常，请稍后重试");
         }
+    }
+
+    /**
+     * 一次性更改小组的多项信息（名称/描述/审批状态/成员增删替换）。
+     * - groupName / groupDescription / approvalStatus / status 可选
+     * - membersReplace: 若为 true，则先清空该组所有成员后，按 members 重新插入；否则仅执行增删
+     * - addMemberIds: 需要新增的学生ID列表
+     * - removeMemberIds: 需要移除的学生ID列表
+     */
+    @PutMapping("/{groupId}/full-update")
+    @Transactional
+    public Result<StudentGroup> fullUpdate(
+            @PathVariable("groupId") Long groupId,
+            @RequestBody FullUpdateRequest body
+    ) {
+        try {
+            StudentGroup group = studentGroupService.selectByGroupId(groupId);
+            if (group == null) {
+                return Result.error(404, "用户分组不存在!");
+            }
+
+            // 1) 更新组的基础信息
+            StudentGroup patch = new StudentGroup();
+            patch.setGroupId(groupId);
+            if (body.getGroupName() != null && !body.getGroupName().isEmpty()) patch.setGroupName(body.getGroupName());
+            if (body.getGroupDescription() != null && !body.getGroupDescription().isEmpty()) patch.setGroupDescription(body.getGroupDescription());
+            if (body.getGroupLeaderId() != null) patch.setGroupLeaderId(body.getGroupLeaderId());
+            if (body.getApprovalStatus() != null) patch.setApprovalStatus(body.getApprovalStatus());
+            if (body.getStatus() != null) patch.setStatus(body.getStatus());
+            if (patch.getGroupName() != null || patch.getGroupDescription() != null || patch.getApprovalStatus() != null || patch.getStatus() != null) {
+                studentGroupService.update(patch);
+            }
+
+            // 2) 成员处理（增删）
+            if (body.getRemoveMemberIds() != null) {
+                for (Long sid : body.getRemoveMemberIds()) {
+                    if (sid == null) continue;
+                    groupMemberService.deleteMember(sid, groupId);
+                }
+            }
+            if (body.getAddMemberIds() != null) {
+                for (Long sid : body.getAddMemberIds()) {
+                    if (sid == null) continue;
+                    // 若该学生已在任一小组，禁止重复加入（与创建逻辑一致）
+                    GroupMember existing = groupMemberService.selectById(sid);
+                    if (existing != null) {
+                        return Result.error(400, "成员已在其他小组中: " + sid);
+                    }
+                    // 填充成员姓名/班级
+                    Student member = studentService.selectById(sid);
+                    if (member == null) {
+                        return Result.error(400, "成员不存在: " + sid);
+                    }
+                    GroupMember item = new GroupMember(
+                            groupId,
+                            sid,
+                            member.getName(),
+                            member.getClassName(),
+                            GroupMember.GroupMemberRole.member,
+                            GroupMember.Status.approval
+                    );
+                    groupMemberService.insertMember(item);
+                    // 同步更新学生的分组状态为 approval
+                    try {
+                        member.setGroupStatus("approval");
+                        studentService.updateById(member);
+                    } catch (Exception ignore) {}
+                }
+            }
+
+            return Result.success(studentGroupService.selectByGroupId(groupId));
+        } catch (Exception e) {
+            log.error("批量更新学生分组信息异常", e);
+            return Result.error(500, "系统异常，请稍后重试");
+        }
+    }
+
+    @Data
+    public static class FullUpdateRequest {
+        private String groupName;
+        private String groupDescription;
+        private Long groupLeaderId;
+        private StudentGroup.GroupStatus status;
+        private StudentGroup.GroupApprovalStatus approvalStatus;
+        private java.util.List<Long> addMemberIds;
+        private java.util.List<Long> removeMemberIds;
     }
 
     @PostMapping("/approvalStatus")
