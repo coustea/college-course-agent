@@ -549,13 +549,37 @@ const fetchGroupSubmissions = async () => {
     groups.value = (groups.value || []).map(g => {
       const s = map.get(Number(g.id))
       if (!s) return g
+
+      // 改进附件解析逻辑
       let attachments = []
       try {
         if (s.submissionFiles) {
-          const arr = JSON.parse(s.submissionFiles)
-          if (Array.isArray(arr)) attachments = arr.map((p) => ({ name: (p.name || String(p).split('/').pop()), url: (p.url || p) }))
+          let arr;
+          if (typeof s.submissionFiles === 'string') {
+            arr = JSON.parse(s.submissionFiles)
+          } else if (Array.isArray(s.submissionFiles)) {
+            arr = s.submissionFiles
+          }
+
+          if (Array.isArray(arr)) {
+            attachments = arr.map((p) => {
+              // 处理不同格式的数据
+              if (typeof p === 'string') {
+                return { name: p.split('/').pop(), url: p }
+              } else if (typeof p === 'object' && p !== null) {
+                return {
+                  name: p.name || p.fileName || (p.url ? p.url.split('/').pop() : 'unknown'),
+                  url: p.url || p.filePath || ''
+                }
+              }
+              return { name: 'unknown', url: '' }
+            })
+          }
         }
-      } catch {}
+      } catch (error) {
+        console.error('解析附件出错:', error)
+      }
+
       return {
         ...g,
         submitTime: s.submittedAt || s.submitted_at || g.submitTime,
@@ -581,15 +605,36 @@ onMounted(async () => {
     const res = await api.get('/personal-submission/by-assignment', { params: { assignmentId }, headers: {} })
     const raw = res?.data
     const list = Array.isArray(raw?.data) ? raw.data : []
-    // 解析 JSON 数组字段 submissionFiles，映射为 {name,url}
+
+    // 改进个人提交附件解析逻辑
     personalSubmissions.value = list.map(it => {
       let files = []
       try {
         if (it.submissionFiles) {
-          const arr = JSON.parse(it.submissionFiles)
-          if (Array.isArray(arr)) files = arr.map((p) => ({ name: p.split('/').pop(), url: p }))
+          let arr;
+          if (typeof it.submissionFiles === 'string') {
+            arr = JSON.parse(it.submissionFiles)
+          } else if (Array.isArray(it.submissionFiles)) {
+            arr = it.submissionFiles
+          }
+
+          if (Array.isArray(arr)) {
+            files = arr.map((p) => {
+              // 处理不同格式的数据
+              if (typeof p === 'string') {
+                return { name: p.split('/').pop(), url: p }
+              } else if (typeof p === 'object' && p !== null) {
+                return {
+                  name: p.name || p.fileName || (p.url ? p.url.split('/').pop() : 'unknown'),
+                  url: p.url || p.filePath || ''
+                }
+              }
+              return { name: 'unknown', url: '' }
+            })
+          }
         }
       } catch {}
+
       return {
         studentId: it.studentId,
         submittedAt: it.submittedAt,
@@ -607,14 +652,36 @@ onMounted(async () => {
       const res2 = await axios.get(`${fallbackBase}/personal-submission/by-assignment`, { params: { assignmentId }, headers: token ? { Authorization: `Bearer ${token}` } : {} })
       const raw2 = res2?.data
       const list2 = Array.isArray(raw2?.data) ? raw2.data : []
+
+      // 改进个人提交附件解析逻辑（降级处理）
       personalSubmissions.value = list2.map(it => {
         let files = []
         try {
           if (it.submissionFiles) {
-            const arr = JSON.parse(it.submissionFiles)
-            if (Array.isArray(arr)) files = arr.map((p) => ({ name: p.split('/').pop(), url: p }))
+            let arr;
+            if (typeof it.submissionFiles === 'string') {
+              arr = JSON.parse(it.submissionFiles)
+            } else if (Array.isArray(it.submissionFiles)) {
+              arr = it.submissionFiles
+            }
+
+            if (Array.isArray(arr)) {
+              files = arr.map((p) => {
+                // 处理不同格式的数据
+                if (typeof p === 'string') {
+                  return { name: p.split('/').pop(), url: p }
+                } else if (typeof p === 'object' && p !== null) {
+                  return {
+                    name: p.name || p.fileName || (p.url ? p.url.split('/').pop() : 'unknown'),
+                    url: p.url || p.filePath || ''
+                  }
+                }
+                return { name: 'unknown', url: '' }
+              })
+            }
           }
         } catch {}
+
         return {
           studentId: it.studentId,
           submittedAt: it.submittedAt,
