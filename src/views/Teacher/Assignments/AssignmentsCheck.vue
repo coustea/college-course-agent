@@ -83,7 +83,7 @@
           </el-table-column>
           <el-table-column prop="score" label="评分" width="100" align="center">
             <template #default="scope">
-              {{ scope.row.score !== null ? scope.row.score : '未评分' }}
+              {{ scope.row.hasGrades ? '已评分' : '未评分' }}
             </template>
           </el-table-column>
           <el-table-column label="操作" width="300" align="center">
@@ -169,6 +169,31 @@
                 </el-radio-group>
               </el-form-item>
             </el-form>
+
+            <h4 style="margin-top: 16px;">成员评分</h4>
+            <el-table :data="gradingMembers" style="width: 100%" size="small">
+              <el-table-column prop="studentName" label="成员" width="160"/>
+              <el-table-column label="分数" width="160">
+                <template #default="scope">
+                  <el-input-number v-model="scope.row.score" :min="0" :max="100"/>
+                </template>
+              </el-table-column>
+              <el-table-column label="等级" width="160">
+                <template #default="scope">
+                  <el-select v-model="scope.row.level" placeholder="等级" style="width: 120px;">
+                    <el-option label="优秀" value="优秀"/>
+                    <el-option label="中等" value="中等"/>
+                    <el-option label="合格" value="合格"/>
+                    <el-option label="不及格" value="不及格"/>
+                  </el-select>
+                </template>
+              </el-table-column>
+              <el-table-column label="评语">
+                <template #default="scope">
+                  <el-input v-model="scope.row.feedback" placeholder="评语"/>
+                </template>
+              </el-table-column>
+            </el-table>
           </div>
         </div>
 
@@ -248,7 +273,7 @@ const router = useRouter()
 const assignmentId = route.params.id
 
 // axios 实例
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://192.168.1.108:9999/api')
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   try {
@@ -273,12 +298,15 @@ const selectedGroup = ref(null)
 const highlightedMember = ref('')
 const detailDialogVisible = ref(false)
 
-// 评分表单
+// 评分表单（组）
 const gradingForm = reactive({
   score: null,
   comment: '',
   result: '通过'
 })
+
+// 成员评分表
+const gradingMembers = ref([])
 
 // 个人提交数据
 const personalSubmissions = ref([])
@@ -318,13 +346,24 @@ const getCheckStatusType = (status) => {
   return statusMap[status] || 'info'
 }
 
-const viewGroupDetails = (group) => {
+const viewGroupDetails = async (group) => {
   selectedGroup.value = group
   // 初始化表单数据
   gradingForm.score = group.score
   gradingForm.comment = ''
   gradingForm.result = '通过'
+  // 初始化成员评分表
+  const memberObjs = Array.isArray(group.memberObjects) ? group.memberObjects : []
+  gradingMembers.value = memberObjs.map(m => ({
+    studentId: Number(m.studentId),
+    studentName: m.name || m.studentName || '',
+    score: null,
+    level: '',
+    feedback: ''
+  }))
   detailDialogVisible.value = true
+  // 预填已有评分
+  tryPrefillExistingGrades()
 }
 
 const checkGroupWork = (group) => {
@@ -417,20 +456,89 @@ const previewFile = async (file) => {
   }).catch(() => {})
 }
 
-const submitCheck = () => {
-  if (gradingForm.score === null) {
-    ElMessage.error('请先输入分数')
-    return
-  }
+const submitCheck = async () => {
+  try {
+    // 组平均分（可选）
+    if (gradingForm.score === null && gradingMembers.value.every(m => m.score == null)) {
+      ElMessage.error('请先输入分数（至少成员中有一人有分数）')
+      return
+    }
 
-  // 更新小组检查状态
-  const group = groups.value.find(g => g.id === selectedGroup.value.id)
-  if (group) {
-    group.score = gradingForm.score
-    group.checkStatus = '已检查'
+    // 如果存在提交ID，优先提交成员评分
+    const submissionId = selectedGroup.value && (selectedGroup.value.submissionId || selectedGroup.value.submission_id)
+    if (submissionId) {
+      const teacherId = Number(localStorage.getItem('teacherId') || localStorage.getItem('userId') || 0)
+      let teacherName = ''
+      try {
+        const ui = JSON.parse(localStorage.getItem('userInfo') || '{}')
+        teacherName = ui?.name || ui?.profile?.name || ''
+      } catch {}
+      const payload = {
+        submissionId: Number(submissionId),
+        teacherName: teacherName || undefined,
+        members: gradingMembers.value
+          .filter(m => m && Number.isFinite(Number(m.studentId)))
+          .map(m => ({
+            studentId: Number(m.studentId),
+            score: m.score != null ? Number(m.score) : undefined,
+            level: m.level || undefined,
+            feedback: m.feedback || undefined
+          }))
+      }
+      await api.post('/grading/group', payload)
+    }
+
+    // 更新小组检查状态与显示分数
+    const group = groups.value.find(g => g.id === selectedGroup.value.id)
+    if (group) {
+      // 计算成员平均分（若存在）
+      const validScores = gradingMembers.value.map(m => m.score).filter(s => s != null && !isNaN(Number(s)))
+      if (validScores.length > 0) {
+        const avg = Math.round(validScores.reduce((a, b) => a + Number(b), 0) / validScores.length)
+        group.score = avg
+        group.hasGrades = true
+      } else if (gradingForm.score != null) {
+        group.score = Number(gradingForm.score)
+        group.hasGrades = true
+      }
+      group.checkStatus = '已检查'
+    }
     ElMessage.success('检查完成')
     detailDialogVisible.value = false
+  } catch (e) {
+    ElMessage.error('提交评分失败')
   }
+}
+
+// 预填已有成员评分
+const tryPrefillExistingGrades = async () => {
+  try {
+    const submissionId = selectedGroup.value && (selectedGroup.value.submissionId || selectedGroup.value.submission_id)
+    if (!submissionId) return
+    const resp = await api.get(`/grading/group/${submissionId}`)
+    const raw = resp?.data
+    const list = Array.isArray(raw?.data) ? raw.data : []
+    if (!Array.isArray(list) || list.length === 0) return
+    const map = new Map()
+    list.forEach(it => map.set(Number(it.studentId || it.student_id), {
+      score: it.score != null ? Number(it.score) : null,
+      level: it.level || '',
+      feedback: it.feedback || ''
+    }))
+    gradingMembers.value = gradingMembers.value.map(m => {
+      const got = map.get(Number(m.studentId))
+      return got ? { ...m, ...got } : m
+    })
+    // 若存在任一成员已有评分，则标为已评分
+    const anyScored = gradingMembers.value.some(x => x.score != null && !isNaN(Number(x.score)))
+    if (anyScored && selectedGroup.value) {
+      const group = groups.value.find(g => g.id === selectedGroup.value.id)
+      if (group) {
+        group.hasGrades = true
+        group.checkStatus = '已检查'
+      }
+    }
+  } catch {}
 }
 
 const exportReport = () => {
@@ -507,7 +615,11 @@ const fetchGroups = async () => {
       const id = g.id || g.groupId || g.group_id
       const name = g.name || g.groupName || `分组#${id ?? ''}`
       const gmRaw = Array.isArray(g.groupMemberList) ? g.groupMemberList : (Array.isArray(g.memberList) ? g.memberList : [])
-      const members = (gmRaw.length > 0 ? gmRaw.map(m => m.studentName || m.name || m.username || '') : []).filter(Boolean)
+      const memberObjects = (gmRaw.length > 0 ? gmRaw.map(m => ({
+        studentId: m.studentId || m.student_id || m.id,
+        name: m.studentName || m.name || m.username || ''
+      })) : []).filter(x => x && x.name)
+      const members = memberObjects.map(m => m.name)
       const leader = gmRaw.find(m => (m.role === 'leader' || m.role === 'LEADER'))
       const leaderName = g.leaderName || (leader?.name) || (leader?.studentName) || '未知'
       return {
@@ -515,6 +627,8 @@ const fetchGroups = async () => {
         groupName: name,
         leaderName,
         members,
+        hasGrades: false,
+        memberObjects,
         submitTime: null,
         status: '未提交',
         checkStatus: '未提交',
@@ -558,6 +672,7 @@ const fetchGroupSubmissions = async () => {
       } catch {}
       return {
         ...g,
+        submissionId: s.submissionId || s.submission_id,
         submitTime: s.submittedAt || s.submitted_at || g.submitTime,
         status: '已提交',
         checkStatus: g.checkStatus === '已检查' ? '已检查' : '待检查',
@@ -571,11 +686,42 @@ const fetchGroupSubmissions = async () => {
   }
 }
 
+// 根据服务端的成员评分，刷新各组“已检查/已评分”状态（用于刷新后还原状态）
+const refreshCheckStatusFromGrades = async () => {
+  try {
+    const tasks = (groups.value || [])
+      .filter(g => g && (g.submissionId || g.submission_id))
+      .map(async (g) => {
+        const sid = g.submissionId || g.submission_id
+        try {
+          const resp = await api.get(`/grading/group/${sid}`)
+          const raw = resp?.data
+          const list = Array.isArray(raw?.data) ? raw.data : []
+          if (!Array.isArray(list)) return
+          const numericScores = list
+            .map(it => it && it.score != null ? Number(it.score) : null)
+            .filter(v => v != null && !isNaN(v))
+          if (list.length > 0 || numericScores.length > 0) {
+            g.hasGrades = true
+            g.checkStatus = '已检查'
+            if (numericScores.length > 0) {
+              const avg = Math.round(numericScores.reduce((a, b) => a + b, 0) / numericScores.length)
+              g.score = avg
+            }
+          }
+        } catch {}
+      })
+    await Promise.allSettled(tasks)
+  } catch {}
+}
+
 onMounted(async () => {
   await fetchAssignment()
   await fetchGroups()
   // 结合后端小组提交列表，填充每个分组的提交状态
   await fetchGroupSubmissions()
+  // 刷新：根据已存在的成员评分，标记“已检查/已评分”
+  await refreshCheckStatusFromGrades()
   // 拉取个人提交
   try {
     const res = await api.get('/personal-submission/by-assignment', { params: { assignmentId }, headers: {} })
@@ -602,7 +748,7 @@ onMounted(async () => {
   } catch (e) {
     // 尝试使用绝对后端基址作为降级
     try {
-      const fallbackBase = (window?.location?.port === '5173' || window?.location?.port === '4173') ? 'http://192.168.1.108:9999/api' : API_BASE
+      const fallbackBase = (window?.location?.port === '5173' || window?.location?.port === '4173') ? 'http://localhost:9999/api' : API_BASE
       const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
       const res2 = await axios.get(`${fallbackBase}/personal-submission/by-assignment`, { params: { assignmentId }, headers: token ? { Authorization: `Bearer ${token}` } : {} })
       const raw2 = res2?.data
