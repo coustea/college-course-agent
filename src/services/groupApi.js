@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const BASE = 'http://192.168.1.102:9999'
+const BASE = 'http://192.168.1.109:9999'
 const http = axios.create({
     baseURL: BASE,
     timeout: 15000
