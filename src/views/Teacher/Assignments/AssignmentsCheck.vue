@@ -533,10 +533,7 @@ const tryPrefillExistingGrades = async () => {
     const anyScored = gradingMembers.value.some(x => x.score != null && !isNaN(Number(x.score)))
     if (anyScored && selectedGroup.value) {
       const group = groups.value.find(g => g.id === selectedGroup.value.id)
-      if (group) {
-        group.hasGrades = true
-        group.checkStatus = '已检查'
-      }
+      if (group) group.hasGrades = true
     }
   } catch {}
 }
@@ -663,37 +660,13 @@ const fetchGroupSubmissions = async () => {
     groups.value = (groups.value || []).map(g => {
       const s = map.get(Number(g.id))
       if (!s) return g
-
-      // 改进附件解析逻辑
       let attachments = []
       try {
         if (s.submissionFiles) {
-          let arr;
-          if (typeof s.submissionFiles === 'string') {
-            arr = JSON.parse(s.submissionFiles)
-          } else if (Array.isArray(s.submissionFiles)) {
-            arr = s.submissionFiles
-          }
-
-          if (Array.isArray(arr)) {
-            attachments = arr.map((p) => {
-              // 处理不同格式的数据
-              if (typeof p === 'string') {
-                return { name: p.split('/').pop(), url: p }
-              } else if (typeof p === 'object' && p !== null) {
-                return {
-                  name: p.name || p.fileName || (p.url ? p.url.split('/').pop() : 'unknown'),
-                  url: p.url || p.filePath || ''
-                }
-              }
-              return { name: 'unknown', url: '' }
-            })
-          }
+          const arr = JSON.parse(s.submissionFiles)
+          if (Array.isArray(arr)) attachments = arr.map((p) => ({ name: (p.name || String(p).split('/').pop()), url: (p.url || p) }))
         }
-      } catch (error) {
-        console.error('解析附件出错:', error)
-      }
-
+      } catch {}
       return {
         ...g,
         submissionId: s.submissionId || s.submission_id,
@@ -710,77 +683,25 @@ const fetchGroupSubmissions = async () => {
   }
 }
 
-// 根据服务端的成员评分，刷新各组“已检查/已评分”状态（用于刷新后还原状态）
-const refreshCheckStatusFromGrades = async () => {
-  try {
-    const tasks = (groups.value || [])
-      .filter(g => g && (g.submissionId || g.submission_id))
-      .map(async (g) => {
-        const sid = g.submissionId || g.submission_id
-        try {
-          const resp = await api.get(`/grading/group/${sid}`)
-          const raw = resp?.data
-          const list = Array.isArray(raw?.data) ? raw.data : []
-          if (!Array.isArray(list)) return
-          const numericScores = list
-            .map(it => it && it.score != null ? Number(it.score) : null)
-            .filter(v => v != null && !isNaN(v))
-          if (list.length > 0 || numericScores.length > 0) {
-            g.hasGrades = true
-            g.checkStatus = '已检查'
-            if (numericScores.length > 0) {
-              const avg = Math.round(numericScores.reduce((a, b) => a + b, 0) / numericScores.length)
-              g.score = avg
-            }
-          }
-        } catch {}
-      })
-    await Promise.allSettled(tasks)
-  } catch {}
-}
-
 onMounted(async () => {
   await fetchAssignment()
   await fetchGroups()
   // 结合后端小组提交列表，填充每个分组的提交状态
   await fetchGroupSubmissions()
-  // 刷新：根据已存在的成员评分，标记“已检查/已评分”
-  await refreshCheckStatusFromGrades()
   // 拉取个人提交
   try {
     const res = await api.get('/personal-submission/by-assignment', { params: { assignmentId }, headers: {} })
     const raw = res?.data
     const list = Array.isArray(raw?.data) ? raw.data : []
-
-    // 改进个人提交附件解析逻辑
+    // 解析 JSON 数组字段 submissionFiles，映射为 {name,url}
     personalSubmissions.value = list.map(it => {
       let files = []
       try {
         if (it.submissionFiles) {
-          let arr;
-          if (typeof it.submissionFiles === 'string') {
-            arr = JSON.parse(it.submissionFiles)
-          } else if (Array.isArray(it.submissionFiles)) {
-            arr = it.submissionFiles
-          }
-
-          if (Array.isArray(arr)) {
-            files = arr.map((p) => {
-              // 处理不同格式的数据
-              if (typeof p === 'string') {
-                return { name: p.split('/').pop(), url: p }
-              } else if (typeof p === 'object' && p !== null) {
-                return {
-                  name: p.name || p.fileName || (p.url ? p.url.split('/').pop() : 'unknown'),
-                  url: p.url || p.filePath || ''
-                }
-              }
-              return { name: 'unknown', url: '' }
-            })
-          }
+          const arr = JSON.parse(it.submissionFiles)
+          if (Array.isArray(arr)) files = arr.map((p) => ({ name: p.split('/').pop(), url: p }))
         }
       } catch {}
-
       return {
         studentId: it.studentId,
         submittedAt: it.submittedAt,
@@ -798,36 +719,14 @@ onMounted(async () => {
       const res2 = await axios.get(`${fallbackBase}/personal-submission/by-assignment`, { params: { assignmentId }, headers: token ? { Authorization: `Bearer ${token}` } : {} })
       const raw2 = res2?.data
       const list2 = Array.isArray(raw2?.data) ? raw2.data : []
-
-      // 改进个人提交附件解析逻辑（降级处理）
       personalSubmissions.value = list2.map(it => {
         let files = []
         try {
           if (it.submissionFiles) {
-            let arr;
-            if (typeof it.submissionFiles === 'string') {
-              arr = JSON.parse(it.submissionFiles)
-            } else if (Array.isArray(it.submissionFiles)) {
-              arr = it.submissionFiles
-            }
-
-            if (Array.isArray(arr)) {
-              files = arr.map((p) => {
-                // 处理不同格式的数据
-                if (typeof p === 'string') {
-                  return { name: p.split('/').pop(), url: p }
-                } else if (typeof p === 'object' && p !== null) {
-                  return {
-                    name: p.name || p.fileName || (p.url ? p.url.split('/').pop() : 'unknown'),
-                    url: p.url || p.filePath || ''
-                  }
-                }
-                return { name: 'unknown', url: '' }
-              })
-            }
+            const arr = JSON.parse(it.submissionFiles)
+            if (Array.isArray(arr)) files = arr.map((p) => ({ name: p.split('/').pop(), url: p }))
           }
         } catch {}
-
         return {
           studentId: it.studentId,
           submittedAt: it.submittedAt,
