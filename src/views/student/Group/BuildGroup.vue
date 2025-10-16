@@ -26,7 +26,7 @@
           <el-table-column type="index" label="序号" width="64" align="left" />
           <el-table-column label="学号" width="160">
             <template #default="{ row }">
-              <span class="col-sid">{{ row.sid || '-' }}</span>
+              <span class="col-sid">{{ row.sid }}</span>
             </template>
           </el-table-column>
           <el-table-column label="姓名" width="140">
@@ -48,13 +48,13 @@
           <el-table-column label="手机号" min-width="160">
             <template #default="{ row }">
               <i class="fa-solid fa-phone fa-icon"></i>
-              <span class="col-phone">{{ row.phone || '-' }}</span>
+              <span class="col-phone">{{ row.phone }}</span>
             </template>
           </el-table-column>
           <el-table-column label="邮箱" min-width="220">
             <template #default="{ row }">
               <i class="fa-solid fa-envelope fa-icon"></i>
-              <span class="col-email">{{ row.email || '-' }}</span>
+              <span class="col-email">{{ row.email }}</span>
             </template>
           </el-table-column>
           <el-table-column v-if="isCreating && isSelecting" label="操作" width="160" align="center">

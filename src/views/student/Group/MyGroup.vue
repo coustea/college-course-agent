@@ -43,6 +43,7 @@
               <span class="member-chip">
                 <span class="member-name">{{ createdGroup?.leaderName }}</span>
                 <span class="leader-mark">组长</span>
+<!--目前组长不可退出小组<el-button size="small" type="danger" link @click="removeMember(createdGroup.leaderName)">删除</el-button>-->
               </span>
               <span v-for="m in editableMembers" :key="m.sid" class="member-chip">
                 <span class="member-name">{{ m.name }}</span>

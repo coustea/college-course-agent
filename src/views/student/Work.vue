@@ -37,9 +37,9 @@
         <el-card class="detail-card" shadow="never" style="margin-top: 12px">
           <el-descriptions :column="2" border>
             <el-descriptions-item label="作业标题">{{ currentAssignment?.title || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="截止时间">{{ currentAssignment?.deadline || '-' }}</el-descriptions-item>
             <el-descriptions-item label="发布教师">{{ currentAssignment?.teacher || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="说明" :span="2">{{ currentAssignment?.description || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="发布时间">{{ currentAssignment?.publishedAt || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="截止时间">{{ currentAssignment?.deadline || '-' }}</el-descriptions-item>
           </el-descriptions>
         </el-card>
         <el-card class="detail-card" shadow="never" style="margin-top: 12px">
@@ -83,9 +83,8 @@
                 :on-exceed="onExceed"
                 :file-list="submissionForm.files"
                 :auto-upload="false"
-                :limit="requirements.maxFiles || 0"
+                :limit="1"
                 :accept="accept"
-                multiple
                 list-type="text"
               >
                 <el-button size="small" type="primary">点击上传</el-button>
@@ -95,7 +94,7 @@
                     <template v-if="accept">{{ accept }}</template>
                     <template v-else>不限</template>；
                     <template v-if="requirements.maxFileSizeMB">单个不超过 {{ requirements.maxFileSizeMB }}MB；</template>
-                    <template v-if="requirements.maxFiles">最多 {{ requirements.maxFiles }} 个文件</template>
+                    仅限 1 个文件
                   </div>
                 </template>
               </el-upload>
@@ -109,7 +108,7 @@
             <li v-if="requirements.descriptionRequired">需要填写作品描述<span v-if="requirements.descriptionMaxLen">（不超过 {{
                 requirements.descriptionMaxLen
               }} 字）</span></li>
-            <li v-if="requirements.maxFiles">最多上传 {{ requirements.maxFiles }} 个文件</li>
+            <li>仅可上传 1 个文件</li>
             <li v-if="requirements.maxFileSizeMB">单个文件不超过 {{ requirements.maxFileSizeMB }}MB</li>
             <li v-if="(requirements.allowedExtensions && requirements.allowedExtensions.length)
                        || (requirements.allowedMimeTypes && requirements.allowedMimeTypes.length)">
@@ -143,9 +142,9 @@
         <el-card class="detail-card" shadow="never" style="margin-top: 12px">
           <el-descriptions :column="2" border>
             <el-descriptions-item label="作业标题">{{ currentAssignment?.title || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="截止时间">{{ currentAssignment?.deadline || '-' }}</el-descriptions-item>
             <el-descriptions-item label="发布教师">{{ currentAssignment?.teacher || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="说明" :span="2">{{ currentAssignment?.description || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="发布时间">{{ currentAssignment?.publishedAt || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="截止时间">{{ currentAssignment?.deadline || '-' }}</el-descriptions-item>
           </el-descriptions>
         </el-card>
         <el-card class="detail-card" shadow="never" style="margin-top: 12px">
@@ -154,10 +153,10 @@
             <div v-for="m in gradeMembers" :key="m.name" style="display:flex;align-items:center;gap:10px;margin:8px 0;">
               <span style="font-weight:600;min-width:120px;">{{ m.name }}</span>
               <span :class="levelClass(m.level)"><span class="dot"></span>{{ levelText(m.level) }}</span>
-              <span style="margin-left:12px;color:#111827;font-weight:600;">{{ m.score != null ? (m.score + ' 分') : '暂无成绩' }}</span>
+              <span style="margin-left:12px;color:#111827;font-weight:600;">{{ m.score != null ? (m.score + ' 分') : '教师未批改' }}</span>
             </div>
           </div>
-          <div v-else class="attachments-empty">暂无成绩</div>
+          <div v-else class="attachments-empty">教师未批改</div>
         </el-card>
       </div>
     </div>
@@ -370,9 +369,7 @@ onMounted(async () => {
     assignments.value = []
   }
 
-  if (!Array.isArray(assignments.value) || assignments.value.length === 0) {
-    assignments.value = getMockAssignments()
-  }
+  // 取消虚拟数据兜底：仅展示后端返回的数据
 
   // 仍保留状态读取（用于其他文案或权限），但不影响提交方式
    loadGroupStatusFromStorage() 
@@ -380,8 +377,8 @@ onMounted(async () => {
    loadSubmissionState() 
 
   // 监听来自“学习分组”页面的状态更新
-  try { window.addEventListener('student-group-updated', onGroupUpdated) } catch {}
-  try { window.addEventListener('storage', onStorageChanged) } catch {}
+  window.addEventListener('student-group-updated', onGroupUpdated)
+  window.addEventListener('storage', onStorageChanged)
 })
 
 
@@ -439,8 +436,8 @@ function handleFileChange(file, fileList) {
     if (validateSingleFile(f)) passed.push(f)
   }
 
-  const limit = Number(requirements.value.maxFiles || 0)
-  submissionForm.value.files = limit > 0 ? passed.slice(0, limit) : passed
+  // 强制单文件
+  submissionForm.value.files = passed.length > 0 ? [passed[0]] : []
 }
 
 function handleFileRemove(file, fileList) {
@@ -491,8 +488,7 @@ function beforeUpload(file) {
 }
 
 function onExceed() {
-  const limit = Number(requirements.value.maxFiles || 0)
-  if (limit > 0) ElMessage.warning(`最多可选择 ${limit} 个文件`)
+  ElMessage.warning('仅可选择 1 个文件')
 }
 
 function applyRequirements(data) {
@@ -557,6 +553,12 @@ function normalizeAssignments(data) {
   const list = []
   const arr = Array.isArray(data?.assignments) ? data.assignments : (Array.isArray(data?.data) ? data.data : [])
   for (const item of arr) {
+    // 过滤未发布作业（尽力识别多种字段）
+    const publishRaw = (item.isPublished ?? item.published ?? item.publishStatus ?? item.status)
+    const toLower = (v) => String(v || '').toLowerCase()
+    const isExplicitFalse = publishRaw === false || publishRaw === 0 || toLower(publishRaw) === 'false' || toLower(publishRaw) === 'draft'
+    const isNotPublishedWord = toLower(publishRaw) === '未发布' || toLower(publishRaw) === 'unpublished' || toLower(publishRaw) === 'pending'
+    if (isExplicitFalse || isNotPublishedWord) continue
     let attachments = []
     try {
       const raw = item?.attachmentFiles ?? item?.attachments ?? []
@@ -569,7 +571,7 @@ function normalizeAssignments(data) {
           }
           return {
             name: a?.name || a?.fileName || a?.title || `附件${i + 1}`,
-            url: a?.url || a?.fileUrl || a?.resourceUrl || a?.path || ''
+            url: a?.url || a?.fileUrl || a?.resourceUrl || a?.path
           }
         }).filter(x => !!x.url)
       }
@@ -610,52 +612,7 @@ function normalizeUrl(u) {
   if (s.startsWith('/')) return s
   return `/${s.replace(/^\//,'')}`
 }
-function getMockAssignments() {
-  const now = new Date()
-  return [
-    {
-      id: 'mock-1',
-      title: '思想道德修养期中报告',
-      course: '思想道德修养与法律基础',
-      deadline: formatDateTime(addDays(now, 7)),
-      teacher: '李老师',
-      description: '围绕社会主义核心价值观撰写2000字分析报告，PDF提交。',
-      attachments: [{name: '参考模板.docx', url: '/uploads/template.docx'}]
-    },
-    {
-      id: 'mock-2',
-      title: '中国近现代史人物小传',
-      course: '中国近现代史纲要',
-      deadline: formatDateTime(addDays(now, 10)),
-      teacher: '王老师',
-      description: '任选一个近现代历史人物，完成不少于1500字人物小传。'
-    },
-    {
-      id: 'mock-3',
-      title: '形势与政策热点研判',
-      course: '形势与政策',
-      deadline: formatDateTime(addDays(now, 5)),
-      teacher: '张老师',
-      description: '围绕近期时政热点，完成PPT+讲稿并录制5分钟讲解视频。'
-    },
-    {
-      id: 'mock-4',
-      title: '毛泽东思想读书笔记',
-      course: '毛泽东思想和中国特色社会主义理论体系概论',
-      deadline: formatDateTime(addDays(now, 12)),
-      teacher: '赵老师',
-      description: '指定篇目阅读，提交不少于8页读书笔记（图片或PDF）。'
-    },
-    {
-      id: 'mock-5',
-      title: '马克思主义原理思维导图',
-      course: '马克思主义基本原理',
-      deadline: formatDateTime(addDays(now, 3)),
-      teacher: '刘老师',
-      description: '用思维导图工具梳理“实践与认识”的核心概念与关系。'
-    }
-  ]
-}
+// 已移除虚拟作业数据，仅展示后端返回内容
 
 function openDetail(a) {
   currentAssignment.value = a
@@ -878,8 +835,14 @@ async function submitWorkUpdate() {
         }
         const state = readJson(SUBMIT_STATE_KEY, {})
         // 保留 submissionId（可能后端在修改时返回也可再次覆盖）
-        const newSubmissionId = response?.data?.data?.submissionId || response?.data?.data?.id || response?.data?.submissionId || submissionId
-        state[key] = {status: 'submitted', by: String(currentUserName.value || ''), at: Date.now(), lastPayload: payload, submissionId: newSubmissionId}
+        const newSubmissionId = response?.data?.data?.submissionId || response?.data?.submissionId || submissionId
+        state[key] = {
+          status: 'submitted',
+          by: String(currentUserName.value || ''),
+          at: Date.now(),
+          lastPayload: payload,
+          submissionId: newSubmissionId
+        }
         writeJson(SUBMIT_STATE_KEY, state)
         submissionState.value = state
         window.dispatchEvent(new StorageEvent('storage', {key: SUBMIT_STATE_KEY}))
