@@ -153,22 +153,25 @@
       </div>
     </div>
   </div>
-<!--  <Question-->
-<!--      v-if="enableQuestions"-->
-<!--      v-model="questionVisible"-->
-<!--      :questions="questionList"-->
-<!--      title="知识检查"-->
-<!--      :closable="false"-->
-<!--      :requireAll="true"-->
-<!--      @submit="onQuestionSubmit"-->
-<!--  />-->
+  <Question
+      v-if="visible && enableQuestions"
+      v-model="questionVisible"
+      :title="questionTitle"
+      :stem="questionStem"
+      :options="questionOptions"
+      :correct-index="questionCorrectIndex"
+      :analysis="questionAnalysis"
+      @submit="onQuestionSubmit"
+  />
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { fetchQuestions, submitExamAnswers, hasQuestionShown, markQuestionShown} from '@/services/questionApi'
-// import Question from '@/components/Question.vue'
+import { ref, watch, computed, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
+import axios from "axios"
+import Question from '/src/components/Question.vue'
 
+const { proxy } = getCurrentInstance()
+const BASE_URL = proxy.$baseUrl
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -201,9 +204,10 @@ const flatChapters = computed(() => {
   const result = []
   const process = (items) => {
     items.forEach(item => {
-      if (item.videoUrl || item.type === 'video' || item.type === 'chapter') {
+      const hasUrl = !!(item && item.videoUrl && String(item.videoUrl).trim())
+      if (hasUrl) {
         result.push(item)
-      } else if (item.children && Array.isArray(item.children)) {
+      } else if (item && Array.isArray(item.children) && item.children.length) {
         process(item.children)
       }
     })
@@ -227,6 +231,8 @@ const currentSrc = computed(() => {
 
 // 错误切换候选源，尽量自愈播放路径
 const triedSources = ref(new Set())
+// 预取试题键集合，避免重复预取
+const prefetchedKeys = new Set()
 const UPLOADS_ORIGIN = ( 'http://localhost:9999' || import.meta?.env?.VITE_BACKEND_ORIGIN || 'http://localhost:9999')
 function buildAltSources(src) {
   const list = []
@@ -318,7 +324,52 @@ function selectEpisode(i) {
 }
 
 const currentProgress = ref(0)
-const overallProgress = computed(() => 0)
+const overallProgress = ref(0)
+
+// 观看时长统计与上报
+const lastPlayRealStartMs = ref(0)
+const unreportedWatchedSec = ref(0)
+async function reportCourseProgress(deltaSec) {
+  const sec = Math.max(0, Math.floor(Number(deltaSec)))
+  if (sec <= 0) return
+  const studentId = localStorage.getItem('userId')
+  const ch = flatChapters.value?.[currentIndex.value]
+  const courseId = props.courseId || ch?.courseId || flatChapters.value?.[0]?.courseId
+  const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? ch?.index ?? (currentIndex.value + 1)
+  if (!studentId || !courseId || !videoId) return
+  try {
+    console.log('[CoursePlayer] 观看时长上报开始(展示所需参数)', studentId, courseId, videoId, sec)
+    const token = localStorage.getItem('token') 
+    const res = await axios.post(`${BASE_URL}/progress/report`,null, {
+      params: { studentId, courseId, videoId, deltaSec: sec },
+      headers:  { Authorization: `Bearer ${token}` }
+    })
+    console.log('[CoursePlayer] 观看时长上报结果', res.data)
+    if (res?.data?.code === 200) {
+      console.log('观看时长上报成功')
+    }
+  } catch (e) {
+    console.error('观看时长上报失败', e)
+  }
+}
+
+function startWatchTimerIfNeeded() {
+  if (!lastPlayRealStartMs.value) lastPlayRealStartMs.value = Date.now()
+}
+
+function stopWatchTimerAndAccumulate() {
+  if (lastPlayRealStartMs.value) {
+    const delta = Math.floor((Date.now() - lastPlayRealStartMs.value) / 1000)
+    if (delta > 0) unreportedWatchedSec.value += delta
+    lastPlayRealStartMs.value = 0
+  }
+}
+
+async function reportAndReset() {
+  const sec = unreportedWatchedSec.value
+  unreportedWatchedSec.value = 0
+  if (sec > 0) await reportCourseProgress(sec)
+}
 
 
 const isTheatre = ref(false)
@@ -406,84 +457,32 @@ function seekBy(deltaSec) {
   el.currentTime = Math.max(0, Math.min(el.duration, target))
 }
 
-// 移除实时学习进度上报（心跳/暂停/结束）。
 let timeTicker = null
-const questionVisible = ref(false)
-const questionList = ref([])
-const questionNodeKey = ref('')
 const wasPlayingBeforeQuestion = ref(false)
-
-function pauseForQuestion() {
-  const el = player.value
-  if (!el) return
-  wasPlayingBeforeQuestion.value = !el.paused
-  if (!el.paused) {
-    el.pause()
-    isPlaying.value = false
-  }
-}
-
-function resumeAfterQuestion() {
-  const el = player.value
-  if (!el) return
-  if (wasPlayingBeforeQuestion.value) {
-    el.play()
-    isPlaying.value = true
-  }
-}
-function togglePlay() {
+async function togglePlay() {
   const el = player.value
   if (!el) return
   if (el.paused) {
+    try {
+      if (!el.currentSrc || !el.src || el.readyState < 2) {
+        await choosePlayableAndLoad(currentSrc.value)
+      }
+    } catch {}
     el.play()
     isPlaying.value = true
+    startWatchTimerIfNeeded()
     // 首次播放预取本节试题：后台生成并保存，后续 40%/80% 时直接取用
-    startExamPrefetch()
-  } else {
-    el.pause()
-    isPlaying.value = false
-  }
-
-}
-
-function startHeartbeatTicker() {}
-
-// 预取当前集的试题与试卷，避免到达 40%/80% 时首次调用延迟
-const prefetchedKeys = new Set()
-async function startExamPrefetch() {
-  try {
     const key = `${props.courseId}-${currentIndex.value}`
     if (prefetchedKeys.has(key)) return
     prefetchedKeys.add(key)
-    let studentId = undefined
-    try {
-      const v = localStorage.getItem('studentId') || localStorage.getItem('userId')
-      if (v != null) {
-        const n = Number(v)
-        if (Number.isFinite(n) && n > 0) studentId = n
-      }
-    } catch {}
-    // await generateExamAndQuestions({ courseId: props.courseId, studentId, choiceCount: 0, judgeCount: 2 })
-  } catch {}
-}
-
-function flushHeartbeat(eventType) {}
-
-function stopTickerAndFlush(eventType) { if (timeTicker) { clearInterval(timeTicker); timeTicker = null } }
-
-function syncPlayState() {
-  const el = player.value
-  if (!el) return
-  const nowPlaying = !el.paused
-  if (nowPlaying && !timeTicker) {
-    startHeartbeatTicker()
-  } else if (!nowPlaying && timeTicker) {
-    stopTickerAndFlush('pause')
+  } else {
+    el.pause()
+    isPlaying.value = false
+    stopWatchTimerAndAccumulate()
+    await reportAndReset()
   }
-  isPlaying.value = nowPlaying
 }
-
-const hudNow = ref(0) // 触发计算属性刷新
+  const hudNow = ref(0) // 触发计算属性刷新
 let hudTicker = null
 const currentTimeLabel = computed(() => {
   hudNow.value
@@ -552,21 +551,8 @@ const hudCurrentLabel = computed(() => {
   const s = String(cur % 60).padStart(2, '0')
   return `${m}:${s}`
 })
-
-const bubbleLeft = computed(() => {
-  const pct = Math.round((currentProgress.value || 0) * 100)
-  return Math.min(98, Math.max(2, pct))
-})
-
-const progressDotStyle = computed(() => {
-  const pct = Math.max(0, Math.min(1, currentProgress.value || 0))
-  const deg = Math.round(pct * 360)
-  return {
-    background: `conic-gradient(#10b981 ${deg}deg, rgba(255,255,255,0.18) 0)`
-  }
-})
-
-const progressTrack = ref(null)
+  
+  const progressTrack = ref(null)
 const overlayTrack = ref(null)
 const hoverTimeVisible = ref(false)
 const hoverLeft = ref(0)
@@ -574,16 +560,6 @@ const hoverTimeLabel = ref('0:00')
 const volumePercent = ref(100)
 const isDragging = ref(false)
 const draggingWhich = ref('')
-
-function startDragging(which) {
-  isDragging.value = true
-  draggingWhich.value = which
-  try {
-    document.addEventListener('mousemove', onDragMove)
-    document.addEventListener('mouseup', stopDragging)
-  } catch (e) { console.error(e) }
-}
-
 function onDragMove(e) {
   if (!isDragging.value) return
   const video = player.value
@@ -604,40 +580,18 @@ function stopDragging() {
     document.removeEventListener('mouseup', stopDragging)
   } catch (e) { console.error(e) }
 }
-
-function formatTime(sec) {
-  const t = Math.max(0, Math.floor(sec))
-  const m = Math.floor(t / 60)
-  const s = String(t % 60).padStart(2, '0')
-  return `${m}:${s}`
+function startDragging(which) {
+  isDragging.value = true
+  draggingWhich.value = which
+  try {
+    document.addEventListener('mousemove', onDragMove)
+    document.addEventListener('mouseup', stopDragging)
+  } catch (e) { console.error(e) }
 }
 
-function applyVolume() {
-  const el = player.value
-  if (!el) return
-  const v = Math.max(0, Math.min(100, Number(volumePercent.value) || 0))
-  el.muted = v === 0
-  el.volume = v / 100
-}
-
-function onTrackEnter() {
-  hoverTimeVisible.value = true
-}
-
-function onTrackLeave() {
-  hoverTimeVisible.value = false
-}
-
-function onTrackMove(e) {
-  const el = progressTrack.value
-  const video = player.value
-  if (!el || !video || !video.duration) return
-  const rect = el.getBoundingClientRect()
-  const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width)
-  const ratio = x / rect.width
-  hoverLeft.value = Math.min(98, Math.max(2, Math.round(ratio * 100)))
-  hoverTimeLabel.value = formatTime(video.duration * ratio)
-}
+function onTrackEnter() {}
+function onTrackLeave() {}
+function onTrackMove() {}
 
 function onTrackClick(e, which) {
   const el = which === 'overlay' ? overlayTrack.value : progressTrack.value
@@ -654,86 +608,20 @@ function onTrackDown(e, which) {
   startDragging(which)
 }
 
-function onLoaded() {
-  try {
-    const key = `video_resume_${props.courseId}_${currentIndex.value}`
-    const raw = localStorage.getItem(key)
-    if (raw) {
-      const saved = JSON.parse(raw)
-      const pct = Number(saved?.p)
-      if (Number.isFinite(pct) && pct > 0 && pct < 1 && player.value?.duration) {
-        player.value.currentTime = pct * player.value.duration
-      }
-    }
-  } catch (e) { console.error(e) }
-  try {
-    if (!hudTicker) {
-      hudTicker = setInterval(() => { hudNow.value = Date.now() }, 200)
-    }
-  } catch (e) { console.error(e) }
+function applyVolume() {
+  const el = player.value
+  if (!el) return
+  const v = Math.max(0, Math.min(100, Number(volumePercent.value) || 0))
+  el.muted = v === 0
+  el.volume = v / 100
 }
 
-function onEnded() {
-  isPlaying.value = false
-  stopTickerAndFlush('ended')
+function formatTime(sec) {
+  const t = Math.max(0, Math.floor(sec))
+  const m = Math.floor(t / 60)
+  const s = String(t % 60).padStart(2, '0')
+  return `${m}:${s}`
 }
-
-function onSeeked() {
-  stopTickerAndFlush('seek')
-  startHeartbeatTicker()
-}
-
-async function onTimeUpdate() {
-  if (!player.value?.duration) return
-  const progress = player.value.currentTime / player.value.duration
-  currentProgress.value = progress
-  // 本地持久化，保证退出回来继续播放
-  try {
-    const key = `video_resume_${props.courseId}_${currentIndex.value}`
-    localStorage.setItem(key, JSON.stringify({ p: progress, t: Date.now() }))
-  } catch (e) { console.error(e) }
-  emit('progress', overallProgress.value)
-  try { window.dispatchEvent(new CustomEvent('learning-progress-updated', { detail: { courseId: props.courseId } })) } catch {}
-  // 题目触发：视频在 40% 与 80% 位置各触发一次；避免同时弹多个
-  try {
-    if (!props.enableQuestions) return
-    if (questionVisible.value) return
-    const isSingle = !hasChapters.value || flatChapters.value.length === 0
-    const baseKey = isSingle ? 'single' : `idx-${currentIndex.value}`
-    const key40 = `${baseKey}-p40`
-    const key80 = `${baseKey}-p80`
-
-    let targetKey = ''
-    if (progress >= 0.4 && !hasQuestionShown(props.courseId, key40)) {
-      targetKey = key40
-    } else if (progress >= 0.8 && !hasQuestionShown(props.courseId, key80)) {
-      targetKey = key80
-    }
-    if (targetKey) {
-      markQuestionShown(props.courseId, targetKey)
-      const qs = await fetchQuestions(props.courseId, targetKey)
-      if (Array.isArray(qs) && qs.length) {
-        questionNodeKey.value = targetKey
-        questionList.value = qs
-        pauseForQuestion()
-        questionVisible.value = true
-      }
-    }
-  } catch {}
-}
-
-async function onQuestionSubmit(payload) {
-  try {
-    if (!props.enableQuestions) return
-    const answers = payload?.answers || {}
-    const nodeKey = questionNodeKey.value
-    const questions = questionList.value || []
-    await submitExamAnswers(props.courseId, nodeKey, questions, answers)
-  } catch {}
-  questionVisible.value = false
-  resumeAfterQuestion()
-}
-
 
 function playChapter(i) {
   currentIndex.value = i
@@ -746,13 +634,17 @@ function prev() {
   if (currentIndex.value > 0) playChapter(currentIndex.value - 1)
 }
 
-function next() {
+async function next() {
   if (currentIndex.value < totalCount.value - 1) {
+    stopWatchTimerAndAccumulate()
+    await reportAndReset()
     if (hasChapters.value) {
       playChapter(currentIndex.value + 1)
     } else {
       selectEpisode(currentIndex.value + 1)
     }
+    // 进入下一集后开始计时
+    startWatchTimerIfNeeded()
   }
 }
 
@@ -778,6 +670,9 @@ onMounted(() => {
     showEnterTip(props.title)
   }
   try { window.addEventListener('keydown', handleKeydown) } catch (e) { console.error(e) }
+  // 进入播放器时，如果自动播放或用户立即播放，会开始计时
+  // 每次进入播放器即预取一次题目（按当前小节）
+  try { prefetchQuestions() } catch (e) { console.error(e) }
 })
 watch(currentIndex, (v) => {
   if (v != null && totalCount.value > 0) {
@@ -790,11 +685,19 @@ watch(visible, (v) => {
   if (!v) {
     lockScroll(false)
   }
+  // 每次打开弹窗时预取一次（保障刷新后立即可用）
+  if (v) {
+    try { prefetchQuestions() } catch (e) { console.error(e) }
+  }
 })
 
 onBeforeUnmount(() => {
   lockScroll(false)
-  stopTickerAndFlush('ended')
+  stopTickerAndFlush()
+
+  stopWatchTimerAndAccumulate()
+  reportAndReset()
+
   try { window.removeEventListener('keydown', handleKeydown) } catch (e) { console.error(e) }
   stopDragging()
   try { if (hudTicker) { clearInterval(hudTicker); hudTicker = null } } catch (e) { console.error(e) }
@@ -810,6 +713,264 @@ watch(() => props.startIndex, (v) => {
     }
   }
 }, { immediate: true })
+
+// 还原缺失的播放状态与时间相关函数
+function startHeartbeatTicker() {}
+
+function stopTickerAndFlush() {
+  if (timeTicker) {
+    clearInterval(timeTicker)
+    timeTicker = null
+  }
+}
+
+function syncPlayState() {
+  const el = player.value
+  if (!el) return
+  const nowPlaying = !el.paused
+  if (nowPlaying && !timeTicker) {
+    startHeartbeatTicker()
+  } else if (!nowPlaying && timeTicker) {
+    stopTickerAndFlush()
+  }
+  isPlaying.value = nowPlaying
+}
+
+function onLoaded() {
+  try {
+    const key = `video_resume_${props.courseId}_${currentIndex.value}`
+    const raw = localStorage.getItem(key)
+    if (raw) {
+      const saved = JSON.parse(raw)
+      const pct = Number(saved?.p)
+      if (Number.isFinite(pct) && pct > 0 && pct < 1 && player.value?.duration) {
+        player.value.currentTime = pct * player.value.duration
+      }
+    }
+  } catch (e) { console.error(e) }
+  try {
+    if (!hudTicker) {
+      hudTicker = setInterval(() => { hudNow.value = Date.now() }, 200)
+    }
+  } catch (e) { console.error(e) }
+}
+
+function onEnded() {
+  isPlaying.value = false
+  stopTickerAndFlush()
+  stopWatchTimerAndAccumulate()
+  reportAndReset()
+}
+
+function onSeeked() {
+  stopTickerAndFlush()
+  startHeartbeatTicker()
+  try { lastPlayRealStartMs.value = Date.now() } catch (e) { console.error(e) }
+}
+
+function onTimeUpdate() {
+  if (!player.value?.duration) return
+  const progress = player.value.currentTime / player.value.duration
+  currentProgress.value = progress
+  // 进度触发 40% / 80% 弹题
+  maybeAskByProgress(progress)
+  try {
+    const key = `video_resume_${props.courseId}_${currentIndex.value}`
+    localStorage.setItem(key, JSON.stringify({ p: progress, t: Date.now() }))
+  } catch (e) { console.error(e) }
+  try { emit('progress', overallProgress.value) } catch {}
+}
+
+// 缺失的进度相关计算属性
+const bubbleLeft = computed(() => {
+  const pct = Math.round((currentProgress.value || 0) * 100)
+  return Math.min(98, Math.max(2, pct))
+})
+
+const progressDotStyle = computed(() => {
+  const pct = Math.max(0, Math.min(1, currentProgress.value || 0))
+  const deg = Math.round(pct * 360)
+  return { background: `conic-gradient(#10b981 ${deg}deg, rgba(255,255,255,0.18) 0)` }
+})
+
+// ===== 题目弹窗逻辑 =====
+const questionVisible = ref(false)
+const questionTitle = ref('选择题')
+const questionStem = ref('以下哪个选项是正确的？')
+const questionOptions = ref(['选项A', '选项B', '选项C', '选项D'])
+const questionCorrectIndex = ref(0)
+const questionAnalysis = ref('')
+const examId = ref(null)
+const currentQuestionId = ref(null)
+const answersSoFar = ref([])
+const asked40 = ref(false)
+const asked80 = ref(false)
+const prefetchedExam = ref(null)
+const prefetchedDict = ref({})
+const prefetchingKeys = new Set()
+
+function maybeAskByProgress(p) {
+  if (!props.enableQuestions) return
+  try {
+    const pct = Number(p)
+    if (!Number.isFinite(pct) || pct <= 0) return
+    if (!prefetchedExam.value) prefetchQuestions()
+    if (pct >= 0.4 && !asked40.value) {
+      asked40.value = true
+      if (!prefetchedExam.value) {
+        prefetchQuestions().finally(() => { try { showQuestionFromPool(0) } catch (e) { console.error(e) } })
+      } else {
+        showQuestionFromPool(0)
+      }
+    } else if (pct >= 0.8 && !asked80.value) {
+      asked80.value = true
+      if (!prefetchedExam.value) {
+        prefetchQuestions().finally(() => { try { showQuestionFromPool(1) } catch (e) { console.error(e) } })
+      } else {
+        showQuestionFromPool(1)
+      }
+    }
+  } catch (e) { console.error(e) }
+}
+
+async function prefetchQuestions() {
+  try {
+    const studentId = localStorage.getItem('userId')
+    const courseId = props.courseId
+    if (!studentId || !courseId) return
+    const key = `${courseId}-${currentIndex.value}`
+    if (prefetchedDict.value[key] || prefetchingKeys.has(key)) return
+    prefetchingKeys.add(key)
+    const token = localStorage.getItem('token') || ''
+    const body = { courseId, studentId, choiceCount: 2, judgeCount: 0 }
+    const res = await axios.post(`${BASE_URL}/aiexam/generate`, body, {
+      headers: {
+        Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'
+      }
+    })
+    console.log('获取题目结果:', res.data)
+    if (res.data.code === 200) {
+      const data = res.data.data
+      prefetchedDict.value[key] = data
+      // 试卷ID优先取 data.exam.id，其次顶层 id，最后取题目上的 examId
+      examId.value = (data?.exam && (data.exam.id || data.exam.examId)) || data.id || (Array.isArray(data.questions) ? data.questions[0]?.examId : null) || null
+      const curKey = `${props.courseId}-${currentIndex.value}`
+      if (key === curKey)
+        prefetchedExam.value = data
+    }
+  } catch (e) {
+    console.error('获取题目失败', e)
+  } finally {
+     prefetchingKeys.delete(`${props.courseId}-${currentIndex.value}`) 
+  }
+}
+
+function showQuestionFromPool(idx) {
+  const list = Array.isArray(prefetchedExam.value?.questions)
+      ? prefetchedExam.value.questions
+      : (Array.isArray(prefetchedExam.value?.choices) ? prefetchedExam.value.choices : [])
+  const q = list[idx] || null
+  if (q) {
+    const stem = q.content
+    const opts = normalizeOptions(q)
+    const correct = (typeof q.correctIndex === 'number') ? q.correctIndex : (['A', 'B', 'C', 'D'].indexOf(String(q.answer || '').toUpperCase()))
+    const qid = q.id || q.questionId || null
+    showQuestion('选择题', stem, opts, Number.isFinite(correct) ? correct : 0, q.analysis || '', qid)
+  } else {
+
+  }
+}
+
+function showQuestion(title, stem, options, correctIndex, analysis, qid) {
+  try {
+    questionTitle.value = title
+    questionStem.value = stem
+    questionOptions.value = (Array.isArray(options) && options.length === 4) ? options : ['选项A', '选项B', '选项C', '选项D']
+    questionCorrectIndex.value = Number.isFinite(correctIndex) ? correctIndex : 0
+    questionAnalysis.value = String(analysis || '')
+    currentQuestionId.value = qid
+    const el = player.value
+    if (el && !el.paused) {
+      el.pause()
+      isPlaying.value = false
+      wasPlayingBeforeQuestion.value = true
+    } else {
+      wasPlayingBeforeQuestion.value = false
+    }
+    questionVisible.value = true
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+// 解析后端选项，兼容数组/字符串/分隔形式，并去掉前缀“A./A、/A ”
+function normalizeOptions(q) {
+  try {
+    const stripLabel = (s) => String(s || '')
+      .replace(/^\s*[A-Da-d][\.|、\s]\s*/, '')
+      .trim()
+    let arr = []
+    if (Array.isArray(q?.options)) {
+      arr = q.options
+    } else if (typeof q?.options === 'string') {
+      let s = q.options.trim()
+      // 尝试 JSON 化：把单引号转双引号
+      if (/^\[.*\]$/.test(s)) {
+        try { arr = JSON.parse(s.replace(/'/g, '"')) } catch {}
+      }
+      if (!Array.isArray(arr) || arr.length === 0) {
+        // 退化：按逗号/顿号/分号拆分
+        arr = s.split(/[，,；;\n]/).map(x => x.trim()).filter(Boolean)
+      }
+    } else {
+      arr = [q?.a, q?.b, q?.c, q?.d].filter(Boolean)
+    }
+    // 仅保留前四项，并去标签
+    const cleaned = (arr || []).slice(0, 4).map(stripLabel)
+    if (cleaned.length === 4) return cleaned
+  } catch (e) { console.error('解析选项失败', e) }
+  // 兜底
+  return ['是', '否', '不确定', '无法判断']
+}
+
+function onQuestionSubmit(payload) {
+  try {
+    // 保持弹窗开启，先展示正确答案与解析；仅在用户点击“继续学习”关闭
+    // 记录答案并上报
+    const idx = Number(payload?.answerIndex)
+    const letter = ['A','B','C','D'][Math.max(0, Math.min(3, Number.isFinite(idx) ? idx : 0))]
+    const qid = currentQuestionId.value
+    if (qid) {
+      const existing = (answersSoFar.value).findIndex(a => a.questionId === qid)
+      if (existing >= 0) answersSoFar.value.splice(existing, 1, { questionId: qid, answer: letter })
+      else answersSoFar.value.push({ questionId: qid, answer: letter })
+      submitAnswers()
+    }
+  } catch (e) { console.error(e) }
+}
+
+async function submitAnswers() {
+  try {
+    const studentId = localStorage.getItem('userId')
+    const examId2 = examId.value
+    if (!studentId || !examId2) return
+    const token = localStorage.getItem('token')
+    const body = {
+      examId: examId2,
+      studentId: studentId,
+      answers: (answersSoFar.value).map(a => ({ questionId: a.questionId, answer: a.answer }))
+    }
+    const res = await axios.post(`${BASE_URL}/aiexam/submit`, body, {headers: {
+      Authorization: `Bearer ${token}`, 
+      'Content-Type': 'application/json' 
+    }})
+    if (res.data.code === 200) {
+      console.log('提交答案成功')
+    }
+  } catch (e) {
+    console.error('提交答案失败', e)
+  }
+}
 </script>
 
 <style scoped>
@@ -971,6 +1132,7 @@ watch(() => props.startIndex, (v) => {
   background: rgba(0,0,0,0.35);
   padding: 2px 6px;
   border-radius: 4px;
+  pointer-events: none;
 }
 
 .mini-progress {
@@ -980,6 +1142,7 @@ watch(() => props.startIndex, (v) => {
   bottom: 0;
   height: 4px;
   background: rgba(255,255,255,0.25);
+  pointer-events: none;
 }
 .mini-progress-fill {
   height: 100%;
@@ -1130,6 +1293,7 @@ watch(() => props.startIndex, (v) => {
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 14px;
+  pointer-events: none;
 }
 
 .overlay-progress {

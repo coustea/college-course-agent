@@ -40,7 +40,7 @@
         </div>
       </div>
       <div class="dv-footer">
-        <button class="dv-pill" @click="$emit('progressClick')">阅读进度：{{ progressDisplay }}%</button>
+        <button class="dv-pill" :class="isCompleted ? 'done' : 'todo'" @click="$emit('progressClick')">{{ isCompleted ? '已看完' : '未看完' }}</button>
         <div class="dv-actions">
           <button class="dv-btn dv-btn-secondary" @click="onPrev">上一章</button>
           <button class="dv-btn" @click="onNext">下一章</button>
@@ -48,39 +48,37 @@
       </div>
     </div>
   </div>
+
 </template>
 
 <script setup>
 import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
-import { fetchQuestions, hasQuestionShown, markQuestionShown, submitExamAnswers } from '@/services/questionApi'
 
 
 const props = defineProps({
-  modelValue: { type: Boolean, default: false },
-  title: { type: String, default: '预览' },
-  fileUrl: { type: String, default: '' },
-  htmlContent: { type: String, default: '' },
-  progress: { type: Number, default: 0 },
-  id: { type: [String, Number], default: null },
-  image: { type: String, default: '' },
-  duration: { type: String, default: '' },
-  chapterIndex: { type: Number, default: 1 },
-  courseTitle: { type: String, default: '' },
-  chapters: { type: Array, default: () => [] }
+  modelValue: {type: Boolean, default: false},
+  title: {type: String, default: '预览'},
+  fileUrl: {type: String, default: ''},
+  htmlContent: {type: String, default: ''},
+  progress: {type: Number, default: 0},
+  id: {type: [String, Number], default: null},
+  image: {type: String, default: ''},
+  duration: {type: String, default: ''},
+  chapterIndex: {type: Number, default: 1},
+  courseTitle: {type: String, default: ''},
+  chapters: {type: Array, default: () => []}
 })
 
 const backendHost = (() => {
   try {
-    const envBase = import.meta?.env?.VITE_API_BASE_URL || ''
-    if (envBase) {
-      const u = new URL(envBase)
-      return u.origin // e.g. http://localhost:9999 from http://localhost:9999/api
-    }
-    const p = window?.location?.port
-    if (p === '4173' || p === '5173') return 'http://localhost:9999'
-  } catch (e) { console.error(e) }
+    const p = window?.location?.port;
+    if (p === '4173' || p === '5173') return 'http://localhost:9999';
+  } catch (e) {
+    console.error(e)
+  }
   return ''
 })()
+
 function toUrl(u) {
   if (!u) return ''
   const s = String(u)
@@ -115,9 +113,15 @@ const flatChapters = computed(() => {
   }
   return list
 })
-const currentIndex = ref( Math.max(0, (props.chapterIndex || 1) - 1) )
-watch(() => props.modelValue, (v) => { if (v) currentIndex.value = Math.max(0, (props.chapterIndex || 1) - 1) })
-const currentChapter = computed(() => flatChapters.value[currentIndex.value] || { title: props.title, fileUrl: props.fileUrl, html: props.htmlContent })
+const currentIndex = ref(Math.max(0, (props.chapterIndex || 1) - 1))
+watch(() => props.modelValue, (v) => {
+  if (v) currentIndex.value = Math.max(0, (props.chapterIndex || 1) - 1)
+})
+const currentChapter = computed(() => flatChapters.value[currentIndex.value] || {
+  title: props.title,
+  fileUrl: props.fileUrl,
+  html: props.htmlContent
+})
 
 const effectiveFileUrl = computed(() => currentChapter.value?.fileUrl || '')
 const effectiveHtml = computed(() => currentChapter.value?.html || '')
@@ -125,6 +129,11 @@ const readProgress = ref(0)
 const progressDisplay = computed(() => {
   const p = Math.round((readProgress.value || 0) * 100)
   return Number.isFinite(p) ? p : (props.progress || 0)
+})
+// 完成状态：容差 95%
+const isCompleted = computed(() => {
+  const p = Number(progressDisplay.value)
+  return Number.isFinite(p) && p >= 95
 })
 const safeHtml = computed(() => {
   if (effectiveHtml.value) return effectiveHtml.value
@@ -158,7 +167,7 @@ function isPrivateUrl(u) {
   try {
     const loc = new URL(u)
     const host = loc.hostname
-    if (host === '127.0.0.1' || host === 'localhost') return true
+    if (host === 'localhost' || host === '127.0.0.1') return true
     if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)) return true
   } catch (e) { console.error(e) }
   return false
@@ -272,10 +281,21 @@ const contentStyle = computed(() => ({
   lineHeight: 1.6 * fontScale.value
 }))
 
-function zoomIn() { increaseText() }
-function zoomOut() { decreaseText() }
-function increaseText() { fontScale.value = Math.min(2, +(fontScale.value + 0.1).toFixed(2)) }
-function decreaseText() { fontScale.value = Math.max(0.6, +(fontScale.value - 0.1).toFixed(2)) }
+function zoomIn() {
+  increaseText()
+}
+
+function zoomOut() {
+  decreaseText()
+}
+
+function increaseText() {
+  fontScale.value = Math.min(2, +(fontScale.value + 0.1).toFixed(2))
+}
+
+function decreaseText() {
+  fontScale.value = Math.max(0.6, +(fontScale.value - 0.1).toFixed(2))
+}
 
 function toggleFullscreen() {
   const el = modalRef.value
@@ -294,10 +314,15 @@ function forwardBackgroundScroll(e) {
       e.preventDefault()
       sc.scrollTop += e.deltaY
     }
-  } catch (e) { console.error(e) }
+  } catch (e) {
+    console.error(e)
+  }
 }
 
-function onPrev() { if (currentIndex.value > 0) currentIndex.value -= 1; emit('prev') }
+function onPrev() {
+  if (currentIndex.value > 0) currentIndex.value -= 1;
+  emit('prev')
+}
 
 function selectChapter(i) {
   if (i >= 0 && i < flatChapters.value.length) currentIndex.value = i
@@ -306,12 +331,27 @@ function selectChapter(i) {
 // 全屏状态跟踪（Esc 退出也能更新）
 const isFullscreen = ref(false)
 function handleFullscreenChange() {
-  try { isFullscreen.value = !!document.fullscreenElement } catch { isFullscreen.value = false }
+  try {
+    isFullscreen.value = !!document.fullscreenElement
+  } catch {
+    isFullscreen.value = false
+  }
 }
+
 onMounted(() => {
-  try { document.addEventListener('fullscreenchange', handleFullscreenChange) } catch (e) { console.error(e) }
+  try {
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+  } catch (e) {
+    console.error(e)
+  }
 })
-onBeforeUnmount(() => { try { document.removeEventListener('fullscreenchange', handleFullscreenChange) } catch (e) { console.error(e) } })
+onBeforeUnmount(() => {
+  try {
+    document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  } catch (e) {
+    console.error(e)
+  }
+})
 
 // 本地滚动进度计算（非 iframe 文档有效）
 function updateReadProgress() {
@@ -337,8 +377,9 @@ function handleWheel(e) {
     readProgress.value = next
   }
 }
+
 watch(() => props.modelValue, (v) => {
-  if (v) setTimeout(() => bodyRef.value?.addEventListener('wheel', handleWheel, { passive: false }), 0)
+  if (v) setTimeout(() => bodyRef.value?.addEventListener('wheel', handleWheel, {passive: false}), 0)
   else bodyRef.value?.removeEventListener('wheel', handleWheel)
 })
 
@@ -352,7 +393,11 @@ watch(() => props.modelValue, (v) => {
     }, 0)
   } else {
     const el = bodyRef.value
-    try { el?.removeEventListener('scroll', updateReadProgress) } catch (e) { console.error(e) }
+    try {
+      el?.removeEventListener('scroll', updateReadProgress)
+    } catch (e) {
+      console.error(e)
+    }
   }
 })
 
@@ -362,16 +407,6 @@ watch(readProgress, (r) => {
   maybeAskByProgress(r)
 })
 </script>
-
-<Question
-    v-model="questionVisible"
-    :questions="questionList"
-    title="知识检查"
-    :closable="false"
-    :requireAll="true"
-    @submit="onQuestionSubmit"
-/>
-
 <style scoped>
 .dv-mask {
   position: fixed;
@@ -440,8 +475,10 @@ watch(readProgress, (r) => {
   padding: 0;
   height: 70vh;
   background: #fafafa;
+  overflow-y: auto; /* 只允许纵向滚动 */
+  overflow-x: hidden; /* 禁止横向滚动，避免出现水平滚动条 */
 }
-.dv-main { display: flex; height: 100%; }
+.dv-main { display: flex; height: 100%; overflow: hidden; }
 .dv-aside {
   width: 260px;
   background: #f8f9fa;
@@ -459,7 +496,7 @@ watch(readProgress, (r) => {
 .dv-aside-item:hover { background: #f0f3f7; }
 .dv-aside-item.active { background: #e1ebff; color: #1a56db; font-weight: 600; }
 .dv-aside-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-.dv-view { flex: 1; }
+.dv-view { flex: 1; min-width: 0; overflow-x: hidden; }
 .dv-modal:fullscreen .dv-body {
   height: auto;
   flex: 1;
@@ -469,11 +506,26 @@ watch(readProgress, (r) => {
   width: 100%;
   height: 100%;
   border: 0;
+  display: block;
 }
 .dv-content {
   padding: 16px;
   color: #333;
   line-height: 1.7;
+  max-width: 100%;
+  overflow-x: hidden; /* HTML 内容禁止横向滚动 */
+  word-wrap: break-word;
+}
+.dv-content img,
+.dv-content video,
+.dv-content canvas,
+.dv-content table {
+  max-width: 100%;
+  height: auto;
+}
+.dv-content pre {
+  white-space: pre-wrap; /* 长代码换行，避免撑出横向滚动 */
+  word-break: break-word;
 }
 .dv-footer {
   display: flex;
@@ -496,6 +548,16 @@ watch(readProgress, (r) => {
   border-radius: 999px;
   cursor: pointer;
   font-size: 13px;
+}
+.dv-pill.done {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #065f46;
+}
+.dv-pill.todo {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #7f1d1d;
 }
 .dv-actions { display: flex; align-items: center; gap: 12px; }
 .dv-btn {
