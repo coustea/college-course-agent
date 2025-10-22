@@ -32,9 +32,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right" :style="{ textAlign: 'center' }">
+        <el-table-column label="操作" width="320" fixed="right" :style="{ textAlign: 'center' }">
           <template #default="scope">
-<!--            <el-button size="small" @click="viewLearningProgress(scope.row)">进度</el-button>-->
+            <el-button size="small" @click="openProgressDialog(scope.row)">学习进度</el-button>
             <el-button size="small" @click="editStudent(scope.row)" style="margin-left: 8px;">编辑</el-button>
             <el-button size="small" type="danger" @click="deleteStudent(scope.row)" style="margin-left: 8px;">删除</el-button>
           </template>
@@ -74,19 +74,44 @@
       <template #footer><el-button @click="showEditDialog = false">取消</el-button><el-button type="primary" @click="saveStudent">保存</el-button></template>
     </el-dialog>
 
-    <!-- 学习进度弹窗 -->
+    <!-- 学习进度弹窗（支持选择课程 + 展示总进度与每一节进度） -->
     <el-dialog title="学生学习进度" v-model="showProgressDialog" width="80%" top="5vh" center>
       <div class="progress-content" v-if="selectedStudent">
-        <div class="student-info"><h3>{{ selectedStudent.name }} 的学习进度</h3><p>学号: {{ selectedStudent.studentNumber || selectedStudent.studentId }} | 班级: {{ selectedStudent.className }}</p></div>
-        <div class="table-container">
-          <el-table :data="learningProgress" style="width: 100%" height="400">
-            <el-table-column prop="courseName" label="课程名称" width="200" :style="{ textAlign: 'center' }" />
-            <el-table-column prop="progress" label="学习进度" width="120" :style="{ textAlign: 'center' }">
-              <template #default="scope"><el-progress :percentage="scope.row.progress" :color="progressColor(scope.row.progress)" /></template>
+        <div class="student-info">
+          <h3>{{ selectedStudent.name }} 的学习进度</h3>
+          <p>学号: {{ selectedStudent.studentNumber || selectedStudent.studentId }} | 班级: {{ selectedStudent.className }}</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; margin: 8px 0 16px 0;">
+          <span>选择课程:</span>
+          <el-select v-model="currentCourseId" placeholder="请选择课程" style="min-width: 260px;" @change="onCourseChange">
+            <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
+          <span v-if="overallProgressPct >= 0">总体进度:</span>
+          <el-progress v-if="overallProgressPct >= 0" :percentage="overallProgressPct" :color="progressColor(overallProgressPct)" style="width:220px;"/>
+        </div>
+
+        <div class="table-container" v-if="currentCourseId">
+          <h4 style="margin: 10px 0 6px 0;">视频进度</h4>
+          <el-table :data="videoProgressList" style="width: 100%" height="220">
+            <el-table-column prop="videoId" label="视频ID" width="120" />
+            <el-table-column prop="percentage" label="进度(%)" width="120">
+              <template #default="scope">
+                <el-progress :percentage="Math.round(scope.row.percentage || 0)" :color="progressColor(scope.row.percentage || 0)" />
+              </template>
             </el-table-column>
-            <el-table-column prop="lastStudyTime" label="最后学习时间" width="180" :style="{ textAlign: 'center' }" />
-            <el-table-column prop="score" label="成绩" width="100" :style="{ textAlign: 'center' }"><template #default="scope"><span :class="{ 'excellent': scope.row.score >= 90, 'good': scope.row.score >= 80 && scope.row.score < 90 }">{{ scope.row.score || '暂无' }}</span></template></el-table-column>
-            <el-table-column prop="status" label="状态" width="100" :style="{ textAlign: 'center' }"><template #default="scope"><el-tag :type="scope.row.status === 'completed' ? 'success' : 'primary'">{{ scope.row.status === 'completed' ? '已完成' : '进行中' }}</el-tag></template></el-table-column>
+            <el-table-column prop="completed" label="是否完成" width="120">
+              <template #default="scope"><el-tag :type="scope.row.completed ? 'success' : 'info'">{{ scope.row.completed ? '已完成' : '未完成' }}</el-tag></template>
+            </el-table-column>
+            <el-table-column prop="updatedAt" label="更新时间" />
+          </el-table>
+
+          <h4 style="margin: 14px 0 6px 0;">文档进度</h4>
+          <el-table :data="documentProgressList" style="width: 100%" height="220">
+            <el-table-column prop="documentId" label="文档ID" width="120" />
+            <el-table-column prop="completed" label="是否完成" width="120">
+              <template #default="scope"><el-tag :type="scope.row.completed ? 'success' : 'info'">{{ scope.row.completed ? '已完成' : '未完成' }}</el-tag></template>
+            </el-table-column>
+            <el-table-column prop="updatedAt" label="更新时间" />
           </el-table>
         </div>
       </div>
@@ -120,6 +145,11 @@ const fileList = ref([])
 const formRef = ref()
 const selectedStudent = ref(null)
 const learningProgress = ref([])
+const courseOptions = ref([])
+const currentCourseId = ref(null)
+const overallProgressPct = ref(-1)
+const videoProgressList = ref([])
+const documentProgressList = ref([])
 const students = ref([])
 
 const studentForm = ref({
@@ -245,10 +275,9 @@ const updateStudent = (id, payload) =>
   api.put('/teacher/update/student', payload, { params: { id } })
 const deleteStudentById = id =>
   api.delete('/teacher/delete/student', { params: { id } })
-const listCoursesByStudent = studentId =>
-  api.get('/teacher/enrollments/courses', { params: { studentId } })
-const getCourseProgress = (studentId, courseId) =>
-  api.get('/progress/course', { params: { studentId, courseId } })
+const listCoursesByStudent = studentId => api.get('/teacher/enrollments/courses', { params: { studentId } })
+const getCourseProgress = (studentId, courseId) => api.get('/progress/course', { params: { studentId, courseId } })
+const getAllProgress = (studentId, courseId) => api.get('/progress/course/all', { params: { studentId, courseId } })
 
 // === 获取学生列表 ===
 const fetchStudents = async () => {
@@ -282,8 +311,8 @@ const fetchStudents = async () => {
   }
 }
 
-// === 查看学习进度 ===
-const viewLearningProgress = async student => {
+// 打开对话框并初始化课程列表
+const openProgressDialog = async (student) => {
   loading.value = true
   selectedStudent.value = student
   try {
@@ -293,34 +322,9 @@ const viewLearningProgress = async student => {
       coursesBody && Number(coursesBody.code) === 200 && Array.isArray(coursesBody.data)
         ? coursesBody.data
         : []
-
-    const list = []
-    for (const c of courses.slice(0, 50)) {
-      try {
-        const pr = await getCourseProgress(student.id, c.courseId ?? c.id)
-        const pb = pr?.data
-        let pct = 0
-        if (pb && Number(pb.code) === 200 && pb.data) {
-          pct = Number(
-            pb.data.completionPercentage ?? pb.data.completion_percentage ?? 0
-          )
-          if (!Number.isFinite(pct)) pct = 0
-          if (pct >= 0 && pct <= 1) pct *= 100
-        }
-
-        list.push({
-          courseName: c.courseName ?? c.title ?? '课程',
-          progress: Math.round(Math.max(0, Math.min(100, pct))),
-          lastStudyTime: '',
-          score: null,
-          status: pct >= 100 ? 'completed' : 'learning'
-        })
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    learningProgress.value = list
+    courseOptions.value = (courses || []).map(c => ({ id: c.courseId ?? c.id, name: c.courseName ?? c.title ?? `课程 ${c.courseId ?? c.id}` }))
+    currentCourseId.value = courseOptions.value[0]?.id || null
+    await refreshCourseProgress()
     showProgressDialog.value = true
   } catch (e) {
     console.error('获取学习进度失败:', e)
@@ -328,6 +332,43 @@ const viewLearningProgress = async student => {
   } finally {
     loading.value = false
   }
+}
+
+// 课程切换
+const onCourseChange = async () => { await refreshCourseProgress() }
+
+// 拉取所选课程的总体与分节进度
+const refreshCourseProgress = async () => {
+  videoProgressList.value = []
+  documentProgressList.value = []
+  overallProgressPct.value = -1
+  const sid = selectedStudent.value?.id
+  const cid = currentCourseId.value
+  if (!sid || !cid) return
+  try {
+    const all = await getAllProgress(sid, cid)
+    const body = all?.data
+    if (body && Number(body.code) === 200 && body.data) {
+      const d = body.data
+      const pct = Number(d.coursePercent ?? d.completionPercentage ?? 0)
+      overallProgressPct.value = Math.round(Math.max(0, Math.min(100, pct)))
+      videoProgressList.value = Array.isArray(d.videos) ? d.videos : []
+      documentProgressList.value = Array.isArray(d.documents) ? d.documents : []
+      return
+    }
+  } catch {}
+  // 回退：仅拉总体
+  try {
+    const pr = await getCourseProgress(sid, cid)
+    const pb = pr?.data
+    let pct = 0
+    if (pb && Number(pb.code) === 200 && pb.data) {
+      pct = Number(pb.data.completionPercentage ?? pb.data.completion_percentage ?? 0)
+      if (!Number.isFinite(pct)) pct = 0
+      if (pct >= 0 && pct <= 1) pct *= 100
+    }
+    overallProgressPct.value = Math.round(Math.max(0, Math.min(100, pct)))
+  } catch {}
 }
 
 // === 编辑学生 ===
