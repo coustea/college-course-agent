@@ -96,7 +96,7 @@ const formRef = ref()
 const submitting = ref(false)
 
 // === axios实例 ===
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -182,7 +182,9 @@ const fetchTeachers = async () => {
     let defaultTid = null
     try {
       const u = JSON.parse(localStorage.getItem('userInfo') || 'null')
-      if (u?.id) defaultTid = u.id
+      // 优先使用明确的 teacherId，避免使用 userId 导致外键约束失败
+      if (u?.teacherId) defaultTid = Number(u.teacherId)
+      else if (u?.id) defaultTid = Number(u.id)
     } catch (e) {}
     if (!defaultTid) {
       const tid = localStorage.getItem('teacherId')
@@ -215,8 +217,11 @@ const submitForm = async () => {
 
     formData.append('teacherId', String(tid))
     formData.append('assignmentName', assignmentForm.title)
-    if (assignmentForm.description)
+    if (assignmentForm.description) {
       formData.append('description', assignmentForm.description)
+      // 后端参数名为 requirements，这里同时传递保持兼容
+      formData.append('requirements', assignmentForm.description)
+    }
     if (assignmentForm.deadline)
       formData.append('dueDate', assignmentForm.deadline)
 

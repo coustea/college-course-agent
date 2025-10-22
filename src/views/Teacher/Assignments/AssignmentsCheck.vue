@@ -76,8 +76,8 @@
           </el-table-column>
           <el-table-column prop="checkStatus" label="检查状态" width="100" align="center">
             <template #default="scope">
-              <el-tag :type="getCheckStatusType(scope.row.checkStatus)" size="small">
-                {{ scope.row.checkStatus }}
+              <el-tag :type="getCheckStatusType(scope.row.hasGrades ? '已检查' : scope.row.checkStatus)" size="small">
+                {{ scope.row.hasGrades ? '已检查' : scope.row.checkStatus }}
               </el-tag>
             </template>
           </el-table-column>
@@ -274,6 +274,7 @@ const assignmentId = route.params.id
 
 // axios 实例
 const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
+const FILE_BASE = API_BASE.replace(/\/api$/, '')
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   try {
@@ -417,9 +418,9 @@ const previewFile = async (file) => {
     return
   }
 
-  // PDF 预览
+  // PDF 预览（直接打开 URL）
   if (fileExt === 'pdf') {
-    window.open(`/pdfjs/web/viewer.html?file=${encodeURIComponent(url)}`, '_blank')
+    window.open(url, '_blank')
     return
   }
 
@@ -547,9 +548,52 @@ const normalizeFileUrl = (u) => {
   if (!u) return ''
   const s = String(u)
   if (/^https?:\/\//i.test(s) || s.startsWith('data:') || s.startsWith('blob:')) return s
-  if (s.startsWith('/uploads/')) return s
-  if (s.startsWith('uploads/')) return `/${s}`
+  // 统一转为 /uploads/... 再拼接后端文件域
+  if (s.startsWith('/uploads/')) return `${FILE_BASE}${s}`
+  if (s.startsWith('uploads/')) return `${FILE_BASE}/${s}`
   return s
+}
+
+// 将任意对象/字符串的附件条目规范为 { name, url }
+const normalizeAttachmentEntry = (p) => {
+  try {
+    if (p == null) return null
+    if (typeof p === 'string') {
+      const url = normalizeFileUrl(p)
+      const name = url ? url.split('/').pop() : '附件'
+      return { name: String(name || '附件'), url }
+    }
+    if (typeof p === 'object') {
+      let url = p.url || p.fileUrl || p.path || p.filePath || p.value || p.src
+      if (url && typeof url === 'object') url = url.url || url.href || ''
+      url = url ? normalizeFileUrl(String(url)) : ''
+      let name = p.name || p.fileName || p.filename || p.originalName || p.originalFilename
+      if (!name && url) name = url.split('/').pop()
+      return { name: String(name || '附件'), url }
+    }
+  } catch {}
+  return null
+}
+
+// 解析后端字段 submissionFiles，兼容字符串/数组/对象
+const parseAttachments = (raw) => {
+  try {
+    if (!raw) return []
+    let arr = []
+    if (Array.isArray(raw)) arr = raw
+    else if (typeof raw === 'string') {
+      try {
+        const json = JSON.parse(raw)
+        if (Array.isArray(json)) arr = json
+        else if (json) arr = [json]
+      } catch {
+        arr = [raw]
+      }
+    } else if (typeof raw === 'object') {
+      arr = [raw]
+    }
+    return arr.map(normalizeAttachmentEntry).filter(x => x && x.url)
+  } catch { return [] }
 }
 
 const viewPersonalDetails = (row) => {
@@ -660,13 +704,7 @@ const fetchGroupSubmissions = async () => {
     groups.value = (groups.value || []).map(g => {
       const s = map.get(Number(g.id))
       if (!s) return g
-      let attachments = []
-      try {
-        if (s.submissionFiles) {
-          const arr = JSON.parse(s.submissionFiles)
-          if (Array.isArray(arr)) attachments = arr.map((p) => ({ name: (p.name || String(p).split('/').pop()), url: (p.url || p) }))
-        }
-      } catch {}
+      const attachments = parseAttachments(s.submissionFiles)
       return {
         ...g,
         submissionId: s.submissionId || s.submission_id,
@@ -688,54 +726,64 @@ onMounted(async () => {
   await fetchGroups()
   // 结合后端小组提交列表，填充每个分组的提交状态
   await fetchGroupSubmissions()
+  // 刷新：根据已存在的成员评分，标记“已检查/已评分”并计算均分
+  await (async () => {
+    try {
+      const tasks = (groups.value || [])
+        .filter(g => g && (g.submissionId || g.submission_id))
+        .map(async (g) => {
+          const sid = g.submissionId || g.submission_id
+          try {
+            const resp = await api.get(`/grading/group/${sid}`)
+            const raw = resp?.data
+            const list = Array.isArray(raw?.data) ? raw.data : []
+            if (!Array.isArray(list)) return
+            const numericScores = list
+              .map(it => it && it.score != null ? Number(it.score) : null)
+              .filter(v => v != null && !isNaN(v))
+            if (list.length > 0 || numericScores.length > 0) {
+              g.hasGrades = true
+              g.checkStatus = '已检查'
+              if (numericScores.length > 0) {
+                const avg = Math.round(numericScores.reduce((a, b) => a + b, 0) / numericScores.length)
+                g.score = avg
+              }
+            }
+          } catch {}
+        })
+      await Promise.allSettled(tasks)
+    } catch {}
+  })()
   // 拉取个人提交
   try {
     const res = await api.get('/personal-submission/by-assignment', { params: { assignmentId }, headers: {} })
     const raw = res?.data
     const list = Array.isArray(raw?.data) ? raw.data : []
     // 解析 JSON 数组字段 submissionFiles，映射为 {name,url}
-    personalSubmissions.value = list.map(it => {
-      let files = []
-      try {
-        if (it.submissionFiles) {
-          const arr = JSON.parse(it.submissionFiles)
-          if (Array.isArray(arr)) files = arr.map((p) => ({ name: p.split('/').pop(), url: p }))
-        }
-      } catch {}
-      return {
+    personalSubmissions.value = list.map(it => ({
+      studentId: it.studentId,
+      submittedAt: it.submittedAt,
+      status: it.status,
+      score: it.score,
+      submissionContent: it.submissionContent,
+      files: parseAttachments(it.submissionFiles)
+    }))
+  } catch (e) {
+    // 尝试使用绝对后端基址作为降级
+    try {
+      const fallbackBase = (window?.location?.port === '5173' || window?.location?.port === '4173') ? 'http://39.96.172.21:9999/api' : API_BASE
+      const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
+      const res2 = await axios.get(`${fallbackBase}/personal-submission/by-assignment`, { params: { assignmentId }, headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      const raw2 = res2?.data
+      const list2 = Array.isArray(raw2?.data) ? raw2.data : []
+      personalSubmissions.value = list2.map(it => ({
         studentId: it.studentId,
         submittedAt: it.submittedAt,
         status: it.status,
         score: it.score,
         submissionContent: it.submissionContent,
-        files
-      }
-    })
-  } catch (e) {
-    // 尝试使用绝对后端基址作为降级
-    try {
-      const fallbackBase = (window?.location?.port === '5173' || window?.location?.port === '4173') ? 'http://localhost:9999/api' : API_BASE
-      const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
-      const res2 = await axios.get(`${fallbackBase}/personal-submission/by-assignment`, { params: { assignmentId }, headers: token ? { Authorization: `Bearer ${token}` } : {} })
-      const raw2 = res2?.data
-      const list2 = Array.isArray(raw2?.data) ? raw2.data : []
-      personalSubmissions.value = list2.map(it => {
-        let files = []
-        try {
-          if (it.submissionFiles) {
-            const arr = JSON.parse(it.submissionFiles)
-            if (Array.isArray(arr)) files = arr.map((p) => ({ name: p.split('/').pop(), url: p }))
-          }
-        } catch {}
-        return {
-          studentId: it.studentId,
-          submittedAt: it.submittedAt,
-          status: it.status,
-          score: it.score,
-          submissionContent: it.submissionContent,
-          files
-        }
-      })
+        files: parseAttachments(it.submissionFiles)
+      }))
     } catch {
       personalSubmissions.value = []
     }
