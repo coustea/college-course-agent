@@ -40,9 +40,14 @@
             <span>{{ course.teacher || '教师待定' }}</span>
           </div>
           <div class="teacher-actions" @click.stop>
+            <button class="btn-info" @click.stop="viewCourseProgress(course)">进度管理</button>
             <button class="btn-secondary" @click.stop="openStudentManager(course)">学生管理</button>
             <button class="btn-primary" @click.stop="editCourseMaterials(course)">编辑课程内容</button>
             <button class="btn-danger" @click.stop="deleteCourse(course)">删除课程</button>
+          </div>
+          <div class="course-progress-info" v-if="course.averageProgress !== undefined">
+            <i class="fas fa-chart-line"></i>
+            <span>平均进度: {{ course.averageProgress }}%</span>
           </div>
         </div>
       </div>
@@ -133,7 +138,7 @@ const filteredCourses = computed(() => {
 
 const setFilter = (filter) => { activeFilter.value = filter }
 
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token') || localStorage.getItem('userToken')
@@ -174,72 +179,75 @@ const loadCourses = async () => {
     try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) teacherId = Number(u.id) } catch {}
     if (!teacherId) { const tid = localStorage.getItem('teacherId'); if (tid) teacherId = Number(tid) }
 
-    // 优先调用教师聚合接口
-    let list = []
-    if (teacherId) {
-      try {
-        const res = await api.get('/teacher/videos', { params: { teacherId } })
-        const raw = res?.data
-        const data = raw?.data || {}
-        const coursesArr = Array.isArray(data?.courses) ? data.courses : []
-        list = coursesArr.map(c => {
-          const chapters = Array.isArray(c.videos)
-            ? c.videos.map(v => ({ title: v.title || v.videoTitle || '视频', videoUrl: normalizeVideoUrl(v.url || v.videoUrl || v.fileUrl || ''), duration: v.duration }))
-            : []
-          const firstVideoUrl = chapters[0]?.videoUrl || normalizeVideoUrl(c.videoUrl || '')
-          return {
-            id: c.id || c.course_id || c.courseId,
-            title: c.title || c.course_name || c.courseName || '未命名课程',
-            description: c.description || '',
-            image: normalizeUrl(c.image || c.cover || c.imageUrl || c.img || c.thumbnail || c.pic || c.resourceUrl || ''),
-            resourceUrl: normalizeUrl(c.resourceUrl || c.image || c.cover || c.imageUrl || ''),
-            type: 'video',
-            startDate: c.createTime || c.start_date || '',
-            endDate: '',
-            teacher: currentTeacherName || '',
-            videoCount: Number(c.videoCount || (Array.isArray(c.videos) ? c.videos.length : 0) || 0),
-            docCount: Number(c.documentCount || 0),
-            studentCount: Number(c.studentCount || 0),
-            chapters,
-            videoUrl: firstVideoUrl
-          }
+    // 调用课程列表接口
+    const res = await api.get('/course/list')
+    const body = res?.data
+    const all = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
+    const filtered = teacherId ? all.filter(c => Number(c.teacherId) === teacherId) : all
+    
+    // 为每个课程生成视频和文档的独立卡片
+    const list = []
+    for (const c of filtered) {
+      const vids = Array.isArray(c.videos) ? c.videos : []
+      const docs = Array.isArray(c.documents) ? c.documents : []
+      
+      const base = {
+        id: c.courseId,
+        title: c.courseName || c.title || '未命名课程',
+        description: c.description || '',
+        image: normalizeUrl(c.image || c.cover || c.imageUrl || c.img || c.thumbnail || c.pic || c.resourceUrl || ''),
+        resourceUrl: normalizeUrl(c.resourceUrl || c.image || c.cover || c.imageUrl || ''),
+        startDate: c.startDate || '',
+        endDate: c.endDate || '',
+        teacher: (c.teacher && (c.teacher.name || c.teacher.t_name)) || c.t_name || currentTeacherName || '',
+        videoCount: vids.length,
+        docCount: docs.length,
+        studentCount: 0,
+      }
+      
+      // 视频课程卡片
+      if (vids.length > 0) {
+        const videoChapters = vids.map((v, i) => ({
+          title: v.videoTitle || v.title || `第${i + 1}节`,
+          videoUrl: normalizeVideoUrl(v.videoUrl || v.url || v.fileUrl || ''),
+          duration: v.duration
+        }))
+        list.push({
+          ...base,
+          type: 'video',
+          chapters: videoChapters,
+          videoUrl: videoChapters[0]?.videoUrl || ''
         })
-      } catch {}
-    }
-
-    // 回退：全量列表再过滤当前教师
-    if (!Array.isArray(list) || list.length === 0) {
-      try {
-        const res = await api.get('/course/list')
-        const body = res?.data
-        const all = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
-        const filtered = teacherId ? all.filter(c => Number(c.teacherId) === teacherId) : all
-        list = filtered.map(c => {
-          const vids = Array.isArray(c.videos) ? c.videos : []
-          const chapters = vids.map(v => ({
-            title: v.videoTitle || v.title || `第${(v.videoIndex || v.index || 0) + 1}节`,
-            videoUrl: normalizeVideoUrl(v.videoUrl || v.url || v.fileUrl || ''),
-            duration: v.duration
-          }))
-          const firstVideoUrl = chapters[0]?.videoUrl || ''
-          return {
-            id: c.courseId,
-            title: c.courseName || c.title || '未命名课程',
-            description: c.description || '',
-            image: normalizeUrl(c.image || c.cover || c.imageUrl || c.img || c.thumbnail || c.pic || c.resourceUrl || ''),
-            resourceUrl: normalizeUrl(c.resourceUrl || c.image || c.cover || c.imageUrl || ''),
-            type: vids.length > 0 ? 'video' : 'document',
-            startDate: c.startDate || '',
-            endDate: c.endDate || '',
-            teacher: (c.teacher && (c.teacher.name || c.teacher.t_name)) || c.t_name || currentTeacherName || '',
-            videoCount: vids.length,
-            docCount: Array.isArray(c.documents) ? c.documents.length : 0,
-            studentCount: 0,
-            chapters,
-            videoUrl: firstVideoUrl
-          }
+      }
+      
+      // 文档课程卡片
+      if (docs.length > 0) {
+        const docChapters = docs.map((d, i) => ({
+          title: d.title || d.name || d.docTitle || `第${i + 1}节`,
+          fileUrl: normalizeUrl(d.docUrl || d.fileUrl || d.url || d.resourceUrl || ''),
+          html: d.html || d.content || ''
+        }))
+        list.push({
+          ...base,
+          type: 'document',
+          chapters: docChapters,
+          fileUrl: docChapters[0]?.fileUrl || '',
+          url: docChapters[0]?.fileUrl || '',
+          docUrl: docChapters[0]?.fileUrl || ''
         })
-      } catch {}
+      }
+      
+      // 既无视频也无文档时，生成占位卡片
+      if (vids.length === 0 && docs.length === 0) {
+        list.push({
+          ...base,
+          type: 'document',
+          chapters: [],
+          fileUrl: '',
+          url: '',
+          docUrl: ''
+        })
+      }
     }
 
     courses.value = Array.isArray(list) ? list : []
@@ -268,9 +276,31 @@ const updateStudentCounts = async () => {
         try {
           const res = await fetch(`${base}/teacher/enrollments/students?courseId=${encodeURIComponent(c.id)}`, { headers })
           const raw = await res.json().catch(() => ({}))
-          const count = (raw && Number(raw.code) === 200 && Array.isArray(raw.data)) ? raw.data.length : 0
-          courses.value[cur] = { ...courses.value[cur], studentCount: count }
-        } catch { courses.value[cur] = { ...courses.value[cur], studentCount: 0 } }
+          const students = (raw && Number(raw.code) === 200 && Array.isArray(raw.data)) ? raw.data : []
+          const count = students.length
+          
+          // 并发查询每个学生的进度并计算平均值
+          let avgProgress = 0
+          if (students.length > 0) {
+            const progressPromises = students.map(async (s) => {
+              try {
+                const pRes = await fetch(`${base}/progress/course?studentId=${s.id}&courseId=${c.id}`, { headers })
+                const pBody = await pRes.json().catch(() => ({}))
+                if (pBody && Number(pBody.code) === 200 && pBody.data) {
+                  let p = Number(pBody.data.completionPercentage || pBody.data.completion_percentage || pBody.data.coursePercent || 0)
+                  if (p >= 0 && p <= 1) p *= 100
+                  return Number.isFinite(p) ? Math.max(0, Math.min(100, p)) : 0
+                }
+                return 0
+              } catch { return 0 }
+            })
+            const progressList = await Promise.all(progressPromises)
+            const sum = progressList.reduce((acc, p) => acc + p, 0)
+            avgProgress = Math.round(sum / students.length)
+          }
+          
+          courses.value[cur] = { ...courses.value[cur], studentCount: count, averageProgress: avgProgress }
+        } catch { courses.value[cur] = { ...courses.value[cur], studentCount: 0, averageProgress: 0 } }
       }
     })())
   }
@@ -385,7 +415,7 @@ const fetchStudentLists = async () => {
 }
 const fetchEnrolledStudents = async () => {
   try {
-    const base = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+    const base = (import.meta?.env?.VITE_API_BASE_URL || '/api')
     const cid = managingCourse.value?.id || managingCourse.value?.courseId
     if (!cid) { enrolledIds.value = new Set(); return }
     const res = await fetch(`${base}/teacher/enrollments/students?courseId=${encodeURIComponent(cid)}`)
@@ -414,13 +444,28 @@ const enrollSelectedStudents = async () => {
 }
 
 // 跳转
+const viewCourseProgress = (course) => { 
+  console.log('点击进度管理，课程:', course)
+  const id = course.id || course.courseId
+  console.log('课程ID:', id)
+  if (!id) {
+    console.error('课程ID不存在')
+    return
+  }
+  console.log('跳转到进度管理页面，课程ID:', id)
+  router.push({ name: 'TeacherCourseProgress', params: { id: String(id) } }).then(() => {
+    console.log('路由跳转成功')
+  }).catch(err => {
+    console.error('路由跳转失败:', err)
+  })
+}
 const editCourse = (course) => { const id = course.id || course.courseId; if (!id) return; router.push(`/teacher/courses/edit/${id}`) }
 const editCourseMaterials = (course) => { const id = course.id || course.courseId; if (!id) return; router.push(`/teacher/courses/${id}/materials`) }
 const deleteCourse = async (course) => {
   try {
     const ok = window.confirm(`确定要删除课程 “${course.title || ''}” 吗？此操作不可恢复。`)
     if (!ok) return
-    const base = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+    const base = (import.meta?.env?.VITE_API_BASE_URL || '/api')
     const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
     const headers = token ? { Authorization: `Bearer ${token}` } : {}
     const res = await fetch(`${base}/course/delete?courseId=${encodeURIComponent(course.id || course.courseId)}`, { method: 'DELETE', headers })
@@ -458,13 +503,17 @@ const deleteCourse = async (course) => {
 .course-title { font-size: 18px; font-weight: 600; margin-bottom: 10px; color: #2c3e50; }
 .course-category { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 12px; color: #1890ff; background: #f0f8ff; padding: 4px 8px; border-radius: 12px; width: fit-content; }
 .course-meta { display: flex; justify-content: space-between; color: #94a3b8; font-size: 13px; }
-.teacher-actions { display: flex; gap: 4px; margin-top: 8px; }
+.teacher-actions { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
 .btn-primary { padding: 4px 8px; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .btn-primary:hover { background: #1d4ed8; }
 .btn-secondary { padding: 4px 8px; background: #64748b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .btn-secondary:hover { background: #475569; }
+.btn-info { padding: 4px 8px; background: #17a2b8; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.btn-info:hover { background: #138496; }
 .btn-danger { padding: 4px 8px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .btn-danger:hover { background: #dc2626; }
+.course-progress-info { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; color: #17a2b8; }
+.course-progress-info i { font-size: 14px; }
 .no-results { text-align: center; padding: 40px; color: #94a3b8; grid-column: 1 / -1; }
 .no-results i { font-size: 48px; margin-bottom: 15px; display: block; }
 .loading-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: #94a3b8; grid-column: 1 / -1; }

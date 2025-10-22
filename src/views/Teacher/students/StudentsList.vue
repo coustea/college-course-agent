@@ -88,12 +88,20 @@
           </el-select>
           <span v-if="overallProgressPct >= 0">总体进度:</span>
           <el-progress v-if="overallProgressPct >= 0" :percentage="overallProgressPct" :color="progressColor(overallProgressPct)" style="width:220px;"/>
+          <template v-if="currentCourseId">
+            <span style="margin-left: 12px;">答题正确率:</span>
+            <el-tag v-if="examAccuracy >= 0" :type="examAccuracy >= 80 ? 'success' : (examAccuracy >= 60 ? 'warning' : 'danger')" size="large">
+              {{ examAccuracy.toFixed(1) }}%
+            </el-tag>
+            <el-tag v-else type="info" size="large">暂无数据</el-tag>
+          </template>
         </div>
 
         <div class="table-container" v-if="currentCourseId">
           <h4 style="margin: 10px 0 6px 0;">视频进度</h4>
           <el-table :data="videoProgressList" style="width: 100%" height="220">
             <el-table-column prop="videoId" label="视频ID" width="120" />
+            <el-table-column prop="title" label="标题" min-width="220" />
             <el-table-column prop="percentage" label="进度(%)" width="120">
               <template #default="scope">
                 <el-progress :percentage="Math.round(scope.row.percentage || 0)" :color="progressColor(scope.row.percentage || 0)" />
@@ -108,6 +116,7 @@
           <h4 style="margin: 14px 0 6px 0;">文档进度</h4>
           <el-table :data="documentProgressList" style="width: 100%" height="220">
             <el-table-column prop="documentId" label="文档ID" width="120" />
+            <el-table-column prop="title" label="标题" min-width="220" />
             <el-table-column prop="completed" label="是否完成" width="120">
               <template #default="scope"><el-tag :type="scope.row.completed ? 'success' : 'info'">{{ scope.row.completed ? '已完成' : '未完成' }}</el-tag></template>
             </el-table-column>
@@ -148,6 +157,7 @@ const learningProgress = ref([])
 const courseOptions = ref([])
 const currentCourseId = ref(null)
 const overallProgressPct = ref(-1)
+const examAccuracy = ref(-1)
 const videoProgressList = ref([])
 const documentProgressList = ref([])
 const students = ref([])
@@ -278,6 +288,9 @@ const deleteStudentById = id =>
 const listCoursesByStudent = studentId => api.get('/teacher/enrollments/courses', { params: { studentId } })
 const getCourseProgress = (studentId, courseId) => api.get('/progress/course', { params: { studentId, courseId } })
 const getAllProgress = (studentId, courseId) => api.get('/progress/course/all', { params: { studentId, courseId } })
+const listAllVideos = (courseId) => api.get('/course/video/list', { params: { courseId } })
+const listAllDocuments = (courseId) => api.get('/course/document/list', { params: { courseId } })
+const getExamAccuracy = (studentId, courseId) => api.get('/aiexam/accuracy', { params: { studentId, courseId } })
 
 // === 获取学生列表 ===
 const fetchStudents = async () => {
@@ -342,33 +355,101 @@ const refreshCourseProgress = async () => {
   videoProgressList.value = []
   documentProgressList.value = []
   overallProgressPct.value = -1
+  examAccuracy.value = -1
   const sid = selectedStudent.value?.id
   const cid = currentCourseId.value
   if (!sid || !cid) return
   try {
-    const all = await getAllProgress(sid, cid)
-    const body = all?.data
-    if (body && Number(body.code) === 200 && body.data) {
-      const d = body.data
-      const pct = Number(d.coursePercent ?? d.completionPercentage ?? 0)
+    const pickVideoTitle = (o) => {
+      try {
+        if (!o) return ''
+        const c = [o.title, o.videoTitle, o.name, o.video_title]
+        for (const v of c) { if (v) return String(v) }
+      } catch {}
+      return ''
+    }
+    const pickDocTitle = (o) => {
+      try {
+        if (!o) return ''
+        const c = [o.title, o.docTitle, o.documentTitle, o.name, o.document_title]
+        for (const v of c) { if (v) return String(v) }
+      } catch {}
+      return ''
+    }
+    const [allRes, vidsRes, docsRes] = await Promise.all([
+      getAllProgress(sid, cid),
+      listAllVideos(cid),
+      listAllDocuments(cid)
+    ])
+
+    const body = allRes?.data
+    let d = (body && Number(body.code) === 200 && body.data) ? body.data : null
+    const pct = Number(d?.coursePercent ?? d?.completionPercentage ?? 0)
+    overallProgressPct.value = Math.round(Math.max(0, Math.min(100, Number.isFinite(pct) ? pct : 0)))
+
+    const progressVideos = Array.isArray(d?.videos) ? d.videos : []
+    const progressDocs = Array.isArray(d?.documents) ? d.documents : []
+
+    const allVideos = (() => { const b = vidsRes?.data; return (b && Number(b.code) === 200 && Array.isArray(b.data)) ? b.data : [] })()
+    const allDocs = (() => { const b = docsRes?.data; return (b && Number(b.code) === 200 && Array.isArray(b.data)) ? b.data : [] })()
+
+    const vpMap = new Map((progressVideos || []).map(v => [ (v.videoId ?? v.video_id ?? v.id), v ]))
+    videoProgressList.value = (allVideos || []).map((v, i) => {
+      const id = v.videoId ?? v.id
+      const pv = vpMap.get(id)
+      const fallback = `第${i + 1}节`
+      if (pv) return { ...pv, title: (pickVideoTitle(pv) || pickVideoTitle(v) || fallback) }
+      return { videoId: id, title: (pickVideoTitle(v) || fallback), percentage: 0, completed: false, updatedAt: null }
+    })
+
+    const dpMap = new Map((progressDocs || []).map(v => [ (v.documentId ?? v.document_id ?? v.id), v ]))
+    documentProgressList.value = (allDocs || []).map((d0, i) => {
+      const id = d0.documentId ?? d0.id
+      const pd = dpMap.get(id)
+      const fallback = `第${i + 1}节`
+      if (pd) return { ...pd, title: (pickDocTitle(pd) || pickDocTitle(d0) || fallback) }
+      return { documentId: id, title: (pickDocTitle(d0) || fallback), percentage: 0, completed: false, updatedAt: null }
+    })
+  } catch {
+    // 回退：仅拉总体
+    try {
+      const pr = await getCourseProgress(sid, cid)
+      const pb = pr?.data
+      let pct = 0
+      if (pb && Number(pb.code) === 200 && pb.data) {
+        pct = Number(pb.data.completionPercentage ?? pb.data.completion_percentage ?? 0)
+        if (!Number.isFinite(pct)) pct = 0
+        if (pct >= 0 && pct <= 1) pct *= 100
+      }
       overallProgressPct.value = Math.round(Math.max(0, Math.min(100, pct)))
-      videoProgressList.value = Array.isArray(d.videos) ? d.videos : []
-      documentProgressList.value = Array.isArray(d.documents) ? d.documents : []
-      return
-    }
-  } catch {}
-  // 回退：仅拉总体
+    } catch {}
+  }
+  
+  // 拉取答题正确率
   try {
-    const pr = await getCourseProgress(sid, cid)
-    const pb = pr?.data
-    let pct = 0
-    if (pb && Number(pb.code) === 200 && pb.data) {
-      pct = Number(pb.data.completionPercentage ?? pb.data.completion_percentage ?? 0)
-      if (!Number.isFinite(pct)) pct = 0
-      if (pct >= 0 && pct <= 1) pct *= 100
+    const accRes = await getExamAccuracy(sid, cid)
+    console.log('答题正确率API返回:', accRes)
+    const accBody = accRes?.data
+    if (accBody && Number(accBody.code) === 200 && accBody.data) {
+      console.log('答题正确率数据:', accBody.data)
+      let pct = 0
+      if (accBody.data.percentage != null) {
+        pct = Number(accBody.data.percentage)
+      } else if (accBody.data.accuracy != null) {
+        pct = Number(accBody.data.accuracy) * 100
+      }
+      console.log('解析后的百分比:', pct, 'isFinite:', Number.isFinite(pct))
+      if (Number.isFinite(pct)) {
+        examAccuracy.value = Math.max(0, Math.min(100, pct))
+        console.log('设置examAccuracy为:', examAccuracy.value)
+      }
+    } else {
+      console.log('答题正确率条件不满足:', { accBody, code: accBody?.code, hasData: !!accBody?.data })
     }
-    overallProgressPct.value = Math.round(Math.max(0, Math.min(100, pct)))
-  } catch {}
+  } catch (e) {
+    console.error('获取答题正确率失败:', e)
+  }
+  console.log('最终examAccuracy值:', examAccuracy.value)
 }
 
 // === 编辑学生 ===
