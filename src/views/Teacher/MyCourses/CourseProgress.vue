@@ -57,10 +57,10 @@
         style="width: 100%"
         :default-sort="{ prop: 'progress', order: 'descending' }"
       >
-        <el-table-column prop="studentNumber" label="学号" width="140" sortable />
-        <el-table-column prop="name" label="姓名" width="120" sortable />
-        <el-table-column prop="className" label="班级" width="120" sortable />
-        <el-table-column label="总体进度" width="280" sortable prop="progress">
+        <el-table-column prop="studentNumber" label="学号" width="120" sortable />
+        <el-table-column prop="name" label="姓名" width="100" sortable />
+        <el-table-column prop="className" label="班级" width="100" sortable />
+        <el-table-column label="总体进度" width="200" sortable prop="progress">
           <template #default="{ row }">
             <el-progress
               :percentage="row.progress"
@@ -69,14 +69,26 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="完成状态" width="120" align="center">
+        <el-table-column label="答题正确率" width="140" sortable prop="examAccuracy" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.progress >= 100 ? 'success' : (row.progress >= 60 ? 'warning' : 'info')">
+            <el-tag 
+              v-if="row.examAccuracy >= 0" 
+              :type="row.examAccuracy >= 80 ? 'success' : (row.examAccuracy >= 60 ? 'warning' : 'danger')"
+              size="large"
+            >
+              {{ row.examAccuracy.toFixed(1) }}%
+            </el-tag>
+            <el-tag v-else type="info" size="small">暂无数据</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="完成状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.progress >= 100 ? 'success' : (row.progress >= 60 ? 'warning' : 'info')" size="small">
               {{ row.progress >= 100 ? '已完成' : (row.progress >= 60 ? '进行中' : '未开始') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="最后学习时间" width="180" sortable prop="lastStudyTime">
+        <el-table-column label="最后学习时间" width="160" sortable prop="lastStudyTime">
           <template #default="{ row }">
             {{ formatDateTime(row.lastStudyTime) }}
           </template>
@@ -274,11 +286,17 @@ const loadCourseProgress = async () => {
       return
     }
 
-    // 3. 并发查询每个学生的进度
+    // 3. 并发查询每个学生的进度和答题正确率
     console.log('开始查询每个学生的进度...')
     const progressPromises = students.map(async (student) => {
       try {
-        const progRes = await api.get(`/progress/course`, { params: { studentId: student.id, courseId: courseId.value } })
+        // 并发查询进度和答题正确率
+        const [progRes, accRes] = await Promise.all([
+          api.get(`/progress/course`, { params: { studentId: student.id, courseId: courseId.value } }),
+          api.get(`/aiexam/accuracy`, { params: { studentId: student.id, courseId: courseId.value } })
+        ])
+        
+        // 处理进度数据
         const progBody = progRes?.data
         let progress = 0
         let lastStudyTime = null
@@ -290,12 +308,29 @@ const loadCourseProgress = async () => {
           progress = Math.max(0, Math.min(100, progress))
           lastStudyTime = d.updatedAt || d.lastUpdated || null
         }
+        
+        // 处理答题正确率数据
+        let examAccuracy = -1
+        const accBody = accRes?.data
+        if (accBody && Number(accBody.code) === 200 && accBody.data) {
+          let pct = 0
+          if (accBody.data.percentage != null) {
+            pct = Number(accBody.data.percentage)
+          } else if (accBody.data.accuracy != null) {
+            pct = Number(accBody.data.accuracy) * 100
+          }
+          if (Number.isFinite(pct)) {
+            examAccuracy = Math.max(0, Math.min(100, pct))
+          }
+        }
+        
         return {
           id: student.id,
           studentNumber: student.studentNumber || student.studentId || '-',
           name: student.name || '-',
           className: student.className || '-',
           progress: Math.round(progress),
+          examAccuracy: examAccuracy,
           lastStudyTime
         }
       } catch (err) {
@@ -306,6 +341,7 @@ const loadCourseProgress = async () => {
           name: student.name || '-',
           className: student.className || '-',
           progress: 0,
+          examAccuracy: -1,
           lastStudyTime: null
         }
       }
