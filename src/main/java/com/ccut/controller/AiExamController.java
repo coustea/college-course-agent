@@ -55,6 +55,7 @@ public class AiExamController {
     public record GenerateReq(Long courseId, Long studentId, Integer choiceCount, Integer judgeCount) {}
     public record SubmitReq(Long examId, Long studentId, List<SubmitAnswer> answers) {}
     public record SubmitAnswer(Long questionId, String answer) {}
+    public record AccuracyReq(Long studentId, Long courseId) {}
 
     @PostMapping("/generate")
     public Result<Map<String,Object>> generate(@RequestBody GenerateReq req){
@@ -142,6 +143,25 @@ public class AiExamController {
             resp.put("answers", req.answers);
             return Result.success(resp);
         } catch (Exception e){
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    // 查询某学生在某课程的题目正确率（0~1 小数）
+    @GetMapping("/accuracy")
+    public Result<Map<String, Object>> accuracy(@RequestParam("studentId") Long studentId,
+                                                @RequestParam("courseId") Long courseId) {
+        try {
+            if (studentId == null || courseId == null) return Result.error(400, "studentId/courseId 不能为空");
+            Double acc = attemptMapper.calcAccuracyByStudentAndCourse(studentId, courseId);
+            if (acc == null) acc = 0.0;
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("studentId", studentId);
+            resp.put("courseId", courseId);
+            resp.put("accuracy", acc);
+            resp.put("percentage", Math.round(acc * 10000.0) / 100.0);
+            return Result.success(resp);
+        } catch (Exception e) {
             return Result.error(500, e.getMessage());
         }
     }

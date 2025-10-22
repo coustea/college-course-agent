@@ -41,6 +41,22 @@
         UPDATE ai_exam_attempts SET score = #{score} WHERE id = #{id}
     </update>
 
+  <!-- 按学生+课程统计正确率：
+       取该学生在该课程下所有试卷的所有尝试的作答，正确题数 / 总题数 -->
+  <select id="calcAccuracyByStudentAndCourse" resultType="double">
+    SELECT
+      CASE WHEN SUM(CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END) = 0 THEN 0
+           ELSE ROUND(
+             SUM(CASE WHEN a.correct = TRUE THEN 1 ELSE 0 END)
+             / (SUM(CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END) + 0.0), 4)
+      END AS accuracy
+    FROM ai_exam_attempts att
+    JOIN ai_exams ex ON ex.id = att.exam_id
+    LEFT JOIN ai_exam_answers a ON a.attempt_id = att.id
+    WHERE att.student_id = #{studentId}
+      AND ex.course_id = #{courseId}
+  </select>
+
 </mapper>
 
 

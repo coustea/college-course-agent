@@ -76,6 +76,7 @@ public class AuthController {
                     Teacher teacher = teacherMapper.selectById(dbUser.getId());
                     if (teacher != null) {
                         data.put("teacherId", teacher.getId());
+
                         profile.put("name", teacher.getName());
                         profile.put("email", teacher.getEmail());
                         profile.put("phone", teacher.getPhone());
@@ -95,6 +96,7 @@ public class AuthController {
                         profile.put("phone", student.getPhone());
                         profile.put("major", student.getMajor());
                         profile.put("grade", student.getGrade());
+
                     }
                 }
                 data.put("profile", profile);
@@ -153,4 +155,5 @@ public class AuthController {
             return Result.error(500, "服务器内部错误：" + e.getMessage());
         }
     }
+
 }

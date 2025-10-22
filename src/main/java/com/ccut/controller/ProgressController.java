@@ -2,10 +2,15 @@ package com.ccut.controller;
 
 import com.ccut.entity.LearningProgress;
 import com.ccut.entity.Result;
+import com.ccut.entity.VideoProgress;
+import com.ccut.entity.DocumentProgress;
+import com.ccut.entity.CourseVideo;
+import com.ccut.entity.CourseDocument;
 import com.ccut.mapper.LearningProgressMapper;
 import com.ccut.mapper.CourseVideoMapper;
 import com.ccut.mapper.VideoProgressMapper;
 import com.ccut.mapper.DocumentProgressMapper;
+import com.ccut.mapper.CourseDocumentMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,6 +26,8 @@ public class ProgressController {
     private VideoProgressMapper videoProgressMapper;
     @Autowired
     private DocumentProgressMapper documentProgressMapper;
+    @Autowired
+    private CourseDocumentMapper courseDocumentMapper;
 
     // 上报学习增量：支持 videoId 或 documentId
     @PostMapping("/report")
@@ -126,21 +133,75 @@ public class ProgressController {
         }
     }
 
-    // 聚合查询：课程下该生所有视频与文档的进度 + 汇总
+    // 聚合查询：课程下该生所有视频与文档的进度 + 汇总（未学的节也以0%返回）
     @GetMapping("/course/all")
     public Result<java.util.Map<String, Object>> getAllProgress(@RequestParam("studentId") Long studentId,
                                                                 @RequestParam("courseId") Long courseId){
         try {
-            java.util.List<com.ccut.entity.VideoProgress> videos = videoProgressMapper.listByCourse(studentId, courseId);
-            java.util.List<com.ccut.entity.DocumentProgress> docs = documentProgressMapper.listByCourse(studentId, courseId);
+            // 1. 获取学生已有的进度记录
+            java.util.List<VideoProgress> studentVideos = videoProgressMapper.listByCourse(studentId, courseId);
+            java.util.List<DocumentProgress> studentDocs = documentProgressMapper.listByCourse(studentId, courseId);
+
+            // 2. 获取课程的全部视频与文档
+            java.util.List<CourseVideo> allVideos = courseVideoMapper.findByCourseId(courseId);
+            java.util.List<CourseDocument> allDocs = courseDocumentMapper.findByCourseId(courseId);
+
+            // 3. 构建已有进度的映射（按 videoId/documentId 作为 key）
+            java.util.Map<Long, VideoProgress> vpMap = new java.util.HashMap<>();
+            for (VideoProgress vp : studentVideos) {
+                if (vp.getVideoId() != null) vpMap.put(vp.getVideoId(), vp);
+            }
+            java.util.Map<Long, DocumentProgress> dpMap = new java.util.HashMap<>();
+            for (DocumentProgress dp : studentDocs) {
+                if (dp.getDocumentId() != null) dpMap.put(dp.getDocumentId(), dp);
+            }
+
+            // 4. 合并：对所有视频，如果学生有进度则用进度，否则构造 0% 占位
+            java.util.List<VideoProgress> mergedVideos = new java.util.ArrayList<>();
+            for (CourseVideo cv : allVideos) {
+                Long vid = cv.getVideoId();
+                if (vpMap.containsKey(vid)) {
+                    mergedVideos.add(vpMap.get(vid));
+                } else {
+                    VideoProgress placeholder = new VideoProgress();
+                    placeholder.setId(0L); // 占位ID，表示无实际进度记录
+                    placeholder.setVideoId(vid);
+                    placeholder.setStudentId(studentId);
+                    placeholder.setCourseId(courseId);
+                    placeholder.setWatchedSeconds(0);
+                    placeholder.setCompleted(false);
+                    placeholder.setPercentage(0.0);
+                    placeholder.setUpdatedAt(null);
+                    mergedVideos.add(placeholder);
+                }
+            }
+
+            // 5. 合并文档
+            java.util.List<DocumentProgress> mergedDocs = new java.util.ArrayList<>();
+            for (CourseDocument cd : allDocs) {
+                Long did = cd.getDocumentId();
+                if (dpMap.containsKey(did)) {
+                    mergedDocs.add(dpMap.get(did));
+                } else {
+                    DocumentProgress placeholder = new DocumentProgress();
+                    placeholder.setDocumentId(did);
+                    placeholder.setStudentId(studentId);
+                    placeholder.setCourseId(courseId);
+                    placeholder.setTimeSpent(0);
+                    placeholder.setMaxScrollPct(0.0);
+                    placeholder.setCompleted(false);
+                    placeholder.setPercentage(0.0);
+                    mergedDocs.add(placeholder);
+                }
+            }
 
             Double pct = learningProgressMapper.calcCoursePercent(studentId, courseId);
             if (pct == null) pct = 0.0;
             boolean courseCompleted = Boolean.TRUE.equals(learningProgressMapper.isCourseCompleted(studentId, courseId));
 
             java.util.Map<String, Object> resp = new java.util.HashMap<>();
-            resp.put("videos", videos);
-            resp.put("documents", docs);
+            resp.put("videos", mergedVideos);
+            resp.put("documents", mergedDocs);
             resp.put("coursePercent", courseCompleted ? 100.0 : pct);
             resp.put("courseCompleted", courseCompleted);
             return Result.success(resp);

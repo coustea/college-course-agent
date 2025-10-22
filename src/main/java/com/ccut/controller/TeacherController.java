@@ -10,6 +10,7 @@ import com.ccut.mapper.CourseMapper;
 import com.ccut.mapper.LearningProgressMapper;
 import com.ccut.mapper.CourseDocumentMapper;
 import com.ccut.mapper.CourseVideoMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -20,9 +21,11 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.util.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/teacher")
-public class TeacherController {
+public class
+TeacherController {
     @Autowired
     private StudentServiceImpl studentService;
     @Autowired
@@ -99,6 +102,7 @@ public class TeacherController {
     @GetMapping("/list/students")
     public Result<List<Student>> listStudents(){
         try {
+
             return Result.success(studentService.selectAll());
         } catch (Exception e) {
             return Result.error(500, e.getMessage());

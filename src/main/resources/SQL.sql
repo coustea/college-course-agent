@@ -7,6 +7,10 @@ DROP TABLE IF EXISTS course_documents;
 DROP TABLE IF EXISTS course_videos;
 DROP TABLE IF EXISTS learning_progress;
 DROP TABLE IF EXISTS enrollments;
+DROP TABLE IF EXISTS ai_exam_answers;
+DROP TABLE IF EXISTS ai_exam_attempts;
+DROP TABLE IF EXISTS ai_exam_questions;
+DROP TABLE IF EXISTS ai_exams;
 DROP TABLE IF EXISTS student_member_scores;
 DROP TABLE IF EXISTS student_submissions;
 DROP TABLE IF EXISTS group_members;
@@ -262,3 +266,57 @@ FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
 UNIQUE KEY uniq_submission_student (submission_id, student_id),
 INDEX idx_student (student_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生个人评分表（教师姓名直接存）';
+
+-- ================================================
+--  AI 试卷/题目/作答 表
+-- ================================================
+CREATE TABLE ai_exams (
+id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '试卷ID',
+course_id BIGINT NOT NULL COMMENT '课程ID',
+course_name VARCHAR(255) COMMENT '课程名',
+student_id BIGINT NULL COMMENT '生成面向的学生(可为空)',
+topic VARCHAR(255) COMMENT '主题（一般用课程名）',
+question_count INT DEFAULT 0 COMMENT '题目数量',
+total_score INT DEFAULT 0 COMMENT '最近一次提交的得分',
+status VARCHAR(32) DEFAULT 'generated' COMMENT '状态 generated/submitted',
+created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+INDEX idx_course (course_id),
+INDEX idx_student (student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 生成试卷';
+
+CREATE TABLE ai_exam_questions (
+id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '题目ID',
+exam_id BIGINT NOT NULL COMMENT '所属试卷',
+type VARCHAR(32) COMMENT 'CHOICE/JUDGE',
+content TEXT COMMENT '题干',
+options JSON NULL COMMENT '选项(JSON数组，判断题可为空)',
+answer VARCHAR(64) COMMENT '正确答案（A/B/C/D 或 true/false）',
+analysis TEXT NULL COMMENT '解析',
+FOREIGN KEY (exam_id) REFERENCES ai_exams(id) ON DELETE CASCADE,
+INDEX idx_exam (exam_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 试卷题目';
+
+CREATE TABLE ai_exam_attempts (
+id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '提交尝试ID',
+exam_id BIGINT NOT NULL COMMENT '试卷ID',
+student_id BIGINT NOT NULL COMMENT '学生ID',
+score INT DEFAULT 0 COMMENT 'AI 评卷得分',
+result_json JSON NULL COMMENT '评卷详情（可选）',
+submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',
+FOREIGN KEY (exam_id) REFERENCES ai_exams(id) ON DELETE CASCADE,
+FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+INDEX idx_exam_student (exam_id, student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 试卷提交记录';
+
+CREATE TABLE ai_exam_answers (
+id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '作答ID',
+attempt_id BIGINT NOT NULL COMMENT '提交尝试ID',
+question_id BIGINT NOT NULL COMMENT '题目ID',
+student_answer VARCHAR(255) COMMENT '学生答案',
+correct BOOLEAN DEFAULT FALSE COMMENT '是否正确',
+FOREIGN KEY (attempt_id) REFERENCES ai_exam_attempts(id) ON DELETE CASCADE,
+FOREIGN KEY (question_id) REFERENCES ai_exam_questions(id) ON DELETE CASCADE,
+INDEX idx_attempt (attempt_id),
+INDEX idx_question (question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 试卷作答';
