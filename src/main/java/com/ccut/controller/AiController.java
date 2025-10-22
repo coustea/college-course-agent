@@ -28,6 +28,8 @@ public class AiController {
             1. 包含 {judge} 道判断题 (JUDGE)。
             2. 包含 {choice} 道选择题 (CHOICE)。
 
+            在题目内容设计上，必须涵盖以下关键词：软件工程、应用开发、课程思政。
+            
             对于选择题，必须提供4个选项，并且 'answer' 字段必须是 "A", "B", "C", "D" 中的一个。
             对于判断题，'options' 字段必须为null，'answer' 字段必须是 "true" 或 "false"。
             每道题都必须提供 'analysis' 字段作为题目解析。
