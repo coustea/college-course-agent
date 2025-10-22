@@ -4,6 +4,10 @@ import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.ccut.entity.Exam;
 import com.ccut.entity.Result;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -19,6 +23,12 @@ public class AiController {
     private final ChatClient chatClient;
     private final BeanOutputConverter<Exam> converter;
     private final String format;
+    private final InMemoryChatMemoryRepository chatMemoryRepository = new InMemoryChatMemoryRepository();
+    private final int MAX_MESSAGES = 100;
+    private final MessageWindowChatMemory messageWindowChatMemory = MessageWindowChatMemory.builder()
+            .chatMemoryRepository(chatMemoryRepository)
+            .maxMessages(MAX_MESSAGES)
+            .build();
 
     private static final String PROMPT_TEMPLATE = """
             你是一位经验丰富的出题专家。
@@ -39,7 +49,9 @@ public class AiController {
             {format}
             """;
 
+
     public AiController(ChatClient.Builder builder) {
+
         this.converter = new BeanOutputConverter<>(new ParameterizedTypeReference<Exam>() {});
         this.format = converter.getFormat();
         this.chatClient = builder
@@ -47,11 +59,15 @@ public class AiController {
                         DashScopeChatOptions.builder()
                                 .withModel("qwen-max")
                                 .withEnableThinking(true)
-                                .withTemperature(1.4)
+                                .withTemperature(1.0)
                                 .withEnableSearch(true)
                                 .build()
                 )
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(messageWindowChatMemory).build()
+                )
                 .build();
+
     }
 
 
