@@ -23,9 +23,27 @@
         <el-form-item label="课程ID"><el-input v-model.number="video.courseId" placeholder="请输入课程ID" /></el-form-item>
         <el-form-item label="视频集数(videoIndex)"><el-input v-model.number="video.videoIndex" placeholder="例如 1、2、3..." /></el-form-item>
         <el-form-item label="视频标题"><el-input v-model="video.videoTitle" placeholder="请输入视频标题" /></el-form-item>
-        <el-form-item label="视频文件"><input type="file" accept=".mp4,.mov,.webm" @change="onVideoFileChange" /></el-form-item>
+        <el-form-item label="视频文件">
+          <input type="file" accept=".mp4,.mov,.webm" @change="onVideoFileChange" />
+          <div v-if="video.file" class="file-info">
+            已选择: {{ video.file.name }} ({{ formatFileSize(video.file.size) }})
+          </div>
+        </el-form-item>
         <el-form-item label="时长(秒)"><el-input v-model.number="video.duration" placeholder="例如 1800" /></el-form-item>
-        <el-form-item><el-button type="primary" :loading="submittingVideo" @click="submitVideo">提交视频</el-button></el-form-item>
+        <el-form-item v-if="uploadProgress > 0 && uploadProgress < 100">
+          <el-progress :percentage="uploadProgress" :stroke-width="20" :status="uploadProgress === 100 ? 'success' : ''" />
+          <div style="margin-top: 8px; color: #409eff; font-weight: 500;">
+            {{ uploadStatus || `上传中... ${uploadProgress}%` }}
+          </div>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="submittingVideo" :disabled="submittingVideo" @click="submitVideo">
+            {{ submittingVideo ? '上传中...' : '提交视频' }}
+          </el-button>
+          <span v-if="video.file && video.file.size > 5 * 1024 * 1024" style="margin-left: 12px; color: #67c23a; font-size: 13px;">
+            ✓ 将使用分片上传加速
+          </span>
+        </el-form-item>
       </el-form>
     </div>
 
@@ -261,15 +279,181 @@ export default {
       } catch (e) { console.error(e); ElMessage.error('更新失败，请稍后重试') } finally { savingDoc.value = false }
     }
 
+    const uploadProgress = ref(0)
+    const uploadStatus = ref('') // 上传状态描述
+    
+    const formatFileSize = (bytes) => {
+      if (!bytes) return '0 B'
+      const k = 1024
+      const sizes = ['B', 'KB', 'MB', 'GB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    }
+
+    /**
+     * 分片上传视频
+     * @param {File} file - 视频文件
+     * @param {Object} params - 其他参数（courseId, videoIndex, videoTitle, duration）
+     */
+    const uploadVideoInChunks = async (file, params) => {
+      const CHUNK_SIZE = 2 * 1024 * 1024 // 2MB per chunk
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+      
+      try {
+        // 1. 初始化分片上传
+        uploadStatus.value = '初始化上传...'
+        const initRes = await axios.post(`${base}/chunk/init`, null, {
+          params: {
+            fileName: file.name,
+            fileSize: file.size,
+            totalChunks: totalChunks
+          },
+          headers: getAuthHeaders()
+        })
+
+        if (!initRes.data || initRes.data.code !== 200) {
+          throw new Error(initRes.data?.message || '初始化上传失败')
+        }
+
+        const uploadId = initRes.data.data.uploadId
+        console.log('上传ID:', uploadId, '总分片数:', totalChunks)
+
+        // 2. 分片上传
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE
+          const end = Math.min(start + CHUNK_SIZE, file.size)
+          const chunk = file.slice(start, end)
+
+          uploadStatus.value = `上传分片 ${i + 1}/${totalChunks}...`
+          uploadProgress.value = Math.round(((i + 1) / totalChunks) * 95) // 保留5%给合并
+
+          const formData = new FormData()
+          formData.append('uploadId', uploadId)
+          formData.append('chunkIndex', i)
+          formData.append('chunk', chunk)
+
+          const chunkRes = await axios.post(`${base}/chunk/upload`, formData, {
+            headers: getAuthHeaders()
+          })
+
+          if (!chunkRes.data || chunkRes.data.code !== 200) {
+            throw new Error(`分片${i + 1}上传失败`)
+          }
+
+          console.log(`分片 ${i + 1}/${totalChunks} 上传成功`)
+        }
+
+        // 3. 合并分片
+        uploadStatus.value = '合并文件中...'
+        uploadProgress.value = 98
+
+        const mergeRes = await axios.post(`${base}/chunk/merge`, null, {
+          params: {
+            uploadId: uploadId,
+            courseId: params.courseId,
+            videoIndex: params.videoIndex,
+            videoTitle: params.videoTitle,
+            duration: params.duration
+          },
+          headers: getAuthHeaders()
+        })
+
+        if (!mergeRes.data || mergeRes.data.code !== 200) {
+          throw new Error(mergeRes.data?.message || '合并文件失败')
+        }
+
+        uploadProgress.value = 100
+        uploadStatus.value = '上传完成！'
+        
+        return mergeRes.data.data
+      } catch (error) {
+        // 如果失败，尝试取消上传任务
+        console.error('上传失败:', error)
+        throw error
+      }
+    }
+    
     const submitVideo = async () => {
       try {
+        if (!video.value.file) {
+          ElMessage.error('请先选择视频文件')
+          return
+        }
+        if (!video.value.courseId) {
+          ElMessage.error('请输入课程ID')
+          return
+        }
+        
         submittingVideo.value = true
-        const form = new FormData(); form.append('courseId', video.value.courseId); if (video.value.videoIndex != null) form.append('videoIndex', String(video.value.videoIndex)); if (video.value.videoTitle) form.append('videoTitle', video.value.videoTitle); if (video.value.file) form.append('file', video.value.file)
-        const res = await axios.post(`${base}/course/video/insert`, form, { headers: getAuthHeaders() })
-        const body = res?.data
-        if (body && Number(body.code) === 200) { ElMessage.success('视频添加成功'); video.value.videoTitle = ''; video.value.file = null }
-        else { ElMessage.error(body?.message || '视频添加失败') }
-      } catch (e) { console.error(e); ElMessage.error('视频添加失败，请稍后重试') } finally { submittingVideo.value = false }
+        uploadProgress.value = 0
+        uploadStatus.value = ''
+        
+        const fileSize = video.value.file.size
+        const USE_CHUNK_UPLOAD = fileSize > 5 * 1024 * 1024 // 大于5MB使用分片上传
+        
+        if (USE_CHUNK_UPLOAD) {
+          // 使用分片上传
+          console.log('文件大小:', formatFileSize(fileSize), '使用分片上传')
+          
+          const result = await uploadVideoInChunks(video.value.file, {
+            courseId: video.value.courseId,
+            videoIndex: video.value.videoIndex,
+            videoTitle: video.value.videoTitle,
+            duration: video.value.duration
+          })
+          
+          ElMessage.success('视频添加成功')
+          video.value.videoTitle = ''
+          video.value.file = null
+          video.value.videoIndex = null
+          video.value.duration = null
+          await loadVideos()
+        } else {
+          // 小文件直接上传
+          console.log('文件大小:', formatFileSize(fileSize), '使用普通上传')
+          uploadStatus.value = '上传中...'
+          
+          const form = new FormData()
+          form.append('courseId', video.value.courseId)
+          if (video.value.videoIndex != null) form.append('videoIndex', String(video.value.videoIndex))
+          if (video.value.videoTitle) form.append('videoTitle', video.value.videoTitle)
+          if (video.value.duration != null) form.append('duration', String(video.value.duration))
+          form.append('file', video.value.file)
+          
+          const res = await axios.post(`${base}/course/video/insert`, form, {
+            headers: getAuthHeaders(),
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              }
+            },
+            timeout: 600000
+          })
+          
+          const body = res?.data
+          if (body && Number(body.code) === 200) {
+            ElMessage.success('视频添加成功')
+            video.value.videoTitle = ''
+            video.value.file = null
+            video.value.videoIndex = null
+            video.value.duration = null
+            await loadVideos()
+          } else {
+            ElMessage.error(body?.message || '视频添加失败')
+          }
+        }
+      } catch (e) {
+        console.error(e)
+        if (e.code === 'ECONNABORTED') {
+          ElMessage.error('上传超时，请检查网络或尝试上传较小的文件')
+        } else {
+          ElMessage.error(e.message || '视频添加失败，请稍后重试')
+        }
+      } finally {
+        submittingVideo.value = false
+        uploadProgress.value = 0
+        uploadStatus.value = ''
+      }
     }
 
     const submitDoc = async () => {
@@ -357,7 +541,7 @@ export default {
     // 初始化加载
     ;(async () => { await Promise.all([loadVideos(), loadDocs()]) })()
 
-    return { course, imagePreview, savingCourse, onCourseImageChange, saveCourse, video, doc, submittingVideo, submittingDoc, savingVideo, savingDoc, videos, documents, loadingVideos, loadingDocs, onVideoFileChange, onDocFileChange, onVideoRowClick, onDocRowClick, submitVideo, submitDoc, updateVideo, updateDoc, editVideoVisible, editVideo, openEditVideo, onEditVideoFileChange, submitEditVideo, editDocVisible, editDoc, openEditDoc, onEditDocFileChange, submitEditDoc }
+    return { course, imagePreview, savingCourse, onCourseImageChange, saveCourse, video, doc, submittingVideo, submittingDoc, savingVideo, savingDoc, videos, documents, loadingVideos, loadingDocs, onVideoFileChange, onDocFileChange, onVideoRowClick, onDocRowClick, submitVideo, submitDoc, updateVideo, updateDoc, editVideoVisible, editVideo, openEditVideo, onEditVideoFileChange, submitEditVideo, editDocVisible, editDoc, openEditDoc, onEditDocFileChange, submitEditDoc, uploadProgress, uploadStatus, formatFileSize }
   }
 }
 </script>
@@ -366,6 +550,12 @@ export default {
 .course-materials { padding: 12px; }
 .section { background: #fff; padding: 16px; border-radius: 8px; margin: 12px 0; }
 .avatar { width: 178px; height: 178px; display: block; margin-top: 8px; }
+.file-info {
+  margin-top: 8px;
+  color: #409eff;
+  font-size: 14px;
+  font-weight: 500;
+}
 </style>
 
 

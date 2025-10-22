@@ -69,7 +69,18 @@ const props = defineProps({
   chapters: { type: Array, default: () => [] }
 })
 
-const backendHost = (() => { try { const p = window?.location?.port; if (p === '4173' || p === '5173') return 'http://localhost:9999'; } catch (e) { console.error(e) } return '' })()
+const backendHost = (() => {
+  try {
+    const envBase = import.meta?.env?.VITE_API_BASE_URL || ''
+    if (envBase) {
+      const u = new URL(envBase)
+      return u.origin // e.g. http://localhost:9999 from http://localhost:9999/api
+    }
+    const p = window?.location?.port
+    if (p === '4173' || p === '5173') return 'http://localhost:9999'
+  } catch (e) { console.error(e) }
+  return ''
+})()
 function toUrl(u) {
   if (!u) return ''
   const s = String(u)
@@ -147,7 +158,7 @@ function isPrivateUrl(u) {
   try {
     const loc = new URL(u)
     const host = loc.hostname
-    if (host === 'localhost' || host === '127.0.0.1') return true
+    if (host === '127.0.0.1' || host === 'localhost') return true
     if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)) return true
   } catch (e) { console.error(e) }
   return false
