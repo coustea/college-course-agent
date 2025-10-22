@@ -61,20 +61,42 @@ export async function fetchHomeCourses(signal) {
                 }))
 
                 // B 方案：两种类型都有时视为视频类
-                const isVideo = videos.length > 0
-                const type = isVideo ? 'video' : 'document'
-                const chapters = isVideo ? videoChapters : docChapters
-
-                result.push(normalizeCourse({
-                    ...base,
-                    type,
-                    chapters,
-                    videoUrl: isVideo ? toUrl(videoChapters[0]?.videoUrl || '') : '',
-                    videoCount: videos.length || 0,
-                    docCount: docs.length || 0,
-                    // 文档课程兜底：若无章节但有 resourceUrl，则作为单文档
-                    fileUrl: (!isVideo && (!chapters || chapters.length === 0) && base.image) ? toUrl(base.image) : ''
-                }))
+                // 分裂为两个课程卡片：视频课程与文档课程分别渲染，避免一方覆盖另一方
+                let pushed = false
+                if (videoChapters.length > 0) {
+                    result.push(normalizeCourse({
+                        ...base,
+                        type: 'video',
+                        chapters: videoChapters,
+                        videoUrl: toUrl(videoChapters[0]?.videoUrl || ''),
+                        videoCount: videos.length || 0,
+                        docCount: docs.length || 0,
+                    }))
+                    pushed = true
+                }
+                if (docChapters.length > 0) {
+                    const firstDocUrl = docChapters[0]?.fileUrl || ''
+                    result.push(normalizeCourse({
+                        ...base,
+                        type: 'document',
+                        chapters: docChapters,
+                        fileUrl: toUrl(firstDocUrl),
+                        videoCount: videos.length || 0,
+                        docCount: docs.length || 0,
+                    }))
+                    pushed = true
+                }
+                // 若既无视频也无文档，仍生成一个占位课程卡，保证教师端可编辑
+                if (!pushed) {
+                    result.push(normalizeCourse({
+                        ...base,
+                        type: 'document',
+                        chapters: [],
+                        fileUrl: '',
+                        videoCount: 0,
+                        docCount: 0,
+                    }))
+                }
             }
 
             if (result.length) return result
