@@ -188,6 +188,7 @@ export default {
       switch (status) {
         case 'pending':
           return 'warning'
+        case 'approval':
         case 'approved':
           return 'success'
         case 'rejected':
