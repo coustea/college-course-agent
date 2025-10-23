@@ -142,35 +142,7 @@
           </div>
 
           <div class="grading-form" style="margin-top: 20px;">
-            <h4>检查评分</h4>
-            <el-form :model="gradingForm" label-width="80px">
-              <el-form-item label="得分">
-                <el-input-number
-                  v-model="gradingForm.score"
-                  :min="0"
-                  :max="100"
-                  placeholder="请输入得分"
-                />
-                <span class="score-total">/ 100</span>
-              </el-form-item>
-              <el-form-item label="评语">
-                <el-input
-                  v-model="gradingForm.comment"
-                  type="textarea"
-                  :rows="4"
-                  placeholder="请输入评语"
-                />
-              </el-form-item>
-              <el-form-item label="检查结果">
-                <el-radio-group v-model="gradingForm.result">
-                  <el-radio label="通过">通过</el-radio>
-                  <el-radio label="需修改">需修改</el-radio>
-                  <el-radio label="不通过">不通过</el-radio>
-                </el-radio-group>
-              </el-form-item>
-            </el-form>
-
-            <h4 style="margin-top: 16px;">成员评分</h4>
+            <h4>成员评分</h4>
             <el-table :data="gradingMembers" style="width: 100%" size="small">
               <el-table-column prop="studentName" label="成员" width="160"/>
               <el-table-column label="分数" width="160">
