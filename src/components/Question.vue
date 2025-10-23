@@ -1,248 +1,291 @@
 <template>
-  <div v-if="modelValue" class="q-mask" @click.self="handleClose">
-    <div class="q-modal">
-      <div class="q-header">
-        <div class="q-title">{{ title }}</div>
-        <button class="q-close" :class="{ disabled: !canExit }" :disabled="!canExit" @click="handleClose" aria-label="close"><i class="fas fa-times"></i></button>
+  <el-dialog
+      v-model="visible"
+      :title="title"
+      width="560px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      append-to-body
+  >
+    <div class="q-body">
+      <div class="q-stem">{{ stem }}</div>
+      <div class="q-options">
+        <el-radio-group v-model="answerIndex" :disabled="resultShown">
+          <el-radio :label="0" class="q-option">
+            <template #default>
+              <div class="option-content">
+                <span class="badge">A</span>
+                <span class="option-text">{{ options[0] }}</span>
+              </div>
+            </template>
+          </el-radio>
+          <el-radio :label="1" class="q-option">
+            <template #default>
+              <div class="option-content">
+                <span class="badge">B</span>
+                <span class="option-text">{{ options[1] }}</span>
+              </div>
+            </template>
+          </el-radio>
+          <el-radio :label="2" class="q-option">
+            <template #default>
+              <div class="option-content">
+                <span class="badge">C</span>
+                <span class="option-text">{{ options[2] }}</span>
+              </div>
+            </template>
+          </el-radio>
+          <el-radio :label="3" class="q-option">
+            <template #default>
+              <div class="option-content">
+                <span class="badge">D</span>
+                <span class="option-text">{{ options[3] }}</span>
+              </div>
+            </template>
+          </el-radio>
+        </el-radio-group>
       </div>
-      <div class="q-body">
-        <template v-if="hasQuestions">
-          <div class="q-step" v-if="questions.length > 1">题目 {{ currentIndex + 1 }} / {{ questions.length }}</div>
 
-          <div class="q-stem" v-html="currentQuestion.stem || '请回答以下问题'" />
-
-          <div class="q-options">
-            <template v-if="currentQuestion.type === 'multiple'">
-              <label v-for="opt in currentQuestion.options || []" :key="opt.value" class="q-option"
-                     :class="submitted ? optionClass(currentQuestion, opt.value) : ''">
-                <input type="checkbox"
-                       :value="opt.value"
-                       :checked="isChecked(currentQuestion.id, opt.value)"
-                       @change="toggleMultiple(currentQuestion.id, opt.value)"
-                       :disabled="submitted" />
-                <span class="q-option-label" v-html="opt.label"></span>
-              </label>
-            </template>
-            <template v-else>
-              <label v-for="opt in currentQuestion.options || []" :key="opt.value" class="q-option"
-                     :class="submitted ? optionClass(currentQuestion, opt.value) : ''">
-                <input type="radio"
-                       :name="`q-${currentQuestion.id}`"
-                       :value="opt.value"
-                       :checked="isSelected(currentQuestion.id, opt.value)"
-                       @change="selectSingle(currentQuestion.id, opt.value)"
-                       :disabled="submitted" />
-                <span class="q-option-label" v-html="opt.label"></span>
-              </label>
-            </template>
-          </div>
-
-          <div class="q-result" v-if="submitted">
-            <span :class="isQuestionCorrect(currentQuestion) ? 'ok' : 'bad'">
-              {{ isQuestionCorrect(currentQuestion) ? '回答正确' : '回答错误' }}
-            </span>
-          </div>
-
-          <div class="q-actions">
-            <button class="q-btn" v-if="questions.length > 1" :disabled="currentIndex === 0" @click="prev">上一题</button>
-            <div class="q-actions-spacer"></div>
-            <button class="q-btn" v-if="questions.length > 1 && currentIndex < questions.length - 1" @click="next">下一题</button>
-            <button class="q-btn q-primary" :disabled="!canSubmit" @click="submit">提交并查看结果</button>
-          </div>
-        </template>
-        <template v-else>
-          <div class="q-empty">暂无题目</div>
-        </template>
+      <div v-if="resultShown" class="q-ans">
+        <div class="q-ans-row">正确答案：<b>{{ correctLetter }}</b><span v-if="correctText">. {{ correctText }}</span></div>
+        <div v-if="analysis" class="q-ans-analysis">{{ analysis }}</div>
+      </div>
+      <div v-if="resultShown" class="q-result" :class="{ ok: isCorrect, bad: !isCorrect }">
+        <span>{{ isCorrect ? '回答正确' : '回答错误' }}</span>
       </div>
     </div>
-  </div>
-
+    <template #footer>
+      <el-button
+          @click="onPrimaryClick"
+          type="primary"
+          :disabled="!resultShown && answerIndex===null"
+          :loading="submitting"
+      >{{ btnText }}</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import {ref, watch, computed} from 'vue'
 
 const props = defineProps({
-  modelValue: { type: Boolean, default: false },
-  questions: { type: Array, default: () => [] },
-  title: { type: String, default: '知识检查' },
-  closable: { type: Boolean, default: true },
-  requireAll: { type: Boolean, default: false },
+  modelValue: {type: Boolean, default: false},
+  title: {type: String, default: '选择题'},
+  stem: {type: String, default: ''},
+  options: {type: Array, default: () => ['选项A', '选项B', '选项C', '选项D']},
+  correctIndex: {type: Number, default: 0},
+  analysis: {type: String, default: ''}
 })
 const emit = defineEmits(['update:modelValue', 'submit'])
 
-const hasQuestions = computed(() => Array.isArray(props.questions) && props.questions.length > 0)
-const currentIndex = ref(0)
-
-watch(() => props.modelValue, (v) => {
-  if (v) currentIndex.value = 0
-})
-
-const currentQuestion = computed(() => props.questions?.[currentIndex.value] || {})
-
-const answers = ref({})
-const submitted = ref(false)
-
-function selectSingle(qid, val) {
-  answers.value = { ...answers.value, [qid]: val }
-}
-
-function isSelected(qid, val) {
-  return answers.value?.[qid] === val
-}
-
-function toggleMultiple(qid, val) {
-  const prev = Array.isArray(answers.value?.[qid]) ? answers.value[qid].slice() : []
-  const idx = prev.indexOf(val)
-  if (idx >= 0) prev.splice(idx, 1); else prev.push(val)
-  answers.value = { ...answers.value, [qid]: prev }
-}
-
-function isChecked(qid, val) {
-  return Array.isArray(answers.value?.[qid]) && answers.value[qid].includes(val)
-}
-
-const totalRequired = computed(() => props.questions?.length || 0)
-
-const isCurrentAnswered = computed(() => {
-  const q = currentQuestion.value
-  if (!q?.id) return false
-  const val = answers.value?.[q.id]
-  if (q.type === 'multiple') return Array.isArray(val) && val.length > 0
-  return val !== undefined && val !== null && val !== ''
-})
-
-const canSubmit = computed(() => {
-  if (!hasQuestions.value) return false
-  if (props.requireAll) return Object.keys(answers.value || {}).length >= totalRequired.value && isCurrentAnswered.value
-  return Object.keys(answers.value || {}).length > 0 && isCurrentAnswered.value
-})
-
-function prev() {
-  if (currentIndex.value > 0) currentIndex.value -= 1
-}
-
-function next() {
-  if (!isCurrentAnswered.value) return
-  if (currentIndex.value < (props.questions.length - 1)) currentIndex.value += 1
-}
-
-function submit() {
-  submitted.value = true
-  const results = {}
-  for (const q of (props.questions || [])) {
-    results[q.id] = isQuestionCorrect(q)
+const visible = ref(false)
+watch(() => props.modelValue, v => {
+  visible.value = v
+}, {immediate: true})
+watch(visible, v => {
+  emit('update:modelValue', v)
+  if (v) {
+    // 打开时重置作答与结果展示
+     answerIndex.value = null 
+     resultShown.value = false 
   }
-  emit('submit', { answers: { ...answers.value }, questions: props.questions, results })
-}
-
-function handleClose() {
-  if (!canExit.value) return
-  emit('update:modelValue', false)
-}
-
-const canExit = computed(() => {
-  const allAnswered = Object.keys(answers.value || {}).length >= (props.questions?.length || 0)
-  return submitted.value && allAnswered
 })
 
-function isQuestionCorrect(q) {
-  if (!q) return false
-  const val = answers.value?.[q.id]
-  if (q.type === 'multiple') {
-    const ans = Array.isArray(q.answer) ? q.answer.slice().sort() : []
-    const got = Array.isArray(val) ? val.slice().sort() : []
-    return JSON.stringify(ans) === JSON.stringify(got)
+const answerIndex = ref(null)
+const submitting = ref(false)
+const resultShown = ref(false)
+const isCorrect = computed(() => Number(answerIndex.value) === Number(props.correctIndex))
+const correctLetter = computed(() => ['A','B','C','D'][Math.max(0, Math.min(3, Number(props.correctIndex)||0))])
+const correctText = computed(() => {
+  const idx = Math.max(0, Math.min(3, Number(props.correctIndex)||0))
+  return Array.isArray(props.options) ? String(props.options[idx] || '') : ''
+})
+const btnText = computed(() => resultShown.value ? '继续学习' : '提交')
+
+async function onSubmit() {
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    resultShown.value = true
+    emit('submit', {correct: isCorrect.value, answerIndex: answerIndex.value})
+  } finally {
+    submitting.value = false
   }
-  return q.answer !== undefined && q.answer === val
 }
 
-function optionClass(q, value) {
-  const correct = q.type === 'multiple'
-      ? Array.isArray(q.answer) && q.answer.includes(value)
-      : q.answer === value
-  const chosen = q.type === 'multiple'
-      ? Array.isArray(answers.value?.[q.id]) && answers.value[q.id].includes(value)
-      : answers.value?.[q.id] === value
-  return correct ? 'opt-correct' : (chosen ? 'opt-wrong' : '')
+function onPrimaryClick() {
+  if (!resultShown.value) {
+    onSubmit()
+  } else {
+    visible.value = false
+  }
 }
 </script>
 
 <style scoped>
-.q-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2200;
-}
-.q-modal {
-  width: 92%;
-  max-width: 720px;
-  max-height: 86vh;
-  background: #fff;
-  border-radius: 12px;
-  overflow: hidden;
+.q-body {
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  max-width: 100%;
+  overflow: hidden;
 }
-.q-header {
+
+.q-stem {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.7;
+  color: #111827;
+}
+
+.q-options {
+  padding: 8px 0;
+}
+
+.q-option {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #1a56db 0%, #0d3b9e 100%);
-  color: #fff;
+  gap: 8px;
+  padding: 12px;
+  width: 100%;
 }
-.q-title { font-weight: 700; }
-.q-close {
-  border: 0;
-  width: 32px;
-  height: 32px;
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.q-result {
+  margin-top: 8px;
+  color: #10b981;
+}
+
+.q-result.bad {
+  color: #ef4444;
+}
+
+.q-ans {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.2);
-  color: #fff;
-  cursor: pointer;
-}
-.q-body {
-  padding: 16px;
-  overflow: auto;
-}
-.q-step {
-  font-size: 13px;
-  color: #64748b;
   margin-bottom: 8px;
 }
-.q-stem {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 12px;
+
+.q-ans-row {
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: #111827;
 }
-.q-options { display: flex; flex-direction: column; gap: 8px; }
-.q-option { display: flex; gap: 10px; align-items: flex-start; }
-.q-option input { margin-top: 3px; }
-.q-option-label { line-height: 1.6; }
 
-.q-result { margin-top: 10px; font-size: 14px; }
-.q-result .ok { color: #10b981; }
-.q-result .bad { color: #ef4444; }
+.q-ans-analysis {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.7;
+}
 
-.q-actions { display: flex; align-items: center; margin-top: 16px; }
-.q-actions-spacer { flex: 1; }
-.q-btn {
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid #e1e8ef;
-  background: #fff;
+.q-options .el-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 隐藏原生单选按钮 */
+.q-options :deep(.el-radio__input) {
+  display: none;
+}
+
+/* 每个选项行 */
+.q-options :deep(.el-radio) {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  min-height: 44px;
+  background: #f8fafc;
+  border: none; 
+  box-shadow: inset 0 0 0 1px #e5e7eb, 0 1px 3px rgba(0,0,0,0.05);
   cursor: pointer;
+  transition: box-shadow 0.2s ease, background 0.2s ease;
+  margin: 0 !important;
+  box-sizing: border-box;
 }
-.q-btn:disabled { opacity: .6; cursor: not-allowed; }
-.q-primary { background: #2563eb; color: #fff; border: none; }
-.q-primary:hover { background: #1d4ed8; }
 
-.q-empty { color: #64748b; text-align: center; padding: 24px 0; }
+.q-options :deep(.el-radio:hover) {
+  background: #f8fafc;
+  box-shadow: inset 0 0 0 2px #10b981, 0 2px 6px rgba(16,185,129,0.1);
+}
 
-.q-close.disabled { opacity: .5; cursor: not-allowed; }
+/* 选中态 */
+.q-options :deep(.el-radio.is-checked) {
+  background: #f0fdf4;
+  box-shadow: inset 0 0 0 2px #10b981, 0 2px 6px rgba(16,185,129,0.15);
+}
+
+.q-options :deep(.el-radio.is-checked .badge) {
+  background: #10b981;
+  color: #fff;
+}
+
+.q-options :deep(.el-radio.is-checked .option-text) {
+  color: #111827;
+  font-weight: 600;
+}
+
+/* 禁用状态 */
+.q-options :deep(.el-radio.is-disabled) {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.q-options :deep(.el-radio.is-disabled:hover) {
+  border-color: #e5e7eb;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.q-options :deep(.el-radio.is-disabled.is-checked:hover) {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.q-options :deep(.el-radio__label) {
+  width: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.option-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  justify-content: space-between;
+}
+
+.option-text {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 500; /* 统一权重，观感更规整 */
+  color: #374151;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  min-width: 0;
+  text-align: left;
+  padding-right: 12px;
+}
 </style>
+
+
