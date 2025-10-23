@@ -52,6 +52,7 @@
 		<result property="groupId" column="group_id"/>
 		<result property="submissionContent" column="submission_content"/>
 		<result property="submissionFiles" column="submission_files"/>
+		<result property="groupComment" column="group_comment"/>
 		<result property="submittedAt" column="submitted_at"/>
 		<result property="status" column="status"/>
 		<result property="createdAt" column="created_at"/>
@@ -75,6 +76,7 @@
 		<set>
 			<if test="submissionContent != null">submission_content = #{submissionContent},</if>
 			<if test="submissionFiles != null">submission_files = #{submissionFiles},</if>
+			<if test="groupComment != null">group_comment = #{groupComment},</if>
 			updated_at = CURRENT_TIMESTAMP
 		</set>
 		WHERE submission_id = #{submissionId}

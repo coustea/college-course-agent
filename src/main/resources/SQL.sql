@@ -21,9 +21,9 @@ DROP TABLE IF EXISTS teachers;
 DROP TABLE IF EXISTS students;
 DROP TABLE IF EXISTS users;
 
--- ================================================
--- 用户表
--- ================================================
+# ================================================
+# 用户表
+# ================================================
 CREATE TABLE users (
 id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
 username VARCHAR(50) UNIQUE NOT NULL COMMENT '用户名（学号或工号）',
@@ -227,9 +227,9 @@ updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMEN
 FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教师发布作业表';
 
--- ================================================
---  学生小组作业提交表
--- ================================================
+# ================================================
+#  学生小组作业提交表
+# ================================================
 CREATE TABLE student_submissions (
 submission_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '提交ID',
 assignment_id BIGINT NOT NULL COMMENT '作业ID',
@@ -238,6 +238,7 @@ submitted_by BIGINT NOT NULL COMMENT '提交人ID（通常为组长）',
 class_name VARCHAR(100) COMMENT '班级名称',
 submission_content TEXT COMMENT '提交说明/描述',
 submission_files JSON COMMENT '学生上传的作品文件（JSON）',
+group_comment VARCHAR(500) COMMENT '教师对整个小组作业的评语（最多500字）',
 submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',
 status VARCHAR(20) DEFAULT 'submitted' COMMENT '提交状态(submitted, graded, returned, resubmitted)',
 created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

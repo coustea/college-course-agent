@@ -31,6 +31,8 @@ public class StudentSubmission {
     private String submissionContent;
     // 提交文件
     private String submissionFiles;
+    // 小组整体评语
+    private String groupComment;
     // 提交时间
     private LocalDateTime submittedAt;
     // 状态
