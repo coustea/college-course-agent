@@ -194,6 +194,17 @@
                 </template>
               </el-table-column>
             </el-table>
+
+            <h4 style="margin-top: 20px;">小组整体评语</h4>
+            <el-input
+              v-model="gradingForm.groupComment"
+              type="textarea"
+              :rows="4"
+              :maxlength="500"
+              show-word-limit
+              placeholder="请输入对整个小组的评语（最多500字）"
+              style="width: 100%;"
+            />
           </div>
         </div>
 
@@ -303,7 +314,8 @@ const detailDialogVisible = ref(false)
 const gradingForm = reactive({
   score: null,
   comment: '',
-  result: '通过'
+  result: '通过',
+  groupComment: ''
 })
 
 // 成员评分表
@@ -353,6 +365,7 @@ const viewGroupDetails = async (group) => {
   gradingForm.score = group.score
   gradingForm.comment = ''
   gradingForm.result = '通过'
+  gradingForm.groupComment = ''
   // 初始化成员评分表
   const memberObjs = Array.isArray(group.memberObjects) ? group.memberObjects : []
   gradingMembers.value = memberObjs.map(m => ({
@@ -363,7 +376,7 @@ const viewGroupDetails = async (group) => {
     feedback: ''
   }))
   detailDialogVisible.value = true
-  // 预填已有评分
+  // 预填已有评分和小组评语（现在统一由 tryPrefillExistingGrades 处理）
   tryPrefillExistingGrades()
 }
 
@@ -487,6 +500,19 @@ const submitCheck = async () => {
           }))
       }
       await api.post('/grading/group', payload)
+
+      // 保存小组整体评语
+      if (gradingForm.groupComment && gradingForm.groupComment.trim()) {
+        try {
+          await api.put(`/submission/${submissionId}/comment`, {
+            groupComment: gradingForm.groupComment.trim()
+          })
+          console.log('小组评语已保存')
+        } catch (error) {
+          console.error('保存小组评语失败:', error)
+          ElMessage.warning('评分成功，但小组评语保存失败')
+        }
+      }
     }
 
     // 更新小组检查状态与显示分数
@@ -507,36 +533,58 @@ const submitCheck = async () => {
     ElMessage.success('检查完成')
     detailDialogVisible.value = false
   } catch (e) {
+    console.error('提交评分失败:', e)
     ElMessage.error('提交评分失败')
   }
 }
 
-// 预填已有成员评分
+// 预填已有成员评分（同时加载小组评语）
 const tryPrefillExistingGrades = async () => {
   try {
     const submissionId = selectedGroup.value && (selectedGroup.value.submissionId || selectedGroup.value.submission_id)
     if (!submissionId) return
     const resp = await api.get(`/grading/group/${submissionId}`)
+    console.log('加载评分和评语响应:', resp)
     const raw = resp?.data
-    const list = Array.isArray(raw?.data) ? raw.data : []
-    if (!Array.isArray(list) || list.length === 0) return
-    const map = new Map()
-    list.forEach(it => map.set(Number(it.studentId || it.student_id), {
-      score: it.score != null ? Number(it.score) : null,
-      level: it.level || '',
-      feedback: it.feedback || ''
-    }))
-    gradingMembers.value = gradingMembers.value.map(m => {
-      const got = map.get(Number(m.studentId))
-      return got ? { ...m, ...got } : m
-    })
-    // 若存在任一成员已有评分，则标为已评分
-    const anyScored = gradingMembers.value.some(x => x.score != null && !isNaN(Number(x.score)))
-    if (anyScored && selectedGroup.value) {
-      const group = groups.value.find(g => g.id === selectedGroup.value.id)
-      if (group) group.hasGrades = true
+    const data = raw?.data || raw
+    
+    // 处理成员评分（新版本返回格式：{ memberScores: [...], groupComment: "..." }）
+    const list = Array.isArray(data?.memberScores) ? data.memberScores : (Array.isArray(data) ? data : [])
+    
+    if (Array.isArray(list) && list.length > 0) {
+      const map = new Map()
+      list.forEach(it => map.set(Number(it.studentId || it.student_id), {
+        score: it.score != null ? Number(it.score) : null,
+        level: it.level || '',
+        feedback: it.feedback || ''
+      }))
+      gradingMembers.value = gradingMembers.value.map(m => {
+        const got = map.get(Number(m.studentId))
+        return got ? { ...m, ...got } : m
+      })
+      
+      // 若存在任一成员已有评分，则标为已评分
+      const anyScored = gradingMembers.value.some(x => x.score != null && !isNaN(Number(x.score)))
+      if (anyScored && selectedGroup.value) {
+        const group = groups.value.find(g => g.id === selectedGroup.value.id)
+        if (group) group.hasGrades = true
+      }
     }
-  } catch {}
+    
+    // 处理小组评语（新版本已包含在同一个响应中）
+    if (data && data.groupComment) {
+      gradingForm.groupComment = data.groupComment
+      console.log('已加载小组评语:', data.groupComment)
+    }
+  } catch (error) {
+    console.error('加载评分和评语失败:', error)
+  }
+}
+
+// 加载小组整体评语（现在由 tryPrefillExistingGrades 统一处理，保留此函数以防需要单独调用）
+const loadGroupComment = async () => {
+  // 评语现在由 tryPrefillExistingGrades 统一加载，此函数可以为空或移除
+  // 保留空函数以避免调用错误
 }
 
 const exportReport = () => {
@@ -726,7 +774,7 @@ onMounted(async () => {
   await fetchGroups()
   // 结合后端小组提交列表，填充每个分组的提交状态
   await fetchGroupSubmissions()
-  // 刷新：根据已存在的成员评分，标记“已检查/已评分”并计算均分
+  // 刷新：根据已存在的成员评分，标记"已检查/已评分"并计算均分
   await (async () => {
     try {
       const tasks = (groups.value || [])
@@ -736,7 +784,9 @@ onMounted(async () => {
           try {
             const resp = await api.get(`/grading/group/${sid}`)
             const raw = resp?.data
-            const list = Array.isArray(raw?.data) ? raw.data : []
+            const data = raw?.data || raw
+            // 新版本返回格式：{ memberScores: [...], groupComment: "..." }
+            const list = Array.isArray(data?.memberScores) ? data.memberScores : (Array.isArray(data) ? data : [])
             if (!Array.isArray(list)) return
             const numericScores = list
               .map(it => it && it.score != null ? Number(it.score) : null)
