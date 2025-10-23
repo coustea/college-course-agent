@@ -53,10 +53,10 @@
           <el-table-column prop="members" label="组员" width="200" align="center">
             <template #default="scope">
               <el-tag
-                  v-for="member in scope.row.members"
-                  :key="member"
-                  size="small"
-                  style="margin: 2px;"
+                v-for="member in scope.row.members"
+                :key="member"
+                size="small"
+                style="margin: 2px;"
               >
                 {{ member }}
               </el-tag>
@@ -89,9 +89,9 @@
           <el-table-column label="操作" width="300" align="center">
             <template #default="scope">
               <el-button
-                  size="small"
-                  @click="viewGroupDetails(scope.row)"
-                  :disabled="!scope.row.submitTime"
+                size="small"
+                @click="viewGroupDetails(scope.row)"
+                :disabled="!scope.row.submitTime"
               >
                 查看详情
               </el-button>
@@ -104,11 +104,11 @@
 
       <!-- 检查详情对话框 -->
       <el-dialog
-          v-model="detailDialogVisible"
-          :title="`${selectedGroup?.groupName} - 检查详情`"
-          width="80%"
-          top="50px"
-          class="centered-dialog"
+        v-model="detailDialogVisible"
+        :title="`${selectedGroup?.groupName} - 检查详情`"
+        width="80%"
+        top="50px"
+        class="centered-dialog"
       >
         <div v-if="selectedGroup">
           <el-descriptions title="基本信息" border>
@@ -146,19 +146,19 @@
             <el-form :model="gradingForm" label-width="80px">
               <el-form-item label="得分">
                 <el-input-number
-                    v-model="gradingForm.score"
-                    :min="0"
-                    :max="100"
-                    placeholder="请输入得分"
+                  v-model="gradingForm.score"
+                  :min="0"
+                  :max="100"
+                  placeholder="请输入得分"
                 />
                 <span class="score-total">/ 100</span>
               </el-form-item>
               <el-form-item label="评语">
                 <el-input
-                    v-model="gradingForm.comment"
-                    type="textarea"
-                    :rows="4"
-                    placeholder="请输入评语"
+                  v-model="gradingForm.comment"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="请输入评语"
                 />
               </el-form-item>
               <el-form-item label="检查结果">
@@ -490,8 +490,8 @@ const submitCheck = async () => {
     }
 
     // 更新小组检查状态与显示分数
-    const group = groups.value.find(g => g.id === selectedGroup.value.id)
-    if (group) {
+  const group = groups.value.find(g => g.id === selectedGroup.value.id)
+  if (group) {
       // 计算成员平均分（若存在）
       const validScores = gradingMembers.value.map(m => m.score).filter(s => s != null && !isNaN(Number(s)))
       if (validScores.length > 0) {
@@ -502,7 +502,7 @@ const submitCheck = async () => {
         group.score = Number(gradingForm.score)
         group.hasGrades = true
       }
-      group.checkStatus = '已检查'
+    group.checkStatus = '已检查'
     }
     ElMessage.success('检查完成')
     detailDialogVisible.value = false

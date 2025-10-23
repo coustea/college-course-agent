@@ -115,7 +115,7 @@ import { Search, Plus } from '@element-plus/icons-vue'
 import axios from 'axios'
 
 // 动态后端基址 + token 拦截
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || 'http://39.96.172.21:9999/api')
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token') || localStorage.getItem('userToken')
@@ -373,23 +373,14 @@ export default {
     const fetchAssignments = async () => {
       loading.value = true
       try {
-        // 获取教师ID（userInfo.id -> teacherId 本地 -> 后端列表首个）
-        let teacherId = null
-        try { const u = JSON.parse(localStorage.getItem('userInfo') || 'null'); if (u?.id) teacherId = Number(u.id) } catch (e) { console.error(e) }
-        if (!teacherId) { const tid = localStorage.getItem('userId'); if (tid) teacherId = Number(tid) }
-        if (!teacherId) {
-          try {
-            const tRes = await api.get('/teacher/list/teachers')
-            const tRaw = tRes?.data
-            const tList = (tRaw && Number(tRaw.code) === 200 && Array.isArray(tRaw.data)) ? tRaw.data : []
-            if (tList.length > 0) teacherId = Number(tList[0].id)
-          } catch (e) { console.error(e) }
-        }
-        if (!teacherId) { ElMessage.error('未获取到教师ID'); assignments.value = []; return }
-
-        const res = await api.get(`/teacherAssignments/${teacherId}`)
+        console.log('开始获取作业列表...')
+        
+        // 获取所有作业（不限制教师）
+        const res = await api.get('/teacherAssignments')
+        console.log('作业列表响应:', res)
         const raw = res?.data
         const list = (raw && Number(raw.code) === 200 && Array.isArray(raw.data)) ? raw.data : []
+        console.log('解析后的作业列表:', list)
         // 映射为表格需要的字段
         assignments.value = list.map((it) => {
           const deadline = it.dueDate || ''
