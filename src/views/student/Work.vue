@@ -192,17 +192,23 @@
             <el-descriptions-item label="截止时间">{{ currentAssignment?.deadline || '-' }}</el-descriptions-item>
           </el-descriptions>
         </el-card>
-        <el-card class="detail-card" shadow="never" style="margin-top: 12px">
-          <div class="attach-title" style="margin-bottom:8px;">小组成绩</div>
-          <div v-if="gradeMembers.length">
-            <div v-for="m in gradeMembers" :key="m.name" style="display:flex;align-items:center;gap:10px;margin:8px 0;">
-              <span style="font-weight:600;min-width:120px;">{{ m.name }}</span>
-              <span :class="levelClass(m.level)"><span class="dot"></span>{{ levelText(m.level) }}</span>
-              <span style="margin-left:12px;color:#111827;font-weight:600;">{{ m.score != null ? (m.score + ' 分') : '教师未批改' }}</span>
-            </div>
-          </div>
-          <div v-else class="attachments-empty">教师未批改</div>
-        </el-card>
+         <el-card class="detail-card" shadow="never" style="margin-top: 12px">
+           <div class="attach-title" style="margin-bottom:8px;">小组成绩</div>
+           <div v-if="gradeMembers.length">
+             <div v-for="m in gradeMembers" :key="m.name" style="display:flex;align-items:center;gap:10px;margin:8px 0;">
+               <span style="font-weight:600;min-width:120px;">{{ m.name }}</span>
+               <span v-if="m.level" :class="levelClass(m.level)"><span class="dot"></span>{{ levelText(m.level) }}</span>
+               <span style="margin-left:12px;color:#111827;font-weight:600;">{{ m.score != null ? (m.score + ' 分') : '教师未批改' }}</span>
+             </div>
+           </div>
+           <div v-else class="attachments-empty">教师未批改</div>
+         </el-card>
+         <el-card class="detail-card" shadow="never" style="margin-top: 12px" v-if="groupComment">
+           <div class="attach-title" style="margin-bottom:8px;">小组评价</div>
+           <div class="group-comment-box">
+             {{ groupComment }}
+           </div>
+         </el-card>
       </div>
     </div>
   </div>
@@ -223,6 +229,7 @@ const currentAssignment = ref(null)
 const isEditing = ref(false)
 // 成绩查看
 const gradeMembers = ref([])
+const groupComment = ref('')
 function levelTagType(level) {
   const key = String(level || '').toLowerCase()
   const map = { excellent: 'success', good: 'primary', average: 'warning', concern: 'danger' }
@@ -778,24 +785,87 @@ async function fetchGrades(row) {
     const resp = await axios.get(`${BASE_URL}/grading/group/${submissionId}`,
      { headers: { Authorization: `Bearer ${token}` } })
     const data = resp.data.data || resp.data
-    console.log("获取成绩响应",resp.data)
-    console.log("获取成绩",data)
-    // 兼容多结构：[{name,role,score,level}] 或 {members:[...]} 或 studentScores
-    const list = Array.isArray(data) ? data : (Array.isArray(data?.members) ? data.members : (Array.isArray(data?.studentScores) ? data.studentScores : []))
-    gradeMembers.value = list.map(m => ({
-      name: m.name || m.studentName || '-',
-      level: (m.level || m.performanceLevel || m.gradeLevel || m.levelName || ''),
-      score: (m.score != null ? Number(m.score) : (m.grade != null ? Number(m.grade) : null))
-    }))
+    console.log("========== 获取成绩详细信息 ==========")
+    console.log("完整响应:", resp.data)
+    console.log("data对象:", data)
+    console.log("data的所有键:", Object.keys(data))
+    
+    // 提取小组评价
+    groupComment.value = data?.groupComment || data?.comment || data?.evaluation || data?.feedback || ''
+    console.log("小组评价:", groupComment.value)
+    
+    // 兼容多种数据结构：优先级 memberScores > members > studentScores > 直接数组
+    let list = []
+    if (Array.isArray(data?.memberScores)) {
+      console.log("使用 memberScores 数组")
+      list = data.memberScores
+    } else if (Array.isArray(data?.members)) {
+      console.log("使用 members 数组")
+      list = data.members
+    } else if (Array.isArray(data?.studentScores)) {
+      console.log("使用 studentScores 数组")
+      list = data.studentScores
+    } else if (Array.isArray(data)) {
+      console.log("使用直接数组")
+      list = data
+    }
+    
+    console.log("原始成员列表:", list)
+    console.log("成员数量:", list.length)
+    if (list.length > 0) {
+      console.log("第一个成员对象:", list[0])
+      console.log("第一个成员的所有字段:", Object.keys(list[0]))
+    }
+    
+    gradeMembers.value = list.map((m, index) => {
+      console.log(`解析第 ${index + 1} 个成员:`, m)
+      
+      // 尝试多种可能的分数字段名
+      let scoreValue = null
+      if (m.score != null) {
+        scoreValue = Number(m.score)
+        console.log(`  -> 使用 score 字段: ${scoreValue}`)
+      } else if (m.grade != null) {
+        scoreValue = Number(m.grade)
+        console.log(`  -> 使用 grade 字段: ${scoreValue}`)
+      } else if (m.totalScore != null) {
+        scoreValue = Number(m.totalScore)
+        console.log(`  -> 使用 totalScore 字段: ${scoreValue}`)
+      } else if (m.finalScore != null) {
+        scoreValue = Number(m.finalScore)
+        console.log(`  -> 使用 finalScore 字段: ${scoreValue}`)
+      } else if (m.memberScore != null) {
+        scoreValue = Number(m.memberScore)
+        console.log(`  -> 使用 memberScore 字段: ${scoreValue}`)
+      } else if (m.points != null) {
+        scoreValue = Number(m.points)
+        console.log(`  -> 使用 points 字段: ${scoreValue}`)
+      } else {
+        console.log(`  -> 未找到分数字段`)
+      }
+      
+      const result = {
+        name: m.name || m.studentName || m.memberName || '-',
+        level: (m.level || m.performanceLevel || m.gradeLevel || m.levelName || ''),
+        score: scoreValue
+      }
+      console.log(`  -> 解析结果:`, result)
+      return result
+    })
+    
+    console.log("最终的 gradeMembers:", gradeMembers.value)
+    console.log("========================================")
   } catch (e) {
     console.error('获取成绩失败', e)
     gradeMembers.value = []
+    groupComment.value = ''
   }
 }
 
 function backToList() {
   mode.value = 'list'
   isEditing.value = false
+  groupComment.value = ''
 }
 async function submitWork() {
   if (requirements.value.titleRequired && !submissionForm.value.title) {
@@ -1114,6 +1184,18 @@ async function submitWorkUpdate() {
   padding: 8px;
   border: 1px dashed #e5e7eb;
   border-radius: 8px;
+}
+
+.group-comment-box {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 </style>

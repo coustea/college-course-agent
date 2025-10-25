@@ -331,10 +331,7 @@ async function submitGroup() {
     const res = isUpdate.value ? await updateStudentGroup(payload) : await createStudentGroup(payload)
     const code = Number(res?.code ?? res?.status ?? 0)
     if (code === 200) {
-      try {
-        localStorage.setItem(GROUP_STATUS_KEY, 'pending')
-      } catch {
-      }
+      localStorage.setItem(GROUP_STATUS_KEY, 'pending')
       alert('已提交小组审批')
       // 回到初始态
       isCreating.value = false
@@ -343,6 +340,7 @@ async function submitGroup() {
       localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: false, selecting: false}))
       localStorage.removeItem('student_status_overrides')
       localStorage.removeItem(REJECTED_SIDS_KEY)
+      await router.push('/group/mine')
     } else {
       alert(`提交失败：${res?.message || code || '未知错误'}`)
     }
