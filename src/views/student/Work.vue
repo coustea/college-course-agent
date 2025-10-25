@@ -12,19 +12,30 @@
           <el-table-column prop="deadline" label="截止时间" width="180" />
           <el-table-column prop="publishedAt" label="发布时间" width="180" />
           <el-table-column prop="teacher" label="发布教师" width="140" />
-          <el-table-column label="操作" width="260" align="center">
+          <el-table-column label="操作" width="360" align="center">
             <template #default="{ row }">
+              <!-- 3️⃣ 已批改状态 -->
               <template v-if="getRowScore(row) != null">
                 <span style="color:#16a34a;font-weight:600;">成绩：{{ getRowScore(row) }}分</span>
                 <el-button style="margin-left:8px" size="small" @click="openGrade(row)">查看成绩</el-button>
               </template>
+              <!-- 2️⃣ 已提交未批改状态 -->
               <template v-else-if="isRowSubmitted(row)">
-                <el-button type="warning" size="small" @click="openEdit(row)">修改</el-button>
+                <el-tooltip :disabled="canSubmitWork" content="仅组长可修改" placement="top">
+                  <span>
+                    <el-button type="warning" size="small" :disabled="!canSubmitWork" @click="openEdit(row)">修改</el-button>
+                  </span>
+                </el-tooltip>
                 <el-button style="margin-left:8px" size="small" @click="openGrade(row)">查看成绩</el-button>
               </template>
+              <!-- 1️⃣ 未提交状态 -->
               <template v-else>
-                <el-button type="primary" size="small" @click="openDetail(row)">查看详情</el-button>
-                <el-button style="margin-left:8px" size="small" @click="openGrade(row)">查看成绩</el-button>
+                <el-tooltip :disabled="canSubmitWork" :content="submitDisabledReason" placement="top">
+                  <span>
+                    <el-button type="primary" size="small" :disabled="!canSubmitWork" @click="openDetail(row)">提交作业</el-button>
+                  </span>
+                </el-tooltip>
+                <el-button style="margin-left:8px" size="small" @click="openViewDetail(row)">查看作业</el-button>
               </template>
             </template>
           </el-table-column>
@@ -125,7 +136,7 @@
         </div>
         <div class="form-bottom-bar">
           <div class="deadline-text">{{ deadlineText }}</div>
-          <el-tooltip :disabled="canSubmitWork" content="仅组长可提交" placement="top">
+          <el-tooltip :disabled="canSubmitWork" :content="submitDisabledReason" placement="top">
             <span>
               <el-button type="primary" :disabled="!canSubmitWork" :loading="submitting"
                          @click="isEditing ? submitWorkUpdate() : submitWork()">
@@ -133,6 +144,40 @@
               </el-button>
             </span>
           </el-tooltip>
+        </div>
+      </div>
+
+      <!-- 查看作业模式（只读） -->
+      <div v-else-if="mode === 'view'" class="submission-form">
+        <el-page-header title="返回" @back="backToList" :content="currentAssignment?.title || '查看作业'" />
+        <el-card class="detail-card" shadow="never" style="margin-top: 12px">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="作业标题">{{ currentAssignment?.title || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="发布教师">{{ currentAssignment?.teacher || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="发布时间">{{ currentAssignment?.publishedAt || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="截止时间">{{ currentAssignment?.deadline || '-' }}</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+        <el-card class="detail-card" shadow="never" style="margin-top: 12px">
+          <div class="attach-title">作业要求</div>
+          <div v-if="currentAssignment?.description" style="padding: 12px; background: #f5f7fa; border-radius: 4px; margin-top: 8px;">
+            {{ currentAssignment.description }}
+          </div>
+          <div v-else style="color: #909399; padding: 12px;">暂无作业要求</div>
+        </el-card>
+        <el-card class="detail-card" shadow="never" style="margin-top: 12px">
+          <div class="attach-title">附件</div>
+          <div v-if="Array.isArray(currentAssignment?.attachments) && currentAssignment.attachments.length" class="attachments">
+            <div v-for="(f, idx) in currentAssignment.attachments" :key="idx" class="attachment-item">
+              <i class="fas fa-paperclip" style="margin-right:6px;color:#64748b;"></i>
+              <span class="file-name">{{ f.name || ('附件' + (idx + 1)) }}</span>
+              <el-link :href="normalizeUrl(f.url)" target="_blank" :download="f.name || ''" type="primary" style="margin-left:auto">下载</el-link>
+            </div>
+          </div>
+          <div v-else class="attachments-empty">暂无附件</div>
+        </el-card>
+        <div style="text-align: center; margin-top: 24px;">
+          <el-button @click="backToList">返回</el-button>
         </div>
       </div>
 
@@ -216,10 +261,30 @@ const isLeader = computed(() => {
   return leader && leader === String(currentUserName.value || '')
 })
 const canSubmitWork = computed(() => {
+  // 如果没有加入小组，禁止提交
+  if (!groupId.value && !groupInfo.value?.groupId) {
+    return false
+  }
   if (groupStatus.value === 'approved') return isLeader.value
   return groupStatus.value !== 'pending'
-
 })
+
+const submitDisabledReason = computed(() => {
+  // 如果没有加入小组
+  if (!groupId.value && !groupInfo.value?.groupId) {
+    return '请先加入小组后再提交作业'
+  }
+  // 如果小组已通过审批，但不是组长
+  if (groupStatus.value === 'approved' && !isLeader.value) {
+    return '仅组长可提交'
+  }
+  // 如果小组审批中
+  if (groupStatus.value === 'pending') {
+    return '小组审批中，暂时无法提交'
+  }
+  return '仅组长可提交'
+})
+
 const SUBMIT_STATE_KEY = 'assignment_submission_state_v1'
 const GRADES_STATE_KEY = 'assignment_grades_state_v1'
 
@@ -237,9 +302,11 @@ async function getGroupInfo() {
     );
 
     console.log("再次获取小组信息用来判断组长:",res.data)
-    if (res.data.code === 200) {
+    console.log("res.data.data:", res.data.data)
+    if (res.data.code === 200 && res.data.data) {
       groupId.value = res.data.data.groupId;
       console.log("groupId:", groupId.value)
+      console.log("res.data.data.groupId:", res.data.data.groupId)
       // 继续获取小组详情，基于角色判断出组长
       if (groupId.value) {
         const headers = {
@@ -262,6 +329,7 @@ async function getGroupInfo() {
           const leaderName = leaderItem?.studentName || group.leaderName
           const restNames = members.filter((_, i) => i !== leaderIdx).map(m => m.studentName).filter(Boolean)
           groupInfo.value = {
+            groupId: groupId.value,  // 添加 groupId
             groupName: group.groupName || '',
             leaderName,
             memberNames: restNames,
@@ -316,6 +384,64 @@ function loadSubmissionState() {
   gradesState.value = readJson(GRADES_STATE_KEY, {})
 }
 
+// 从后端同步小组提交状态
+async function syncSubmissionStateFromServer() {
+  try {
+    if (!groupInfo.value?.groupId && !groupId.value) {
+      console.log('⚠️ 没有小组信息，清空 LocalStorage 中的提交状态')
+      // 学生没有加入小组，清空所有提交状态
+      writeJson(SUBMIT_STATE_KEY, {})
+      submissionState.value = {}
+      return
+    }
+    
+    const currentGroupId = groupInfo.value?.groupId || groupId.value
+    if (!currentGroupId) {
+      console.log('⚠️ groupId 为空，清空提交状态')
+      writeJson(SUBMIT_STATE_KEY, {})
+      submissionState.value = {}
+      return
+    }
+    
+    const token = localStorage.getItem('token')
+    console.log('🔍 准备查询小组提交记录, groupId:', currentGroupId)
+    const res = await axios.get(`${BASE_URL}/submission/my-group`, {
+      params: { groupId: currentGroupId },
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    
+    console.log('✅ 同步小组提交状态 - 接口响应:', res.data)
+    
+    if (res.data.code === 200 && Array.isArray(res.data.data)) {
+      const submissions = res.data.data
+      console.log('从服务器同步到的小组提交记录:', submissions)
+      
+      // 清空旧数据，重新构建（只包含该小组的提交记录）
+      const state = {}
+      submissions.forEach(sub => {
+        const assignmentId = String(sub.assignmentId)
+        state[assignmentId] = {
+          status: sub.status || 'submitted',
+          submissionId: sub.submissionId,
+          at: sub.submittedAt ? new Date(sub.submittedAt).getTime() : Date.now(),
+          by: sub.submittedBy || '',
+          synced: true  // 标记为从服务器同步的数据
+        }
+      })
+      writeJson(SUBMIT_STATE_KEY, state)
+      submissionState.value = state
+      console.log('提交状态已同步到 LocalStorage (已清空旧数据):', state)
+    } else {
+      // 如果后端返回空数组，说明该小组没有任何提交记录，清空 LocalStorage
+      console.log('该小组没有任何提交记录，清空 LocalStorage')
+      writeJson(SUBMIT_STATE_KEY, {})
+      submissionState.value = {}
+    }
+  } catch (e) {
+    console.error('同步小组提交状态失败:', e)
+  }
+}
+
 const submissionState = ref({})
 const gradesState = ref({})
 function isRowSubmitted(row) {
@@ -341,6 +467,13 @@ const accept = computed(() => {
 onMounted(async () => {
   try {
     await getGroupInfo()
+    console.log('✅ 获取小组信息完成, groupInfo:', groupInfo.value)
+    console.log('✅ groupId:', groupId.value)
+    
+    // 从服务器同步小组提交状态（必须在获取小组信息之后）
+    await syncSubmissionStateFromServer()
+    console.log('✅ 同步提交状态完成, submissionState:', submissionState.value)
+    
     const data = await getTeachAssignments()
     console.log("获取教师分配的作品:",data)
     if (data?.code === 200 && Array.isArray(data?.data) && data.data.length > 0) {
@@ -373,10 +506,13 @@ onMounted(async () => {
 
   // 仍保留状态读取（用于其他文案或权限），但不影响提交方式
    loadGroupStatusFromStorage() 
-  // 新增：初始加载本地已提交/成绩状态，避免刷新后按钮回退
-   loadSubmissionState() 
+  // 注意：不再调用 loadSubmissionState()，因为已经通过 syncSubmissionStateFromServer() 同步了
+  // 如果 syncSubmissionStateFromServer() 失败（例如没有小组信息），则从 LocalStorage 读取
+  if (!groupInfo.value?.groupId) {
+    loadSubmissionState()
+  }
 
-  // 监听来自“学习分组”页面的状态更新
+  // 监听来自"学习分组"页面的状态更新
   window.addEventListener('student-group-updated', onGroupUpdated)
   window.addEventListener('storage', onStorageChanged)
 })
@@ -617,6 +753,12 @@ function normalizeUrl(u) {
 function openDetail(a) {
   currentAssignment.value = a
   mode.value = 'detail'
+  isEditing.value = false
+}
+
+function openViewDetail(a) {
+  currentAssignment.value = a
+  mode.value = 'view'
   isEditing.value = false
 }
 
