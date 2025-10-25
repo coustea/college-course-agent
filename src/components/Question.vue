@@ -74,7 +74,9 @@ const props = defineProps({
   stem: {type: String, default: ''},
   options: {type: Array, default: () => ['选项A', '选项B', '选项C', '选项D']},
   correctIndex: {type: Number, default: 0},
-  analysis: {type: String, default: ''}
+  analysis: {type: String, default: ''},
+  // 新增：结果展示后的主按钮文案（例如：下一题/完成）
+  nextText: {type: String, default: '继续学习'}
 })
 const emit = defineEmits(['update:modelValue', 'submit'])
 
@@ -100,7 +102,7 @@ const correctText = computed(() => {
   const idx = Math.max(0, Math.min(3, Number(props.correctIndex)||0))
   return Array.isArray(props.options) ? String(props.options[idx] || '') : ''
 })
-const btnText = computed(() => resultShown.value ? '继续学习' : '提交')
+const btnText = computed(() => resultShown.value ? (props.nextText || '继续学习') : '提交')
 
 async function onSubmit() {
   if (submitting.value) return

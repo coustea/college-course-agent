@@ -327,6 +327,14 @@ function selectEpisode(i) {
 
 const currentProgress = ref(0)
 const overallProgress = ref(0)
+// 后端允许的最大可快进比例（当前视频），0~1
+const backendSeekMax = ref(0)
+function allowedSeekRatio() {
+  const cur = Number(currentProgress.value || 0)
+  const srv = Number(backendSeekMax.value || 0)
+  // 允许回退任意，但不允许超过已观看或后端给出的最大比例
+  return Math.max(cur, srv)
+}
 
 // 获取课程整体进度
 async function fetchOverallProgress() {
@@ -375,6 +383,14 @@ async function fetchOverallProgress() {
       
       overallProgress.value = percentage / 100
       console.log('[CoursePlayer] 设置显示进度:', percentage + '%', '转换后:', overallProgress.value)
+      // 更新当前视频允许的最大可快进比例
+      backendSeekMax.value = Math.max(0, Math.min(1, percentage / 100))
+      // 将后端进度写入本地恢复键，确保每次进入课程只用后端进度
+      try {
+        const pct = Math.max(0, Math.min(100, Number(percentage || 0))) / 100
+        const key = `video_resume_${props.courseId}_${currentIndex.value}`
+        localStorage.setItem(key, JSON.stringify({ p: pct, t: Date.now() }))
+      } catch (e) { console.error(e) }
     }
   } catch (e) {
     console.error('[CoursePlayer] 获取课程进度失败:', e)
@@ -515,7 +531,10 @@ function seekBy(deltaSec) {
   const el = player.value
   if (!el || !el.duration) return
   const now = el.currentTime || 0
-  const target = now + deltaSec
+  let target = now + deltaSec
+  // 禁止快进超过允许比例
+  const maxPos = allowedSeekRatio() * el.duration
+  if (deltaSec > 0 && target > maxPos) target = maxPos
   el.currentTime = Math.max(0, Math.min(el.duration, target))
 }
 
@@ -626,7 +645,9 @@ function onDragMove(e) {
   if (!el || !video || !video.duration) return
   const rect = el.getBoundingClientRect()
   const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width)
-  const ratio = x / rect.width
+  let ratio = x / rect.width
+  const maxR = allowedSeekRatio()
+  if (ratio > maxR) ratio = maxR
   video.currentTime = ratio * video.duration
   currentProgress.value = ratio
 }
@@ -658,7 +679,9 @@ function onTrackClick(e, which) {
   if (!el || !video || !video.duration) return
   const rect = el.getBoundingClientRect()
   const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width)
-  const ratio = x / rect.width
+  let ratio = x / rect.width
+  const maxR = allowedSeekRatio()
+  if (ratio > maxR) ratio = maxR
   video.currentTime = ratio * video.duration
 }
 
@@ -731,7 +754,7 @@ onMounted(() => {
   }
   try { window.addEventListener('keydown', handleKeydown) } catch (e) { console.error(e) }
   // 进入播放器时，如果自动播放或用户立即播放，会开始计时
-  // 每次进入播放器即预取一次题目（按当前小节）
+  // 题目生成：按课程维度只取一次
   prefetchQuestions()
 })
 watch(currentIndex, (v) => {
@@ -751,6 +774,7 @@ watch(visible, (v) => {
   if (v) {
     // 获取课程整体进度
     fetchOverallProgress()
+    // 题目生成：按课程维度只取一次
     prefetchQuestions() 
   }
 })

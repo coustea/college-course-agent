@@ -18,6 +18,11 @@
               <template v-if="getRowScore(row) != null">
                 <span style="color:#16a34a;font-weight:600;">成绩：{{ getRowScore(row) }}分</span>
                 <el-button style="margin-left:8px" size="small" @click="openGrade(row)">查看成绩</el-button>
+                <el-tooltip :disabled="canSubmitWork" content="仅组长可修改" placement="top">
+                  <span>
+                    <el-button type="warning" size="small" :disabled="!canSubmitWork" style="margin-left:8px" @click="openEdit(row)">修改</el-button>
+                  </span>
+                </el-tooltip>
               </template>
               <!-- 2️⃣ 已提交未批改状态 -->
               <template v-else-if="isRowSubmitted(row)">
@@ -66,11 +71,7 @@
         </el-card>
         <el-form :model="submissionForm" label-width="100px">
 
-          <div class="form-row">
-            <el-form-item label="作品标题">
-              <el-input v-model="submissionForm.title" placeholder="请输入作品标题" />
-            </el-form-item>
-          </div>
+          <!-- 作品标题已移除，仅保留描述与文件上传 -->
 
           <div class="form-row">
             <el-form-item label="作品描述">
@@ -115,7 +116,6 @@
         <div class="requirements-box" v-if="requirements">
           <div>作品要求：</div>
           <ul>
-            <li v-if="requirements.titleRequired">需要填写作品标题</li>
             <li v-if="requirements.descriptionRequired">需要填写作品描述<span v-if="requirements.descriptionMaxLen">（不超过 {{
                 requirements.descriptionMaxLen
               }} 字）</span></li>
@@ -372,7 +372,7 @@ const deadlineText = ref('截止时间：2025-12-31 23:59')
 const submitting = ref(false)
 function getDefaultRequirements() {
   return {
-    titleRequired: true,
+    titleRequired: false,
     descriptionRequired: true,
     descriptionMaxLen: 200,
     maxFiles: 3,
@@ -767,7 +767,6 @@ function normalizeAssignments(data) {
     const isNotPublishedWord = toLower(publishRaw) === '未发布' || toLower(publishRaw) === 'unpublished' || toLower(publishRaw) === 'pending'
     if (isExplicitFalse || isNotPublishedWord) continue
     let attachments = []
-    try {
       const raw = item?.attachmentFiles ?? item?.attachments ?? []
       const arrA = typeof raw === 'string' ? (JSON.parse(raw || '[]') || []) : raw
       if (Array.isArray(arrA)) {
@@ -782,7 +781,6 @@ function normalizeAssignments(data) {
           }
         }).filter(x => !!x.url)
       }
-    } catch {}
     list.push({
       // 使用后端 assignmentId 作为唯一键，避免回退为标题导致第一行误命中
       id: item.assignmentId ?? item.id,
@@ -953,10 +951,7 @@ function backToList() {
   groupComment.value = ''
 }
 async function submitWork() {
-  if (requirements.value.titleRequired && !submissionForm.value.title) {
-    ElMessage.error('请填写作品标题')
-    return
-  }
+  // 作品标题已不再必填
   if (requirements.value.descriptionRequired && !submissionForm.value.description) {
     ElMessage.error('请填写作品描述')
     return
@@ -981,9 +976,7 @@ async function submitWork() {
     console.log('assignmentId:', currentAssignment.value?.id)
     formData.append('groupId', groupId.value)
     formData.append('studentId', localStorage.getItem('userId'))
-    if (submissionForm.value.title) {
-      formData.append('title', submissionForm.value.title)
-    }
+    // 已移除标题字段
 
     // 添加作业内容（注意：此处改为content以匹配后端参数名）
     if (submissionForm.value.description) {
@@ -997,6 +990,7 @@ async function submitWork() {
       })
     }
     console.log('提交上传的参数', formData)
+    // 已移除标题参数日志
     // 调用后端上传接口
     console.log('开始上传到:', `${BASE_URL}/submission/upload`)
     const response = await axios.post(`${BASE_URL}/submission/upload`, formData, {
@@ -1012,7 +1006,6 @@ async function submitWork() {
       const key = id != null ? String(id) : ''
       if (key) {
         const payload = {
-          title: submissionForm.value.title,
           description: submissionForm.value.description,
           files: submissionForm.value.files
         }
@@ -1085,7 +1078,7 @@ async function openEdit(row) {
           console.log('🔍 解析提交记录数据:', submittedWork)
 
           // 填充表单数据
-          submissionForm.value.title = submittedWork.title || submittedWork.submissionTitle || ''
+          // 标题已不必填，不再回填
           submissionForm.value.description = submittedWork.submissionContent || submittedWork.content || submittedWork.description || ''
 
           console.log('标题:', submissionForm.value.title)
@@ -1167,10 +1160,7 @@ async function openEdit(row) {
 }
 
 async function submitWorkUpdate() {
-  if (requirements.value.titleRequired && !submissionForm.value.title) {
-    ElMessage.error('请填写作品标题')
-    return
-  }
+  // 作品标题已不再必填
   if (requirements.value.descriptionRequired && !submissionForm.value.description) {
     ElMessage.error('请填写作品描述')
     return
@@ -1195,9 +1185,7 @@ async function submitWorkUpdate() {
     console.log('assignmentId:', currentAssignment.value?.id)
     formData.append('groupId', groupId.value)
     formData.append('studentId', localStorage.getItem('userId'))
-    if (submissionForm.value.title) {
-      formData.append('title', submissionForm.value.title)
-    }
+    // 已移除标题字段
 
     // 添加作业内容（注意：此处改为content以匹配后端参数名）
     if (submissionForm.value.description) {

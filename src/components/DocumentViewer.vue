@@ -4,10 +4,6 @@
       <div class="dv-header">
         <div class="dv-title">{{ headerTitle }}</div>
         <div class="dv-tools">
-          <button v-if="!isIframe" class="dv-tool" @click="zoomOut" title="缩小"><i class="fas fa-search-minus"></i></button>
-          <button v-if="!isIframe" class="dv-tool" @click="zoomIn" title="放大"><i class="fas fa-search-plus"></i></button>
-          <button v-if="!isIframe" class="dv-tool" @click="decreaseText" title="减小文字">A-</button>
-          <button v-if="!isIframe" class="dv-tool" @click="increaseText" title="增大文字">A+</button>
           <button class="dv-tool" @click="toggleFullscreen" title="全屏"><i class="fas fa-expand"></i></button>
         </div>
         <button class="dv-close" @click="close"><i class="fas fa-times"></i></button>
@@ -29,9 +25,14 @@
               </div>
             </div>
           </aside>
-          <div class="dv-view">
+          <div class="dv-view" ref="viewRef">
             <template v-if="isIframe">
-              <iframe class="dv-iframe" :src="viewerSrc" title="document" referrerpolicy="no-referrer" />
+              <iframe 
+                class="dv-iframe" 
+                :src="viewerSrc" 
+                title="document" 
+                allowfullscreen
+              />
             </template>
             <template v-else>
               <div class="dv-content" :style="contentStyle" v-html="safeHtml"></div>
@@ -42,18 +43,65 @@
       <div class="dv-footer">
         <button class="dv-pill" :class="isCompleted ? 'done' : 'todo'" @click="$emit('progressClick')">{{ isCompleted ? '已看完' : '未看完' }}</button>
         <div class="dv-actions">
+          <button class="dv-btn dv-btn-quiz" @click="startQuiz" :disabled="quizStarted || isCompleted">
+            {{ quizStarted ? (allQuestionsAnswered ? '已答完' : `答题中 ${answersSoFar.length}/5`) : '观看完毕开始答题' }}
+          </button>
           <button class="dv-btn dv-btn-secondary" @click="onPrev">上一章</button>
           <button class="dv-btn" @click="onNext">下一章</button>
+          <button v-if="allQuestionsAnswered" class="dv-btn dv-btn-finish" @click="finishDocument">结束</button>
         </div>
       </div>
     </div>
   </div>
 
+<!-- 题目弹窗复用视频题目组件 -->
+<Question
+    v-if="modelValue && questionVisible"
+    v-model="questionVisible"
+    :title="'选择题'"
+    :stem="currentStem"
+    :options="currentOptions"
+    :correct-index="currentCorrect"
+    :analysis="currentAnalysis"
+    :next-text="questionNextText"
+    @submit="onQuestionSubmit"
+/>
+
+<!-- 答题总结弹窗 -->
+<el-dialog
+    v-model="summaryVisible"
+    title="答题总结"
+    width="680px"
+    append-to-body
+>
+  <div>
+    <div style="margin-bottom:10px;color:#374151;">
+      共 {{ questionList.length }} 题，已作答 {{ answersSoFar.length }} 题
+    </div>
+    <div v-for="(q, i) in questionList" :key="q.id || i" style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px dashed #e5e7eb;">
+      <div :style="{color: isAnswerCorrect(q) ? '#16a34a' : '#ef4444', fontWeight: 700, minWidth: '52px'}">
+        {{ isAnswerCorrect(q) ? '正确' : '错误' }}
+      </div>
+      <div style="flex:1;">
+        <div style="font-weight:700;color:#111827;line-height:1.6;">第{{ i+1 }}题：{{ q.stem }}</div>
+        <div style="margin-top:6px;color:#374151;">
+          你的答案：<b>{{ userAnswerLetter(q) || '-' }}</b>
+          <span style="margin-left:12px;">正确答案：<b>{{ correctLetterOf(q) }}</b></span>
+        </div>
+        <div v-if="q.analysis" style="margin-top:6px;color:#6b7280;">解析：{{ q.analysis }}</div>
+      </div>
+    </div>
+  </div>
+  <template #footer>
+    <el-button type="primary" @click="summaryVisible = false">知道了</el-button>
+  </template>
+</el-dialog>
 </template>
-
 <script setup>
-import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
-
+import Question from '/src/components/Question.vue'
+import { ref, computed, watch, onBeforeUnmount, onMounted, getCurrentInstance, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
+import axios from 'axios'
 
 const props = defineProps({
   modelValue: {type: Boolean, default: false},
@@ -69,25 +117,20 @@ const props = defineProps({
   chapters: {type: Array, default: () => []}
 })
 
-const backendHost = (() => {
-  try {
-    const p = window?.location?.port;
-    if (p === '4173' || p === '5173') return 'http://localhost:9999';
-  } catch (e) {
-    console.error(e)
-  }
-  return ''
-})()
-
 function toUrl(u) {
   if (!u) return ''
   const s = String(u)
+  // 已是绝对地址，直接返回
   if (/^(https?:|data:|blob:)/.test(s)) return s
-  if (s.startsWith('/uploads/')) return (backendHost || '') + s
-  return s
+  // 相对路径统一返回，让 Vite proxy 或 Nginx 处理
+  if (s.startsWith('/')) return s
+  // 其他情况，补上 /
+  return '/' + s.replace(/^\//, '')
 }
 
 const emit = defineEmits(['update:modelValue', 'next', 'prev', 'progressClick'])
+const { proxy } = getCurrentInstance()
+const BASE_URL = proxy?.$baseUrl || ''
 
 // 目录
 const flatChapters = computed(() => {
@@ -116,6 +159,16 @@ const flatChapters = computed(() => {
 const currentIndex = ref(Math.max(0, (props.chapterIndex || 1) - 1))
 watch(() => props.modelValue, (v) => {
   if (v) currentIndex.value = Math.max(0, (props.chapterIndex || 1) - 1)
+})
+// 切换章节时重置答题状态
+watch(currentIndex, () => {
+  fetchedForChapter = false
+  remainingIndex.value = -1
+  answersSoFar.value = []
+  quizStarted.value = false
+  isClosing.value = false  // 重置关闭标志
+  console.log('[DocumentViewer]切换章节，重置答题状态')
+  try { syncDocumentProgressFromCourse() } catch (e) { console.error(e) }
 })
 const currentChapter = computed(() => flatChapters.value[currentIndex.value] || {
   title: props.title,
@@ -163,58 +216,76 @@ const fileExt = computed(() => {
   return idx >= 0 ? u.slice(idx + 1).toLowerCase() : ''
 })
 
+function isAbsoluteUrl(u) {
+  return /^https?:\/\//.test(u)
+}
+
 function isPrivateUrl(u) {
   try {
     const loc = new URL(u)
     const host = loc.hostname
     if (host === 'localhost' || host === '127.0.0.1') return true
     if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)) return true
-  } catch (e) { console.error(e) }
+  } catch (e) { 
+    return false
+  }
   return false
 }
+
 const viewerSrc = computed(() => {
   const url = normalizedFileUrl.value
   if (!url) return ''
   const isOffice = ["doc","docx","ppt","pptx","xls","xlsx"].includes(fileExt.value)
+  
   if (isOffice) {
-    if (isPrivateUrl(url)) return ''
-    return `https://view.officeapps.live.com/op/view.aspx?ui=en-US&src=${encodeURIComponent(url)}`
+    // 对于 Office 文件，只有绝对 URL 才能使用在线预览
+    if (isAbsoluteUrl(url)) {
+      // 只有公网地址才能使用 Microsoft Office Apps 预览
+      if (!isPrivateUrl(url)) {
+        return `https://view.officeapps.live.com/op/view.aspx?ui=en-US&src=${encodeURIComponent(url)}`
+      }
+    }
+   
+    return ''
   }
+  
   return url
 })
 
 const isIframe = computed(() => !!viewerSrc.value)
 
-// 按阅读进度在 40% 与 80% 触发问题
-async function maybeAskByProgress(pct) {
-  try {
-    if (questionVisible.value) return
-    const courseId = props.id || props.title
-    const baseKey = `document-${props.chapterIndex || 1}`
-    const key40 = `${baseKey}-p40`
-    const key80 = `${baseKey}-p80`
-    const progress = (pct > 1) ? (pct / 100) : pct
-    let targetKey = ''
-    if (progress >= 0.4 && !hasQuestionShown(courseId, key40)) {
-      targetKey = key40
-    } else if (progress >= 0.8 && !hasQuestionShown(courseId, key80)) {
-      targetKey = key80
-    }
-    if (targetKey) {
-      markQuestionShown(courseId, targetKey)
-      const qs = await fetchQuestions(courseId, targetKey)
-      if (Array.isArray(qs) && qs.length) {
-        pendingNodeKey.value = targetKey
-        questionList.value = qs
-        questionVisible.value = true
-        return new Promise((resolve) => { resolver.value = resolve })
-      }
-    }
-  } catch (e) { console.error(e) }
-}
 
 async function close() {
+  isClosing.value = true
+  if (questionVisible.value) {
+    questionVisible.value = false
+    console.log('[DocumentViewer]关闭文档前先关闭题目弹窗')
+  }
   emit('update:modelValue', false)
+}
+
+async function syncDocumentProgressFromCourse() {
+  try {
+    const studentId = localStorage.getItem('userId')
+    const courseId = props.id
+    if (!studentId || !courseId) return
+    const token = localStorage.getItem('token')
+    const res = await axios.get(`${BASE_URL}/progress/course/all`, {
+      params: { studentId, courseId },
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    console.log('[DocumentViewer]同步文档进度结果:', res.data)
+    const data = res?.data?.data || res?.data
+    if (!data) return
+    const docs = Array.isArray(data.documents) ? data.documents : []
+    const docId = (Number(currentIndex.value) || 0) + 1
+    const cur = docs.find(d => String(d.documentId || d.id) === String(docId))
+    if (cur) {
+      // 文档完成以 completed
+      const completed = cur.completed === true 
+      readProgress.value = completed
+    }
+  } catch (e) { console.error('[DocumentViewer]同步文档进度失败', e) }
 }
 
 async function onNext() {
@@ -222,25 +293,174 @@ async function onNext() {
   emit('next')
 }
 
+// 开始答题
+async function startQuiz() {
+  try {
+    quizStarted.value = true
+    console.log('[DocumentViewer]开始答题')
+    
+    const courseId = props.id || props.title
+    const qs = await fetchQuestionsOnce(courseId)
+    
+    if (!Array.isArray(qs) || qs.length === 0) {
+      ElMessage.error('获取题目失败，请重试')
+      quizStarted.value = false
+      return
+    }
+    
+    // 显示第一题
+    remainingIndex.value = 0
+    const q = qs[0]
+    if (q) {
+      currentQuestionId.value = q.id
+      currentStem.value = q.stem
+      currentOptions.value = q.options
+      currentCorrect.value = q.correct
+      currentAnalysis.value = q.analysis
+      questionVisible.value = true
+    }
+  } catch (e) {
+    console.error('[DocumentViewer]开始答题失败:', e)
+    ElMessage.error('开始答题失败')
+    quizStarted.value = false
+  }
+}
+
+// 结束文档学习（提交答案并标记完成）
+async function finishDocument() {
+  console.log('[DocumentViewer]点击结束按钮，提交答案并标记完成')
+  await submitDocumentAnswersAndProgress()
+}
+
 const questionVisible = ref(false)
 const questionList = ref([])
+const answersSoFar = ref([])
+const examId = ref(null)
+const currentQuestionId = ref(null)
+const currentStem = ref('')
+const currentOptions = ref(['A','B','C','D'])
+const currentCorrect = ref(0)
+const currentAnalysis = ref('')
 const pendingNodeKey = ref('')
 const resolver = ref(null)
+const isClosing = ref(false)  
+const quizStarted = ref(false) 
+
+
+const allQuestionsAnswered = computed(() => {
+  return quizStarted.value && answersSoFar.value.length >= 5
+})
+
+
+const questionNextText = computed(() => {
+  try {
+    const total = Array.isArray(questionList.value) ? questionList.value.length : 0
+    const answered = Math.max(0, Math.min(total, answersSoFar.value.length))
+    return answered >= total - 1 ? '完成' : '下一题'
+  } catch {
+    return '下一题'
+  }
+})
+
+const summaryVisible = ref(false)
+function findUserAnswer(q) {
+  try {
+    const id = q?.id
+    const item = answersSoFar.value.find(a => a.questionId === id)
+    return item?.answer
+  } catch { return '' }
+}
+function userAnswerLetter(q) {
+  return findUserAnswer(q)
+}
+function correctLetterOf(q) {
+  const idx = Number(q?.correct) || 0
+  return ['A','B','C','D'][Math.max(0, Math.min(3, idx))]
+}
+function isAnswerCorrect(q) {
+  const u = findUserAnswer(q)
+  return u && u.toUpperCase() === correctLetterOf(q)
+}
 
 async function onQuestionSubmit(payload) {
   try {
-    const courseId = props.id || props.title
-    const nodeKey = pendingNodeKey.value || `document-${props.chapterIndex || 1}`
-    const answers = payload?.answers || {}
-    const questions = questionList.value || []
-    await submitExamAnswers(courseId, nodeKey, questions, answers)
+    const idx = Number(payload?.answerIndex)
+    const letter = ['A','B','C','D'][Math.max(0, Math.min(3, Number.isFinite(idx) ? idx : 0))]
+    const qid = currentQuestionId.value
+    if (qid) {
+      const existing = answersSoFar.value.findIndex(a => a.questionId === qid)
+      if (existing >= 0) answersSoFar.value.splice(existing, 1, { questionId: qid, answer: letter })
+      else answersSoFar.value.push({ questionId: qid, answer: letter })
+    }
   } catch (e) { console.error(e) }
   questionVisible.value = false
   if (typeof resolver.value === 'function') {
-    try { resolver.value(true) } catch (e) { console.error(e) }
+    resolver.value(true) 
     resolver.value = null
   }
 }
+
+// 一次性取题：每次打开文档时调用一次
+let fetchedForChapter = false
+async function fetchQuestionsOnce(courseId) {
+  try {
+    if (fetchedForChapter && questionList.value?.length > 0) {
+      console.log('[fetchQuestionsOnce]已取过题，返回缓存')
+      return questionList.value
+    }
+    
+    const studentId = localStorage.getItem('userId')
+    const token = localStorage.getItem('token')
+    const body = { courseId, studentId, choiceCount: 5, judgeCount: 0 }
+    console.log('[DocumentViewer]请求参数:', body)
+    const res = await axios.post(`${BASE_URL}/aiexam/generate`, body, {
+      headers: { 
+        'Content-Type': 'application/json', 
+        Authorization: `Bearer ${token}` 
+      }
+    })
+    console.log('[DocumentViewer]获取题目结果:', res.data)
+    if (res.data.code === 200) {
+      const data = res.data.data
+      // 保存 examId
+      examId.value = (data?.exam && (data.exam.id || data.exam.examId)) || data.id || (Array.isArray(data.questions) ? data.questions[0]?.examId : null) || null
+      const list = Array.isArray(data?.questions) ? data.questions : (Array.isArray(data?.choices) ? data.choices : [])
+      questionList.value = list.slice(0, 5).map(q => normalizeQuestion(q))
+      fetchedForChapter = true
+      console.log('[fetchQuestionsOnce]取题成功，examId:', examId.value, '题目数量:', questionList.value.length)
+      return questionList.value
+    } else {
+      console.log('[fetchQuestionsOnce]响应code不是200:', res.data)
+    }
+  } catch (e) { 
+    console.error('[fetchQuestionsOnce]取题失败:', e)
+    return [] 
+  }
+}
+
+function normalizeQuestion(q) {
+  const stripLabel = (s) => String(s || '').replace(/^\s*[A-Da-d][\.、\s]\s*/, '').trim()
+  // 选项
+  let opts = []
+  if (Array.isArray(q?.options)) opts = q.options
+  else if (typeof q?.options === 'string') {
+    const s = q.options.trim()
+    try { if (/^\[.*\]$/.test(s)) opts = JSON.parse(s.replace(/'/g, '"')) } catch {}
+    if (!Array.isArray(opts) || !opts.length) opts = s.split(/[，,；;\n]/).map(x=>x.trim()).filter(Boolean)
+  } else opts = [q?.a, q?.b, q?.c, q?.d].filter(Boolean)
+  opts = opts.slice(0,4).map(stripLabel)
+  const correctIndex = (typeof q.correctIndex === 'number') ? q.correctIndex : ['A','B','C','D'].indexOf(String(q.answer||'').toUpperCase())
+  return {
+    id: q.id || q.questionId,
+    stem: q.content || q.stem || q.title || '',
+    options: opts.length===4?opts:['选项A','选项B','选项C','选项D'],
+    correct: Number.isFinite(correctIndex)?correctIndex:0,
+    analysis: q.analysis || ''
+  }
+}
+
+// 记录某章是否已经触发过题目
+// 已移除 hasQuestionShown 和 markQuestionShown 函数（不再需要）
 
 let timer = null
 let last = 0
@@ -263,12 +483,7 @@ watch(() => props.modelValue, (v) => {
   }
 })
 
-// 监听阅读进度，按 40% / 80% 触发一次
-watch(() => props.progress, (p) => {
-  const val = Number(p)
-  if (!Number.isFinite(val)) return
-  maybeAskByProgress(val)
-}, { immediate: true })
+// 已移除自动监听阅读进度弹题的逻辑
 
 onBeforeUnmount(() => { if (timer) { clearInterval(timer); timer = null } })
 
@@ -344,6 +559,10 @@ onMounted(() => {
   } catch (e) {
     console.error(e)
   }
+  // 打开时同步一次课程进度，并据此设置当前文档进度
+  try {
+    syncDocumentProgressFromCourse()
+  } catch (e) { console.error(e) }
 })
 onBeforeUnmount(() => {
   try {
@@ -360,27 +579,73 @@ function updateReadProgress() {
   const total = Math.max(1, el.scrollHeight - el.clientHeight)
   const ratio = Math.max(0, Math.min(1, el.scrollTop / total))
   readProgress.value = ratio
+  console.log(`[DocumentViewer]滚动进度: ${(ratio * 100).toFixed(1)}%, scrollTop: ${el.scrollTop}, total: ${total}`)
 }
 
 // Ctrl + 滚轮：仅对 HTML 内容调整字号
 function handleWheel(e) {
+  // 检查是否在文档查看器区域内
+  if (!props.modelValue || !bodyRef.value) {
+    return
+  }
+  
+  const targetElement = e.target
+  const isInViewer = bodyRef.value.contains(targetElement)
+  
+  console.log(`[handleWheel]被调用, isIframe: ${isIframe.value}, isInViewer: ${isInViewer}, ctrlKey: ${e.ctrlKey}, deltaY: ${e.deltaY}`)
+  
+  if (!isInViewer) {
+    return // 不在文档查看器区域，忽略
+  }
+  
   // Ctrl + 滚轮：缩放（仅 HTML）
   if (e.ctrlKey && !isIframe.value) {
     e.preventDefault()
     e.deltaY > 0 ? decreaseText() : increaseText()
     return
   }
+  
   // 普通滚轮：在 iframe(PDF/Office) 无法读取内部滚动时，合成阅读进度
   if (isIframe.value && !e.ctrlKey) {
     const delta = Math.max(-1, Math.min(1, e.deltaY / 200))
     const next = Math.max(0, Math.min(1, (readProgress.value || 0) + delta * 0.05))
     readProgress.value = next
+    console.log(`[handleWheel]iframe滚轮合成进度: ${(next * 100).toFixed(1)}%`)
   }
 }
 
+// 滚轮事件现在直接在模板中绑定到 .dv-body 上
+
+// 键盘快捷键：按 End 键直接跳到 100% 进度（测试用）
+function handleKeydown(e) {
+  if (e.key === 'End') {
+    console.log('[handleKeydown]End键按下，设置进度到100%')
+    readProgress.value = 1
+    // 已移除自动弹题调用
+  } else if (e.key === 'Home') {
+    console.log('[handleKeydown]Home键按下，重置进度到0%')
+    readProgress.value = 0
+  }
+}
+
+
 watch(() => props.modelValue, (v) => {
-  if (v) setTimeout(() => bodyRef.value?.addEventListener('wheel', handleWheel, {passive: false}), 0)
-  else bodyRef.value?.removeEventListener('wheel', handleWheel)
+  if (v) {
+    document.addEventListener('keydown', handleKeydown)
+    // 使用捕获阶段监听滚轮事件，可以捕获 iframe 上的滚轮
+    document.addEventListener('wheel', handleWheel, { capture: true, passive: true })
+    // 每次打开文档时重置所有状态
+    fetchedForChapter = false
+    remainingIndex.value = -1
+    answersSoFar.value = []
+    quizStarted.value = false
+    isClosing.value = false  // 重置关闭标志
+    console.log('[DocumentViewer]文档打开，重置所有答题状态')
+  } else {
+    document.removeEventListener('keydown', handleKeydown)
+    document.removeEventListener('wheel', handleWheel, { capture: true })
+    console.log('[DocumentViewer]文档关闭')
+  }
 })
 
 watch(() => props.modelValue, (v) => {
@@ -401,11 +666,111 @@ watch(() => props.modelValue, (v) => {
   }
 })
 
-// 监听本地进度，触发 40% / 80% 问题弹窗
-watch(readProgress, (r) => {
-  if (!Number.isFinite(r)) return
-  maybeAskByProgress(r)
+// 已移除自动监听滚动进度弹题的逻辑
+
+// 题目弹窗：逐题展示，提交后显示答案与解析，点击继续展示下一题；全部答完后调用"已看完"逻辑
+watch(questionVisible, async (v) => {
+  if (!v) {
+      // 文档正在关闭时不弹出下一题
+      if (isClosing.value) {
+        console.log('[DocumentViewer]文档查看器正在关闭，不弹出下一题')
+        return
+      }
+
+      const total = Array.isArray(questionList.value) ? questionList.value.length : 0
+      if (total <= 0) return
+
+      const nextIndex = remainingIndex.value + 1
+      if (nextIndex < total) {
+        const q = questionList.value[nextIndex]
+        if (q) {
+          remainingIndex.value = nextIndex
+          // 等待对话框完全关闭再打开下一题，避免动画导致的渲染竞态
+          await nextTick()
+          currentQuestionId.value = q.id
+          currentStem.value = q.stem
+          currentOptions.value = q.options
+          currentCorrect.value = q.correct
+          currentAnalysis.value = q.analysis
+          questionVisible.value = true
+        }
+      } else {
+        console.log('[DocumentViewer]题目已答完，展示答题总结')
+        summaryVisible.value = true
+      }
+  }
 })
+
+const remainingIndex = ref(-1)
+watch(questionVisible, (v, ov) => {
+  if (v && ov === false) {
+    if (remainingIndex.value < 0 && Array.isArray(questionList.value)) {
+      remainingIndex.value = 0
+      const q = questionList.value[0]
+      if (q) {
+        currentQuestionId.value = q.id
+        currentStem.value = q.stem
+        currentOptions.value = q.options
+        currentCorrect.value = q.correct
+        currentAnalysis.value = q.analysis
+      }
+    }
+  }
+})
+
+// 提交答案并上报文档已看完（仅当5题全部答完时调用）
+async function submitDocumentAnswersAndProgress() {
+  try {
+    const studentId = localStorage.getItem('userId')
+    const eid = examId.value
+    const token = localStorage.getItem('token')
+    
+    // 确保已经答完5题
+    const expectedQuestions = 5
+    if (answersSoFar.value.length < expectedQuestions) {
+      console.log(`[DocumentViewer]题目未答完，已答${answersSoFar.value.length}/${expectedQuestions}题，不上报完成状态`)
+      return
+    }
+    
+    // 提交答案
+    if (eid && studentId && answersSoFar.value.length > 0) {
+      const body = {
+        examId: eid,
+        studentId: studentId,
+        answers: answersSoFar.value.map(a => ({ questionId: a.questionId, answer: a.answer }))
+      }
+      console.log('[DocumentViewer]提交答案（5题全部完成）:', body)
+      const res = await axios.post(`${BASE_URL}/aiexam/submit`, body, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      })
+      if (res.data.code === 200) {
+        console.log('[DocumentViewer]提交答案成功')
+      }
+    }
+    // 上报文档进度为已完成（所有题目答完后）
+    if (studentId && props.id) {
+      const docId = (Number(currentIndex.value) || 0) + 1
+      const params = {
+        studentId: studentId,
+        courseId: props.id,
+        documentId: docId,
+        completed: true
+      }
+      console.log('[DocumentViewer]上报文档已看完（5题全部答完）:', params)
+      const res2 = await axios.post(`${BASE_URL}/progress/report`, null, {
+        params: params,
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res2.data.code === 200) {
+        console.log('[DocumentViewer]上报文档完成成功')
+        // 标记已看完
+        readProgress.value = 1
+      }
+    }
+  } catch (e) {
+    console.error('[DocumentViewer]提交答案或进度失败', e)
+  }
+}
 </script>
 <style scoped>
 .dv-mask {
@@ -567,11 +932,34 @@ watch(readProgress, (r) => {
   border: none;
   border-radius: 6px;
   cursor: pointer;
+  transition: all 0.2s;
 }
 .dv-btn-secondary {
   background: #0ea5e9;
 }
+.dv-btn-quiz {
+  background: #10b981;
+}
+.dv-btn-quiz:hover {
+  background: #059669;
+}
+.dv-btn-quiz:disabled {
+  background: #6ee7b7;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.dv-btn-finish {
+  background: #f59e0b;
+}
+.dv-btn-finish:hover {
+  background: #d97706;
+}
 .dv-btn:hover {
   background: #1d4ed8;
 }
+.dv-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 </style>
+
