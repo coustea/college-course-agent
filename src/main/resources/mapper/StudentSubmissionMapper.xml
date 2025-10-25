@@ -68,6 +68,10 @@
 	</select>
 
 	<select id="selectByGroupId" resultMap="StudentSubmissionRM">
+		SELECT * FROM student_submissions WHERE group_id = #{groupId} ORDER BY submitted_at DESC LIMIT 1
+	</select>
+
+	<select id="listByGroupId" resultMap="StudentSubmissionRM">
 		SELECT * FROM student_submissions WHERE group_id = #{groupId} ORDER BY submitted_at DESC
 	</select>
 

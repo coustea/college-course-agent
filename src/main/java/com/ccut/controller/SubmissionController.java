@@ -205,4 +205,127 @@ public class SubmissionController {
             return Result.error(500, "更新提交失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 教师：添加或更新小组整体评语
+     * PUT /api/submission/{submissionId}/comment
+     * @param submissionId 提交ID
+     * @param groupComment 小组评语（JSON body: {"groupComment": "评语内容"}）
+     * @return 操作结果
+     */
+    @PutMapping("/{submissionId}/comment")
+    public Result<String> updateGroupComment(
+            @PathVariable Long submissionId,
+            @RequestBody java.util.Map<String, String> body
+    ) {
+        try {
+            String groupComment = body.get("groupComment");
+            
+            if (groupComment == null) {
+                return Result.error(400, "缺少 groupComment 参数");
+            }
+            
+            // 检查评语长度（最多500字）
+            if (groupComment.length() > 500) {
+                return Result.error(400, "评语长度不能超过500字");
+            }
+            
+            // 检查提交是否存在
+            StudentSubmission existing = submissionMapper.selectById(submissionId);
+            if (existing == null) {
+                return Result.error(404, "未找到该提交记录");
+            }
+            
+            // 更新评语
+            StudentSubmission update = new StudentSubmission();
+            update.setSubmissionId(submissionId);
+            update.setGroupComment(groupComment);
+            
+            int n = submissionMapper.updateById(update);
+            if (n > 0) {
+                log.info("小组评语更新成功: submissionId={}, commentLength={}", submissionId, groupComment.length());
+                return Result.success("小组评语更新成功");
+            } else {
+                return Result.error(500, "更新失败");
+            }
+        } catch (Exception e) {
+            log.error("更新小组评语失败: submissionId={}, error={}", submissionId, e.getMessage(), e);
+            return Result.error(500, "更新小组评语失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 学生/教师：获取提交详情
+     * GET /api/submission/detail/{submissionId}
+     * @param submissionId 提交ID
+     * @return 提交详情
+     */
+    @GetMapping("/detail/{submissionId}")
+    public Result<StudentSubmission> getSubmissionDetail(@PathVariable Long submissionId) {
+        try {
+            if (submissionId == null) {
+                return Result.error(400, "submissionId 不能为空");
+            }
+            
+            StudentSubmission submission = submissionMapper.selectById(submissionId);
+            if (submission == null) {
+                return Result.error(404, "未找到该提交记录");
+            }
+            
+            log.info("获取提交详情: submissionId={}", submissionId);
+            return Result.success(submission);
+        } catch (Exception e) {
+            log.error("获取提交详情失败: submissionId={}, error={}", submissionId, e.getMessage(), e);
+            return Result.error(500, "获取提交详情失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 教师：获取小组整体评语
+     * GET /api/submission/{submissionId}/comment
+     * @param submissionId 提交ID
+     * @return 评语内容
+     */
+    @GetMapping("/{submissionId}/comment")
+    public Result<java.util.Map<String, String>> getGroupComment(@PathVariable Long submissionId) {
+        try {
+            StudentSubmission submission = submissionMapper.selectById(submissionId);
+            if (submission == null) {
+                return Result.error(404, "未找到该提交记录");
+            }
+            
+            java.util.Map<String, String> result = new java.util.HashMap<>();
+            result.put("groupComment", submission.getGroupComment() != null ? submission.getGroupComment() : "");
+            result.put("submissionId", String.valueOf(submissionId));
+            
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("获取小组评语失败: submissionId={}, error={}", submissionId, e.getMessage(), e);
+            return Result.error(500, "获取小组评语失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 学生：查询自己小组的所有提交记录
+     * GET /api/submission/my-group?groupId={groupId}
+     * @param groupId 小组ID
+     * @return 该小组的所有提交记录列表
+     */
+    @GetMapping("/my-group")
+    public Result<List<StudentSubmission>> getMyGroupSubmissions(@RequestParam Long groupId) {
+        try {
+            if (groupId == null) {
+                return Result.error(400, "groupId 不能为空");
+            }
+            
+            // 查询该小组的所有提交记录
+            List<StudentSubmission> submissions = submissionMapper.listByGroupId(groupId);
+            
+            log.info("查询小组提交记录: groupId={}, 找到{}条记录", groupId, submissions != null ? submissions.size() : 0);
+            return Result.success(submissions != null ? submissions : new ArrayList<>());
+        } catch (Exception e) {
+            log.error("查询小组提交记录失败: groupId={}, error={}", groupId, e.getMessage(), e);
+            return Result.error(500, "查询小组提交记录失败: " + e.getMessage());
+        }
+    }
 }

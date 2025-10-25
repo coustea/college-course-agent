@@ -2,7 +2,9 @@ package com.ccut.controller;
 
 import com.ccut.entity.Result;
 import com.ccut.entity.StudentMemberScore;
+import com.ccut.entity.StudentSubmission;
 import com.ccut.mapper.StudentMemberScoreMapper;
+import com.ccut.mapper.StudentSubmissionMapper;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,9 @@ public class TeacherGradingController {
 	@Autowired
 	private StudentMemberScoreMapper studentMemberScoreMapper;
 
+	@Autowired
+	private StudentSubmissionMapper studentSubmissionMapper;
+
 	@Data
 	public static class MemberGradeInput {
 		private Long studentId;
@@ -32,6 +37,12 @@ public class TeacherGradingController {
 		private Long submissionId; // 小组提交ID
 		private String teacherName; // 评分教师姓名
 		private List<MemberGradeInput> members; // 每个成员评分
+	}
+
+	@Data
+	public static class GroupGradesResponse {
+		private List<StudentMemberScore> memberScores; // 成员评分列表
+		private String groupComment; // 小组整体评语
 	}
 
 	@PostMapping("/group")
@@ -67,10 +78,30 @@ public class TeacherGradingController {
 	}
 
 	@GetMapping("/group/{submissionId}")
-	public Result<List<StudentMemberScore>> getGroupGrades(@PathVariable Long submissionId) {
+	public Result<GroupGradesResponse> getGroupGrades(@PathVariable Long submissionId) {
 		try {
 			if (submissionId == null) return Result.error(400, "submissionId 不能为空");
-			return Result.success(studentMemberScoreMapper.selectBySubmissionId(submissionId));
+			
+			// 查询成员评分
+			List<StudentMemberScore> memberScores = studentMemberScoreMapper.selectBySubmissionId(submissionId);
+			
+			// 查询小组评语
+			String groupComment = "";
+			try {
+				StudentSubmission submission = studentSubmissionMapper.selectById(submissionId);
+				if (submission != null && submission.getGroupComment() != null) {
+					groupComment = submission.getGroupComment();
+				}
+			} catch (Exception e) {
+				log.warn("查询小组评语失败: submissionId={}", submissionId, e);
+			}
+			
+			// 组装响应
+			GroupGradesResponse response = new GroupGradesResponse();
+			response.setMemberScores(memberScores);
+			response.setGroupComment(groupComment);
+			
+			return Result.success(response);
 		} catch (Exception e) {
 			log.error("查询小组评分失败", e);
 			return Result.error(500, e.getMessage());

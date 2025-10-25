@@ -13,6 +13,7 @@ public interface StudentSubmissionMapper {
     int updateById(StudentSubmission studentSubmission);
     StudentSubmission selectById(@Param("submissionId") Long submissionId);
     StudentSubmission selectByGroupId(@Param("groupId") Long groupId);
+    List<StudentSubmission> listByGroupId(@Param("groupId") Long groupId);
     StudentSubmission selectByAssignmentIdAndGroupId(@Param("assignmentId") Long assignmentId, @Param("groupId") Long groupId);
     List<StudentSubmission> selectByAssignmentId(@Param("assignmentId") Long assignmentId);
     List<StudentSubmission> selectAll();
