@@ -193,43 +193,6 @@ function onPrimaryClick() {
   line-height: 1.7;
 }
 
-.q-options .el-radio-group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* 隐藏原生单选按钮 */
-.q-options :deep(.el-radio__input) {
-  display: none;
-}
-
-/* 每个选项行 */
-.q-options :deep(.el-radio) {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
-  min-height: 44px;
-  background: #f8fafc;
-  border: none; 
-  box-shadow: inset 0 0 0 1px #e5e7eb, 0 1px 3px rgba(0,0,0,0.05);
-  cursor: pointer;
-  transition: box-shadow 0.2s ease, background 0.2s ease;
-  margin: 0 !important;
-  box-sizing: border-box;
-}
-
-.q-options :deep(.el-radio:hover) {
-  background: #f8fafc;
-  box-shadow: inset 0 0 0 2px #10b981, 0 2px 6px rgba(16,185,129,0.1);
-}
-
-/* 选中态 */
-.q-options :deep(.el-radio.is-checked) {
-  background: #f0fdf4;
-  box-shadow: inset 0 0 0 2px #10b981, 0 2px 6px rgba(16,185,129,0.15);
-}
-
 .q-options :deep(.el-radio.is-checked .badge) {
   background: #10b981;
   color: #fff;
@@ -240,28 +203,6 @@ function onPrimaryClick() {
   font-weight: 600;
 }
 
-/* 禁用状态 */
-.q-options :deep(.el-radio.is-disabled) {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.q-options :deep(.el-radio.is-disabled:hover) {
-  border-color: #e5e7eb;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.q-options :deep(.el-radio.is-disabled.is-checked:hover) {
-  border-color: #10b981;
-  background: #f0fdf4;
-}
-
-.q-options :deep(.el-radio__label) {
-  width: 100%;
-  padding: 0 !important;
-  margin: 0 !important;
-}
 
 .option-content {
   display: flex;
@@ -277,7 +218,7 @@ function onPrimaryClick() {
   flex: 1;
   font-size: 15px;
   line-height: 1.5;
-  font-weight: 500; /* 统一权重，观感更规整 */
+  font-weight: 500;
   color: #374151;
   word-break: break-word;
   overflow-wrap: break-word;

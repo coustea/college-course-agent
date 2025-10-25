@@ -65,7 +65,7 @@
           <div v-else class="attachments-empty">暂无附件</div>
         </el-card>
         <el-form :model="submissionForm" label-width="100px">
-          
+
           <div class="form-row">
             <el-form-item label="作品标题">
               <el-input v-model="submissionForm.title" placeholder="请输入作品标题" />
@@ -255,10 +255,10 @@ const submissionForm = ref({
 
 const GROUP_STATUS_KEY = 'student_group_status'
 const GROUP_INFO_KEY = 'student_group_info'
-const groupStatus = ref('none') 
+const groupStatus = ref('none')
 const groupInfo = ref(null)
 const groupId = ref(null)
-// 组队与角色
+
 const currentUserName = computed(() => {
   try { return localStorage.getItem('studentName') || '' } catch { return '' }
 })
@@ -268,7 +268,7 @@ const isLeader = computed(() => {
   return leader && leader === String(currentUserName.value || '')
 })
 const canSubmitWork = computed(() => {
-  // 如果没有加入小组，禁止提交
+
   if (!groupId.value && !groupInfo.value?.groupId) {
     return false
   }
@@ -277,15 +277,12 @@ const canSubmitWork = computed(() => {
 })
 
 const submitDisabledReason = computed(() => {
-  // 如果没有加入小组
   if (!groupId.value && !groupInfo.value?.groupId) {
     return '请先加入小组后再提交作业'
   }
-  // 如果小组已通过审批，但不是组长
   if (groupStatus.value === 'approved' && !isLeader.value) {
     return '仅组长可提交'
   }
-  // 如果小组审批中
   if (groupStatus.value === 'pending') {
     return '小组审批中，暂时无法提交'
   }
@@ -306,7 +303,7 @@ async function getGroupInfo() {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         }
       }
-    );
+    )
 
     console.log("再次获取小组信息用来判断组长:",res.data)
     console.log("res.data.data:", res.data.data)
@@ -323,26 +320,26 @@ async function getGroupInfo() {
         const fd = new FormData();
         fd.append('groupId', groupId.value)
         const detail = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd, {headers})
-        console.log('group detail', detail?.data)
+        console.log('通过组长找到group', detail.data)
         if (detail?.data?.code === 200 && detail?.data?.data) {
           const group = detail.data.data
           const st = String(group?.approvalStatus || '').toLowerCase()
           groupStatus.value = st === 'approval' ? 'approved' : (st === 'pending' ? 'pending' : (st === 'rejected' ? 'rejected' : 'none'))
-          const members = Array.isArray(group.groupMemberList) ? group.groupMemberList : []
+          const members = group.groupMemberList
           const roleOf = (m) => String(m?.role || m?.memberRole || m?.position || '').toLowerCase()
           let leaderIdx = members.findIndex(m => m?.isLeader === true || m?.leader === true || roleOf(m) === 'leader')
           if (leaderIdx < 0) leaderIdx = 0
-          const leaderItem = members[leaderIdx] || {}
+          const leaderItem = members[leaderIdx]
           const leaderName = leaderItem?.studentName || group.leaderName
           const restNames = members.filter((_, i) => i !== leaderIdx).map(m => m.studentName).filter(Boolean)
           groupInfo.value = {
-            groupId: groupId.value,  // 添加 groupId
-            groupName: group.groupName || '',
+            groupId: groupId.value,
+            groupName: group.groupName,
             leaderName,
             memberNames: restNames,
-            taskDescription: group.groupDescription || ''
+            taskDescription: group.groupDescription
           }
-          // 持久化，供其他页面/刷新后的 isLeader 计算
+
           localStorage.setItem(GROUP_STATUS_KEY, groupStatus.value)
           localStorage.setItem(GROUP_INFO_KEY, JSON.stringify(groupInfo.value))
         }
@@ -438,14 +435,82 @@ async function syncSubmissionStateFromServer() {
       writeJson(SUBMIT_STATE_KEY, state)
       submissionState.value = state
       console.log('提交状态已同步到 LocalStorage (已清空旧数据):', state)
+      
+      // 🔥 同步完提交状态后，立即同步成绩状态
+      await syncGradesStateFromServer(submissions)
     } else {
       // 如果后端返回空数组，说明该小组没有任何提交记录，清空 LocalStorage
       console.log('该小组没有任何提交记录，清空 LocalStorage')
       writeJson(SUBMIT_STATE_KEY, {})
       submissionState.value = {}
+      writeJson(GRADES_STATE_KEY, {})
+      gradesState.value = {}
     }
   } catch (e) {
     console.error('同步小组提交状态失败:', e)
+  }
+}
+
+// 从后端批量同步成绩状态
+async function syncGradesStateFromServer(submissions) {
+  try {
+    const token = localStorage.getItem('token')
+    const gradesMap = {}
+    
+    console.log('🔍 开始批量查询成绩状态...')
+    
+    // 为每个已提交的作业查询成绩
+    for (const sub of submissions) {
+      const assignmentId = String(sub.assignmentId)
+      const submissionId = sub.submissionId
+      
+      if (!submissionId) continue
+      
+      try {
+        const resp = await axios.get(`${BASE_URL}/grading/group/${submissionId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        if (resp.data.code === 200) {
+          const data = resp.data.data || resp.data
+          
+          // 尝试获取成绩
+          let list = []
+          if (Array.isArray(data?.memberScores)) list = data.memberScores
+          else if (Array.isArray(data?.members)) list = data.members
+          else if (Array.isArray(data?.studentScores)) list = data.studentScores
+          else if (Array.isArray(data)) list = data
+          
+          // 如果有成绩，记录到 gradesMap
+          if (list.length > 0) {
+            const firstScore = list.find(m => {
+              return m.score != null || m.grade != null || m.totalScore != null || 
+                     m.finalScore != null || m.memberScore != null || m.points != null
+            })
+            
+            if (firstScore) {
+              const scoreValue = firstScore.score ?? firstScore.grade ?? firstScore.totalScore ?? 
+                                firstScore.finalScore ?? firstScore.memberScore ?? firstScore.points
+              
+              if (scoreValue != null) {
+                gradesMap[assignmentId] = { score: Number(scoreValue), at: Date.now() }
+                console.log(`✅ 作业 ${assignmentId} 有成绩: ${scoreValue}`)
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // 单个作业查询失败不影响其他作业
+        console.log(`⚠️ 查询作业 ${assignmentId} 的成绩失败:`, err.message)
+      }
+    }
+    
+    // 更新 gradesState
+    writeJson(GRADES_STATE_KEY, gradesMap)
+    gradesState.value = gradesMap
+    console.log('✅ 成绩状态已同步:', gradesMap)
+  } catch (e) {
+    console.error('同步成绩状态失败:', e)
   }
 }
 
@@ -453,7 +518,7 @@ const submissionState = ref({})
 const gradesState = ref({})
 function isRowSubmitted(row) {
   const id = String(row?.id ?? row?.assignmentId ?? '')
-  const state = submissionState.value 
+  const state = submissionState.value
   return !!(id && state[id] && state[id].status === 'submitted')
 }
 function getRowScore(row) {
@@ -474,25 +539,24 @@ const accept = computed(() => {
 onMounted(async () => {
   try {
     await getGroupInfo()
-    console.log('✅ 获取小组信息完成, groupInfo:', groupInfo.value)
+    console.log('✅ 获取小组提交作业记录完成, groupInfo:', groupInfo.value)
     console.log('✅ groupId:', groupId.value)
-    
-    // 从服务器同步小组提交状态（必须在获取小组信息之后）
+
     await syncSubmissionStateFromServer()
     console.log('✅ 同步提交状态完成, submissionState:', submissionState.value)
-    
+
     const data = await getTeachAssignments()
     console.log("获取教师分配的作品:",data)
     if (data?.code === 200 && Array.isArray(data?.data) && data.data.length > 0) {
-      const first = data.data[0] || {}
-      const dl = first.deadline || first.endTime || first.dueTime || first.dueDate
+      const first = data.data[0]
+      const dl = first.dueDate
       if (dl) {
         const text = String(dl)
       deadlineText.value = text.startsWith('截止') ? text : `截止时间：${text}`
       }
     }
     try { applyRequirements(data || {}) } catch (e) { console.error(e) }
-    
+
       const serverAssignments = normalizeAssignments(data || {})
       if (serverAssignments.length > 0) assignments.value = serverAssignments
     try {
@@ -512,7 +576,7 @@ onMounted(async () => {
   // 取消虚拟数据兜底：仅展示后端返回的数据
 
   // 仍保留状态读取（用于其他文案或权限），但不影响提交方式
-   loadGroupStatusFromStorage() 
+   loadGroupStatusFromStorage()
   // 注意：不再调用 loadSubmissionState()，因为已经通过 syncSubmissionStateFromServer() 同步了
   // 如果 syncSubmissionStateFromServer() 失败（例如没有小组信息），则从 LocalStorage 读取
   if (!groupInfo.value?.groupId) {
@@ -617,7 +681,7 @@ function validateSingleFile(file) {
     ElMessage.error(`文件大小超限（最大 ${maxMB}MB）: ${file.name}`)
     return false
   }
-  
+
   if (!isTypeAllowed(file)) {
     const allowTip = accept.value || '格式受限'
     ElMessage.error(`文件类型不被允许: ${file.name}（允许: ${allowTip}）`)
@@ -854,6 +918,27 @@ async function fetchGrades(row) {
     })
     
     console.log("最终的 gradeMembers:", gradeMembers.value)
+    
+    // 🔥 关键：更新 gradesState，记录该作业已有成绩
+    if (key && list.length > 0) {
+      // 计算小组平均分（如果需要）或使用第一个成员的分数
+      const firstScore = list.find(m => {
+        return m.score != null || m.grade != null || m.totalScore != null || 
+               m.finalScore != null || m.memberScore != null || m.points != null
+      })
+      
+      if (firstScore) {
+        const scoreValue = firstScore.score ?? firstScore.grade ?? firstScore.totalScore ?? 
+                          firstScore.finalScore ?? firstScore.memberScore ?? firstScore.points
+        
+        const state = readJson(GRADES_STATE_KEY, {})
+        state[key] = { score: Number(scoreValue), at: Date.now() }
+        writeJson(GRADES_STATE_KEY, state)
+        gradesState.value = state
+        console.log(`✅ 已更新成绩状态: 作业ID=${key}, 成绩=${scoreValue}`)
+      }
+    }
+    
     console.log("========================================")
   } catch (e) {
     console.error('获取成绩失败', e)
@@ -915,7 +1000,7 @@ async function submitWork() {
     // 调用后端上传接口
     console.log('开始上传到:', `${BASE_URL}/submission/upload`)
     const response = await axios.post(`${BASE_URL}/submission/upload`, formData, {
-      headers: { 
+      headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}` ,
         'Content-Type': 'multipart/form-data'
       }
@@ -931,7 +1016,7 @@ async function submitWork() {
           description: submissionForm.value.description,
           files: submissionForm.value.files
         }
-        
+
         const newSubmissionId = response?.data?.data?.submissionId || response?.data?.data?.id || response?.data?.submissionId || null
         const state = readJson(SUBMIT_STATE_KEY, {})
         state[key] = {status: 'submitted', by: String(currentUserName.value || ''), at: Date.now(), lastPayload: payload, submissionId: newSubmissionId}
@@ -963,19 +1048,122 @@ async function submitWork() {
     }
 }
 
-function openEdit(row) {
+async function openEdit(row) {
   openDetail(row)
   isEditing.value = true
+
+  // 从服务器获取已提交的作业详情
+  const assignmentId = row?.id || row?.assignmentId
+  const currentGroupId = groupInfo.value?.groupId || groupId.value
+
+  console.log('========== 点击修改，获取已提交作业详情 ==========')
+  console.log('assignmentId:', assignmentId, 'groupId:', currentGroupId)
+
+  if (currentGroupId) {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await axios.get(`${BASE_URL}/submission/my-group`, {
+        params: { groupId: currentGroupId },
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      console.log('小组提交记录接口响应:', res.data)
+
+      if (res.data.code === 200 && Array.isArray(res.data.data)) {
+        const submissions = res.data.data
+        console.log('所有提交记录:', submissions)
+        console.log('提交记录数量:', submissions.length)
+
+        // 查找当前作业的提交记录
+        const submittedWork = submissions.find(sub =>
+          String(sub.assignmentId) === String(assignmentId)
+        )
+
+        console.log('找到的提交记录:', submittedWork)
+
+        if (submittedWork) {
+          console.log('🔍 解析提交记录数据:', submittedWork)
+
+          // 填充表单数据
+          submissionForm.value.title = submittedWork.title || submittedWork.submissionTitle || ''
+          submissionForm.value.description = submittedWork.submissionContent || submittedWork.content || submittedWork.description || ''
+
+          console.log('标题:', submissionForm.value.title)
+          console.log('描述:', submissionForm.value.description)
+
+          // 处理已上传的文件 - submissionFiles 是 JSON 字符串
+          let filesList = []
+          try {
+            // 尝试解析 submissionFiles
+            const filesStr = submittedWork.submissionFiles || submittedWork.files || submittedWork.fileUrl
+            console.log('文件字段原始值:', filesStr)
+
+            if (typeof filesStr === 'string' && filesStr.trim().startsWith('[')) {
+              // 是 JSON 字符串数组
+              filesList = JSON.parse(filesStr)
+              console.log('解析后的文件数组:', filesList)
+            } else if (typeof filesStr === 'string' && filesStr) {
+              // 是单个文件URL字符串
+              filesList = [{
+                fileName: submittedWork.fileName || submittedWork.name || filesStr.split('/').pop(),
+                fileUrl: filesStr
+              }]
+            } else if (Array.isArray(filesStr)) {
+              // 已经是数组
+              filesList = filesStr
+            }
+
+            // 转换为 el-upload 需要的格式
+            if (filesList.length > 0) {
+              submissionForm.value.files = filesList.map((file, index) => ({
+                name: file.fileName || file.name || file.fileUrl?.split('/').pop() || `文件${index + 1}`,
+                url: file.fileUrl || file.url || file.path,
+                uid: Date.now() + index,
+                status: 'success'
+              }))
+              console.log('✅ 已填充文件列表:', submissionForm.value.files)
+            } else {
+              submissionForm.value.files = []
+              console.log('⚠️ 没有文件')
+            }
+          } catch (e) {
+            console.error('解析文件失败:', e)
+            submissionForm.value.files = []
+          }
+
+          console.log('✅ 成功填充表单数据:', {
+            title: submissionForm.value.title,
+            description: submissionForm.value.description,
+            files: submissionForm.value.files
+          })
+          console.log('==================================================')
+          return // 成功获取，直接返回
+        } else {
+          console.log('❌ 未找到该作业的提交记录')
+        }
+      }
+    } catch (error) {
+      console.error('❌ 从服务器获取作业详情失败:', error)
+    }
+  }
+
+  // 如果从服务器获取失败，尝试从本地缓存读取
+  console.log('⚠️ 尝试从本地缓存读取')
   try {
     const state = readJson(SUBMIT_STATE_KEY, {})
-    const id = String(row?.id ?? row?.assignmentId ?? '')
+    const id = String(assignmentId ?? '')
     const last = id ? state[id]?.lastPayload : null
     if (last && typeof last === 'object') {
       submissionForm.value.title = last.title || ''
       submissionForm.value.description = last.description || ''
       submissionForm.value.files = Array.isArray(last.files) ? last.files : []
+      console.log('✅ 从本地缓存读取成功:', last)
+    } else {
+      console.log('❌ 本地缓存中没有数据')
     }
-  } catch {}
+  } catch (err) {
+    console.error('读取本地缓存失败:', err)
+  }
 }
 
 async function submitWorkUpdate() {
@@ -1103,13 +1291,13 @@ async function submitWorkUpdate() {
   width: 100%;
 }
 
-.assignment-list { 
-  background:#fff; 
-  border:1px solid #e5e7eb; 
-  border-radius:12px; 
-  padding:22px; 
-  margin-bottom:16px; 
-  box-shadow: 0 2px 6px rgba(0,0,0,.04); 
+.assignment-list {
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  padding:22px;
+  margin-bottom:16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.04);
 }
 
 .submission-form {
@@ -1122,7 +1310,7 @@ async function submitWorkUpdate() {
 }
 
 .form-row {
-  margin-bottom: 14px; 
+  margin-bottom: 14px;
 }
 
 .form-bottom-bar {
@@ -1148,13 +1336,13 @@ async function submitWorkUpdate() {
   color: #334155;
   font-size: 13px;
 }
-.requirements-box ul { 
-  margin: 6px 0 0 18px; 
+.requirements-box ul {
+  margin: 6px 0 0 18px;
   padding: 0;
   list-style: none;
 }
-.requirements-box li { 
-  line-height: 1.8; 
+.requirements-box li {
+  line-height: 1.8;
 }
 
 .attachments {

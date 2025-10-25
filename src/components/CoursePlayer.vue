@@ -10,7 +10,7 @@
         <aside class="course-sidebar">
           <div class="sidebar-title">
             课程目录
-            <span class="overall-badge" :title="'本课程整体学习进度'">
+            <span class="overall-badge" :title="'本课程整体学习进度，原始值: ' + overallProgress">
               {{ Math.round(overallProgress * 100) }}%
             </span>
           </div>
@@ -189,10 +189,12 @@ const emit = defineEmits(['update:modelValue', 'progress'])
 
 const visible = ref(false)
 watch(() => props.modelValue, v => { visible.value = v })
-function close() {
+async function close() {
   if (isTheatre.value) {
     isTheatre.value = false
   }
+  stopWatchTimerAndAccumulate()
+  await reportAndReset()
   lockScroll(false)
   emit('update:modelValue', false)
 }
@@ -212,7 +214,7 @@ const flatChapters = computed(() => {
       }
     })
   }
-  process(props.chapters || [])
+  process(props.chapters)
   return result
 })
 
@@ -326,6 +328,59 @@ function selectEpisode(i) {
 const currentProgress = ref(0)
 const overallProgress = ref(0)
 
+// 获取课程整体进度
+async function fetchOverallProgress() {
+  try {
+    const studentId = localStorage.getItem('userId')
+    const courseId = props.courseId || flatChapters.value?.[0]?.courseId
+    if (!studentId || !courseId) {
+      console.log('[CoursePlayer] 缺少必要参数，studentId:', studentId, 'courseId:', courseId)
+      return
+    }
+    
+    const token = localStorage.getItem('token')
+    console.log('[CoursePlayer] 请求课程进度，studentId:', studentId, 'courseId:', courseId)
+    const res = await axios.get(`${BASE_URL}/progress/course/all`, {
+      params: { studentId, courseId },
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    
+    console.log('[CoursePlayer] 获取课程进度结果:', res.data)
+    if (res?.data?.code === 200) {
+      const data = res?.data?.data
+      console.log('[CoursePlayer] data内容:', data)
+      
+      // 获取当前视频的 videoId
+      const ch = flatChapters.value?.[currentIndex.value]
+      const currentVideoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? (currentIndex.value + 1)
+      console.log('[CoursePlayer] 当前视频ID:', currentVideoId, '当前索引:', currentIndex.value)
+      
+      // 从 videos 数组中查找当前视频的进度
+      let percentage = 0
+      if (Array.isArray(data?.videos)) {
+        const currentVideo = data.videos.find(v => 
+          v.videoId === currentVideoId || 
+          v.id === currentVideoId ||
+          v.courseId === currentVideoId
+        )
+        console.log('[CoursePlayer] 找到的视频数据:', currentVideo)
+        
+        if (currentVideo && typeof currentVideo.percentage === 'number') {
+          percentage = currentVideo.percentage
+          console.log('[CoursePlayer] 当前视频进度:', percentage + '%')
+        } else {
+          console.log('[CoursePlayer] 未找到当前视频进度，使用默认值0')
+        }
+      }
+      
+      overallProgress.value = percentage / 100
+      console.log('[CoursePlayer] 设置显示进度:', percentage + '%', '转换后:', overallProgress.value)
+    }
+  } catch (e) {
+    console.error('[CoursePlayer] 获取课程进度失败:', e)
+  }
+}
+
 // 观看时长统计与上报
 const lastPlayRealStartMs = ref(0)
 const unreportedWatchedSec = ref(0)
@@ -347,6 +402,12 @@ async function reportCourseProgress(deltaSec) {
     console.log('[CoursePlayer] 观看时长上报结果', res.data)
     if (res?.data?.code === 200) {
       console.log('观看时长上报成功')
+      // 更新整体进度
+      const percentage = res?.data?.data?.percentage ?? res?.data?.percentage
+      if (typeof percentage === 'number') {
+        overallProgress.value = percentage / 100 // 将百分比转换为 0-1 范围
+        console.log('[CoursePlayer] 更新整体进度:', percentage + '%')
+      }
     }
   } catch (e) {
     console.error('观看时长上报失败', e)
@@ -368,7 +429,8 @@ function stopWatchTimerAndAccumulate() {
 async function reportAndReset() {
   const sec = unreportedWatchedSec.value
   unreportedWatchedSec.value = 0
-  if (sec > 0) await reportCourseProgress(sec)
+  if (sec > 0) 
+    await reportCourseProgress(sec)
 }
 
 
@@ -463,11 +525,9 @@ async function togglePlay() {
   const el = player.value
   if (!el) return
   if (el.paused) {
-    try {
-      if (!el.currentSrc || !el.src || el.readyState < 2) {
-        await choosePlayableAndLoad(currentSrc.value)
-      }
-    } catch {}
+    if (!el.currentSrc || !el.src || el.readyState < 2) {
+      await choosePlayableAndLoad(currentSrc.value)
+    }
     el.play()
     isPlaying.value = true
     startWatchTimerIfNeeded()
@@ -528,7 +588,6 @@ function parseDurationSec(obj) {
   }
   return 0
 }
-
 
 const backendDurationsSec = computed(() => {
   return (flatChapters.value || []).map(ch => parseDurationSec(ch))
@@ -636,6 +695,7 @@ function prev() {
 
 async function next() {
   if (currentIndex.value < totalCount.value - 1) {
+    // 切换前先上报当前小节的观看进度
     stopWatchTimerAndAccumulate()
     await reportAndReset()
     if (hasChapters.value) {
@@ -672,12 +732,14 @@ onMounted(() => {
   try { window.addEventListener('keydown', handleKeydown) } catch (e) { console.error(e) }
   // 进入播放器时，如果自动播放或用户立即播放，会开始计时
   // 每次进入播放器即预取一次题目（按当前小节）
-  try { prefetchQuestions() } catch (e) { console.error(e) }
+  prefetchQuestions()
 })
 watch(currentIndex, (v) => {
   if (v != null && totalCount.value > 0) {
     const t = hasChapters.value ? (flatChapters.value[v]?.title || `第${v + 1}集`) : `第${v + 1}集`
     showEnterTip(t)
+    // 切换视频时重新获取进度
+    fetchOverallProgress()
   }
 }, { immediate: true })
 
@@ -687,7 +749,9 @@ watch(visible, (v) => {
   }
   // 每次打开弹窗时预取一次（保障刷新后立即可用）
   if (v) {
-    try { prefetchQuestions() } catch (e) { console.error(e) }
+    // 获取课程整体进度
+    fetchOverallProgress()
+    prefetchQuestions() 
   }
 })
 
@@ -818,14 +882,14 @@ function maybeAskByProgress(p) {
     if (pct >= 0.4 && !asked40.value) {
       asked40.value = true
       if (!prefetchedExam.value) {
-        prefetchQuestions().finally(() => { try { showQuestionFromPool(0) } catch (e) { console.error(e) } })
+        prefetchQuestions().finally(() => { showQuestionFromPool(0)})
       } else {
         showQuestionFromPool(0)
       }
     } else if (pct >= 0.8 && !asked80.value) {
       asked80.value = true
       if (!prefetchedExam.value) {
-        prefetchQuestions().finally(() => { try { showQuestionFromPool(1) } catch (e) { console.error(e) } })
+        prefetchQuestions().finally(() => {showQuestionFromPool(1) })
       } else {
         showQuestionFromPool(1)
       }
