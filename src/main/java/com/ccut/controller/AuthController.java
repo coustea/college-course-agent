@@ -44,19 +44,30 @@ public class AuthController {
 
             // 查询数据库用户
             User dbUser = userMapper.getUserByUsername(user.getUsername());
-            log.info("userId,{}", dbUser.getId());
             if (dbUser == null) {
                 log.warn("账号不存在: {}", user.getUsername());
                 return Result.error(401, "账号不存在");
             }
+            log.info("用户登录: userId={}, username={}", dbUser.getId(), dbUser.getUsername());
 
-            //  密码校验
-            if (!dbUser.getPassword().equals(user.getPassword())) {
-                log.warn("密码错误: {}", user.getUsername());
-                return Result.error(401, "密码错误");
+        //  密码校验
+        if (!dbUser.getPassword().equals(user.getPassword())) {
+            log.warn("密码错误: {}", user.getUsername());
+            return Result.error(401, "密码错误");
+        }
+
+        // 角色校验：确保前端选择的角色与数据库中的角色一致
+        if (user.getRole() != null) {
+            String frontendRole = user.getRole().toString().toLowerCase();
+            String dbRole = dbUser.getRole().toString().toLowerCase();
+            if (!frontendRole.equals(dbRole)) {
+                log.warn("角色不匹配: 用户={}, 数据库角色={}, 前端选择角色={}", 
+                         user.getUsername(), dbRole, frontendRole);
+                return Result.error(403, "角色选择错误，请选择正确的角色");
             }
+        }
 
-            // 生成 Token
+        // 生成 Token
             String token = JWTUtils.generateToken(dbUser.getUsername());
             log.info("用户 {} 登录成功", dbUser.getUsername());
 
