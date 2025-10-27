@@ -38,16 +38,32 @@
       <template #header>
         <div class="card-header">
           <span>学生学习进度列表</span>
-          <el-input
-            v-model="searchText"
-            placeholder="搜索学生姓名或学号"
-            style="width: 300px;"
-            clearable
-          >
-            <template #prefix>
-              <i class="fas fa-search"></i>
-            </template>
-          </el-input>
+          <div style="display: flex; gap: 12px;">
+            <el-select
+              v-model="selectedClass"
+              placeholder="选择班级"
+              clearable
+              style="width: 200px;"
+            >
+              <el-option label="全部班级" value="" />
+              <el-option
+                v-for="cls in classList"
+                :key="cls"
+                :label="cls"
+                :value="cls"
+              />
+            </el-select>
+            <el-input
+              v-model="searchText"
+              placeholder="搜索学生姓名或学号"
+              style="width: 300px;"
+              clearable
+            >
+              <template #prefix>
+                <i class="fas fa-search"></i>
+              </template>
+            </el-input>
+          </div>
         </div>
       </template>
 
@@ -203,28 +219,49 @@ const courseName = ref('')
 const loading = ref(false)
 const studentProgressList = ref([])
 const searchText = ref('')
+const selectedClass = ref('')
 const detailVisible = ref(false)
 const currentStudent = ref(null)
 const detailVideoProgress = ref([])
 const detailDocProgress = ref([])
 const detailExamAccuracy = ref(-1)
 
-const totalStudents = computed(() => studentProgressList.value.length)
-const averageProgress = computed(() => {
-  if (studentProgressList.value.length === 0) return 0
-  const sum = studentProgressList.value.reduce((acc, s) => acc + (s.progress || 0), 0)
-  return sum / studentProgressList.value.length
+// 提取所有班级列表
+const classList = computed(() => {
+  const classes = new Set()
+  studentProgressList.value.forEach(s => {
+    if (s.className) classes.add(s.className)
+  })
+  return Array.from(classes).sort()
 })
-const completedStudents = computed(() => studentProgressList.value.filter(s => s.progress >= 100).length)
+
+const totalStudents = computed(() => filteredStudentProgress.value.length)
+const averageProgress = computed(() => {
+  if (filteredStudentProgress.value.length === 0) return 0
+  const sum = filteredStudentProgress.value.reduce((acc, s) => acc + (s.progress || 0), 0)
+  return sum / filteredStudentProgress.value.length
+})
+const completedStudents = computed(() => filteredStudentProgress.value.filter(s => s.progress >= 100).length)
 
 const filteredStudentProgress = computed(() => {
+  let result = studentProgressList.value
+  
+  // 按班级筛选
+  if (selectedClass.value) {
+    result = result.filter(s => s.className === selectedClass.value)
+  }
+  
+  // 按姓名/学号搜索
   const q = searchText.value.toLowerCase().trim()
-  if (!q) return studentProgressList.value
-  return studentProgressList.value.filter(s => {
-    const name = String(s.name || '').toLowerCase()
-    const no = String(s.studentNumber || '').toLowerCase()
-    return name.includes(q) || no.includes(q)
-  })
+  if (q) {
+    result = result.filter(s => {
+      const name = String(s.name || '').toLowerCase()
+      const no = String(s.studentNumber || '').toLowerCase()
+      return name.includes(q) || no.includes(q)
+    })
+  }
+  
+  return result
 })
 
 const progressColor = (pct) => {
