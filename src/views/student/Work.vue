@@ -16,8 +16,7 @@
             <template #default="{ row }">
               <!-- 3️⃣ 已批改状态 -->
               <template v-if="getRowScore(row) != null">
-                <span style="color:#16a34a;font-weight:600;">成绩：{{ getRowScore(row) }}分</span>
-                <el-button style="margin-left:8px" size="small" @click="openGrade(row)">查看成绩</el-button>
+                <el-button size="small" @click="openGrade(row)">查看成绩</el-button>
                 <el-tooltip :disabled="canSubmitWork" content="仅组长可修改" placement="top">
                   <span>
                     <el-button type="warning" size="small" :disabled="!canSubmitWork" style="margin-left:8px" @click="openEdit(row)">修改</el-button>
