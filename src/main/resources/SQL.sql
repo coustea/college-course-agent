@@ -238,7 +238,6 @@ submitted_by BIGINT NOT NULL COMMENT '提交人ID（通常为组长）',
 class_name VARCHAR(100) COMMENT '班级名称',
 submission_content TEXT COMMENT '提交说明/描述',
 submission_files JSON COMMENT '学生上传的作品文件（JSON）',
-group_comment VARCHAR(500) COMMENT '教师对整个小组作业的评语（最多500字）',
 submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',
 status VARCHAR(20) DEFAULT 'submitted' COMMENT '提交状态(submitted, graded, returned, resubmitted)',
 created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -321,3 +320,6 @@ FOREIGN KEY (question_id) REFERENCES ai_exam_questions(id) ON DELETE CASCADE,
 INDEX idx_attempt (attempt_id),
 INDEX idx_question (question_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 试卷作答';
+
+ALTER TABLE student_submissions
+ADD COLUMN group_comment VARCHAR(500) COMMENT '教师对整个小组作业的评语（最多500字）';
