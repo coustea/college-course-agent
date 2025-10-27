@@ -714,7 +714,7 @@ function applyRequirements(data) {
 
   // 文件数量
   let maxFiles = d.maxFiles
-  if (has(r, 'maxFiles')) maxFiles = Number(r.maxFiles) || 0
+  if (has(r, 'maxFiles')) maxFiles = Number(r.maxFiles)
   else if (has(r, 'fileLimit')) maxFiles = Number(r.fileLimit) || 0
 
   // 单文件大小（MB）
