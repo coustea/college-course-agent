@@ -50,7 +50,10 @@ export async function fetchHomeCourses(signal) {
                 const videoChapters = videos.map((v, i) => ({
                     title: v.title || v.name || `第${i + 1}集`,
                     duration: v.duration,
-                    videoUrl: toUrl(v.url || v.videoUrl || v.resourceUrl || '')
+                    videoUrl: toUrl(v.url || v.videoUrl || v.resourceUrl || ''),
+                    // 传递后端的唯一标识，便于统计上报
+                    videoId: v.videoId ?? v.id ?? v.videoIndex ?? (i + 1),
+                    courseId: c.courseId ?? c.id ?? null
                 }))
                 const docChapters = docs.map((d, i) => ({
                     title: d.title || d.name || d.docTitle || `第${i + 1}节`,

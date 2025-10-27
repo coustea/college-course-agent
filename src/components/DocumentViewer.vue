@@ -158,7 +158,12 @@ const flatChapters = computed(() => {
 })
 const currentIndex = ref(Math.max(0, (props.chapterIndex || 1) - 1))
 watch(() => props.modelValue, (v) => {
-  if (v) currentIndex.value = Math.max(0, (props.chapterIndex || 1) - 1)
+  if (v) {
+    currentIndex.value = Math.max(0, (props.chapterIndex || 1) - 1)
+    // 立即同步进度展示
+    console.log('[DocumentViewer]文档打开，立即同步进度')
+    syncDocumentProgressFromCourse(false).catch(e => console.error(e))
+  }
 })
 // 切换章节时重置答题状态
 watch(currentIndex, () => {
@@ -168,7 +173,8 @@ watch(currentIndex, () => {
   quizStarted.value = false
   isClosing.value = false  // 重置关闭标志
   console.log('[DocumentViewer]切换章节，重置答题状态')
-  try { syncDocumentProgressFromCourse() } catch (e) { console.error(e) }
+  // 同步进度时不重置答题状态（仅读取后端进度，不清空本地答题记录）
+  try { syncDocumentProgressFromCourse(false) } catch (e) { console.error(e) }
 })
 const currentChapter = computed(() => flatChapters.value[currentIndex.value] || {
   title: props.title,
@@ -220,34 +226,22 @@ function isAbsoluteUrl(u) {
   return /^https?:\/\//.test(u)
 }
 
-function isPrivateUrl(u) {
-  try {
-    const loc = new URL(u)
-    const host = loc.hostname
-    if (host === 'localhost' || host === '127.0.0.1') return true
-    if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)) return true
-  } catch (e) { 
-    return false
-  }
-  return false
-}
-
 const viewerSrc = computed(() => {
   const url = normalizedFileUrl.value
   if (!url) return ''
   const isOffice = ["doc","docx","ppt","pptx","xls","xlsx"].includes(fileExt.value)
   
-  if (isOffice) {
-    // 对于 Office 文件，只有绝对 URL 才能使用在线预览
-    if (isAbsoluteUrl(url)) {
-      // 只有公网地址才能使用 Microsoft Office Apps 预览
-      if (!isPrivateUrl(url)) {
-        return `https://view.officeapps.live.com/op/view.aspx?ui=en-US&src=${encodeURIComponent(url)}`
-      }
-    }
-   
-    return ''
-  }
+  // if (isOffice) {
+  //   // 对于 Office 文件，只有绝对 URL 才能使用在线预览
+  //   if (isAbsoluteUrl(url)) {
+  //     // 只有公网地址才能使用 Microsoft Office Apps 预览
+  //     if (!isPrivateUrl(url)) {
+  //       return `https://view.officeapps.live.com/op/view.aspx?ui=en-US&src=${encodeURIComponent(url)}`
+  //     }
+  //   }
+  //
+  //   return ''
+  // }
   
   return url
 })
@@ -264,7 +258,7 @@ async function close() {
   emit('update:modelValue', false)
 }
 
-async function syncDocumentProgressFromCourse() {
+async function syncDocumentProgressFromCourse(resetQuizState = false) {
   try {
     const studentId = localStorage.getItem('userId')
     const courseId = props.id
@@ -275,15 +269,19 @@ async function syncDocumentProgressFromCourse() {
       headers: { Authorization: `Bearer ${token}` }
     })
     console.log('[DocumentViewer]同步文档进度结果:', res.data)
-    const data = res?.data?.data || res?.data
+    const data = res.data.data
     if (!data) return
-    const docs = Array.isArray(data.documents) ? data.documents : []
+    const docs =  data.documents
     const docId = (Number(currentIndex.value) || 0) + 1
-    const cur = docs.find(d => String(d.documentId || d.id) === String(docId))
+    const cur = docs.find(d => String(d.documentId) === String(docId))
     if (cur) {
-      // 文档完成以 completed
       const completed = cur.completed === true 
-      readProgress.value = completed
+      readProgress.value = completed ? 1 : (readProgress.value || 0)
+      console.log('[DocumentViewer]同步进度 - 后端完成状态:', completed, '当前进度:', readProgress.value)
+      // 如果后端已完成，且不需要重置答题状态，则保留已答题记录
+      if (completed && !resetQuizState) {
+        console.log('[DocumentViewer]后端已完成，保留答题状态不重置')
+      }
     }
   } catch (e) { console.error('[DocumentViewer]同步文档进度失败', e) }
 }
@@ -559,9 +557,9 @@ onMounted(() => {
   } catch (e) {
     console.error(e)
   }
-  // 打开时同步一次课程进度，并据此设置当前文档进度
+  // 打开时同步一次课程进度，并据此设置当前文档进度（不重置答题状态）
   try {
-    syncDocumentProgressFromCourse()
+    syncDocumentProgressFromCourse(false)
   } catch (e) { console.error(e) }
 })
 onBeforeUnmount(() => {
@@ -639,7 +637,7 @@ watch(() => props.modelValue, (v) => {
     remainingIndex.value = -1
     answersSoFar.value = []
     quizStarted.value = false
-    isClosing.value = false  // 重置关闭标志
+    //isClosing.value = false  // 重置关闭标志
     console.log('[DocumentViewer]文档打开，重置所有答题状态')
   } else {
     document.removeEventListener('keydown', handleKeydown)
@@ -763,8 +761,10 @@ async function submitDocumentAnswersAndProgress() {
       })
       if (res2.data.code === 200) {
         console.log('[DocumentViewer]上报文档完成成功')
-        // 标记已看完
+        // 标记已看完（使用后端返回的进度，不再被本地滚动进度覆盖）
         readProgress.value = 1
+        // 同步后端进度，确保后续不被本地状态覆盖
+        await syncDocumentProgressFromCourse(false)
       }
     }
   } catch (e) {
