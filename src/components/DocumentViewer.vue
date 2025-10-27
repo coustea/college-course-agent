@@ -229,7 +229,7 @@ function isAbsoluteUrl(u) {
 const viewerSrc = computed(() => {
   const url = normalizedFileUrl.value
   if (!url) return ''
-  const isOffice = ["doc","docx","ppt","pptx","xls","xlsx"].includes(fileExt.value)
+  // const isOffice = ["doc","docx","ppt","pptx","xls","xlsx"].includes(fileExt.value)
   
   // if (isOffice) {
   //   // 对于 Office 文件，只有绝对 URL 才能使用在线预览
