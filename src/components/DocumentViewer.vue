@@ -229,20 +229,6 @@ function isAbsoluteUrl(u) {
 const viewerSrc = computed(() => {
   const url = normalizedFileUrl.value
   if (!url) return ''
-  // const isOffice = ["doc","docx","ppt","pptx","xls","xlsx"].includes(fileExt.value)
-  
-  // if (isOffice) {
-  //   // 对于 Office 文件，只有绝对 URL 才能使用在线预览
-  //   if (isAbsoluteUrl(url)) {
-  //     // 只有公网地址才能使用 Microsoft Office Apps 预览
-  //     if (!isPrivateUrl(url)) {
-  //       return `https://view.officeapps.live.com/op/view.aspx?ui=en-US&src=${encodeURIComponent(url)}`
-  //     }
-  //   }
-  //
-  //   return ''
-  // }
-  
   return url
 })
 
@@ -342,8 +328,7 @@ const currentAnalysis = ref('')
 const pendingNodeKey = ref('')
 const resolver = ref(null)
 const isClosing = ref(false)  
-const quizStarted = ref(false) 
-
+const quizStarted = ref(false)
 
 const allQuestionsAnswered = computed(() => {
   return quizStarted.value && answersSoFar.value.length >= 5

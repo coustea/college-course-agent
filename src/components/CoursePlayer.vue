@@ -261,14 +261,12 @@ function buildAltSources(src) {
 
 async function isReachable(url) {
   if (!url) return false
-  try {
     const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-1' }, cache: 'no-store' })
     if (res.ok) return true
-  } catch {}
   try {
     const res2 = await fetch(url, { method: 'HEAD', cache: 'no-store' })
     return res2.ok
-  } catch {}
+  } catch(e) { console.error(e) }
   return false
 }
 
@@ -283,13 +281,11 @@ async function choosePlayableAndLoad(preferred) {
     console.debug('[CoursePlayer] 尝试播放源:', u)
     const ok = await isReachable(u)
     if (ok) {
-      try {
         el.src = u
         el.load()
         await el.play?.()
         triedSources.value.add(u)
         return true
-      } catch {}
     }
     triedSources.value.add(u)
   }
