@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const fallbackBase = 'http://39.96.172.21/api'
+const fallbackBase = 'http://39.96.172.21:9999/api'
 
 export const api = axios.create({ baseURL: import.meta?.env?.VITE_API_BASE_URL || fallbackBase, timeout: 15000 })
 
