@@ -1,7 +1,7 @@
 <template>
   <div class="progress-page">
     <div class="header">
-      <el-page-header @back="goBack" :title="courseName || '课程进度管理'" />
+      <el-page-header @back="goBack" title="课程进度管理【新版本】" />
     </div>
 
     <div class="stats-cards">
@@ -40,6 +40,21 @@
           <span>学生学习进度列表</span>
           <div style="display: flex; gap: 12px;">
             <el-select
+              v-model="courseId"
+              placeholder="选择课程"
+              @change="onCourseChange"
+              filterable
+              style="width: 300px;"
+              :loading="courseList.length === 0"
+            >
+              <el-option
+                v-for="course in courseList"
+                :key="course.courseId || course.id"
+                :label="course.courseName || course.title || '未命名课程'"
+                :value="course.courseId || course.id"
+              />
+            </el-select>
+            <el-select
               v-model="selectedClass"
               placeholder="选择班级"
               clearable
@@ -56,7 +71,7 @@
             <el-input
               v-model="searchText"
               placeholder="搜索学生姓名或学号"
-              style="width: 300px;"
+              style="width: 250px;"
               clearable
             >
               <template #prefix>
@@ -215,7 +230,7 @@ api.interceptors.request.use((config) => {
 })
 
 const courseId = ref(null)
-const courseName = ref('')
+const courseList = ref([])
 const loading = ref(false)
 const studentProgressList = ref([])
 const searchText = ref('')
@@ -225,6 +240,12 @@ const currentStudent = ref(null)
 const detailVideoProgress = ref([])
 const detailDocProgress = ref([])
 const detailExamAccuracy = ref(-1)
+
+// 当前课程名称
+const courseName = computed(() => {
+  const course = courseList.value.find(c => (c.courseId || c.id) === courseId.value)
+  return course ? (course.courseName || course.title || '课程') : '课程'
+})
 
 // 提取所有班级列表
 const classList = computed(() => {
@@ -293,22 +314,42 @@ const goBack = () => {
   router.back()
 }
 
+// 加载教师的所有课程
+const loadCourseList = async () => {
+  try {
+    console.log('开始加载课程列表...')
+    const res = await api.get('/course/list')
+    console.log('课程列表接口响应:', res)
+    const body = res?.data
+    if (body && Number(body.code) === 200 && Array.isArray(body.data)) {
+      courseList.value = body.data
+      console.log('课程列表加载成功，共', courseList.value.length, '个课程:', courseList.value)
+    } else {
+      console.warn('课程列表数据格式不正确:', body)
+      courseList.value = []
+    }
+  } catch (err) {
+    console.error('加载课程列表失败:', err)
+    courseList.value = []
+  }
+}
+
+// 课程切换事件
+const onCourseChange = () => {
+  console.log('课程切换到:', courseId.value)
+  // 更新URL（不刷新页面）
+  router.replace(`/teacher/courses/${courseId.value}/progress`)
+  // 重新加载进度数据
+  loadCourseProgress()
+}
+
 // 加载课程下所有学生的进度
 const loadCourseProgress = async () => {
   loading.value = true
   try {
     console.log('开始加载课程进度，课程ID:', courseId.value)
     
-    // 1. 获取课程信息
-    const courseRes = await api.get(`/course/detail`, { params: { courseId: courseId.value } })
-    console.log('课程信息响应:', courseRes)
-    const courseBody = courseRes?.data
-    if (courseBody && Number(courseBody.code) === 200 && courseBody.data) {
-      courseName.value = courseBody.data.courseName || courseBody.data.title || '课程'
-      console.log('课程名称:', courseName.value)
-    }
-
-    // 2. 获取选课学生列表
+    // 1. 获取选课学生列表
     const enrollUrl = `/teacher/enrollments/students?courseId=${courseId.value}`
     console.log('请求选课学生列表:', enrollUrl)
     const enrollRes = await api.get(`/teacher/enrollments/students`, { params: { courseId: courseId.value } })
@@ -323,7 +364,7 @@ const loadCourseProgress = async () => {
       return
     }
 
-    // 3. 并发查询每个学生的进度和答题正确率
+    // 2. 并发查询每个学生的进度和答题正确率
     console.log('开始查询每个学生的进度...')
     const progressPromises = students.map(async (student) => {
       try {
@@ -455,14 +496,25 @@ const viewDetail = async (student) => {
   }
 }
 
-onMounted(() => {
-  courseId.value = Number(route.params.id || route.params.courseId)
-  console.log('CourseProgress mounted, courseId:', courseId.value, 'route.params:', route.params)
-  if (!courseId.value) {
-    console.error('课程ID不存在，返回课程列表')
-    router.push('/teacher/courses/list')
+onMounted(async () => {
+  // 先加载课程列表
+  await loadCourseList()
+  
+  // 设置当前课程ID
+  const routeCourseId = Number(route.params.id || route.params.courseId)
+  console.log('CourseProgress mounted, routeCourseId:', routeCourseId, 'route.params:', route.params)
+  
+  if (routeCourseId) {
+    courseId.value = routeCourseId
+  } else if (courseList.value.length > 0) {
+    // 如果没有指定课程ID，默认选择第一个课程
+    courseId.value = courseList.value[0].courseId || courseList.value[0].id
+  } else {
+    console.error('没有可用的课程')
     return
   }
+  
+  // 加载进度数据
   loadCourseProgress()
 })
 </script>

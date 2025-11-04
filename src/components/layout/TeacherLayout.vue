@@ -42,6 +42,12 @@
                 <i class="fas fa-plus-circle"></i>
                 <span>创建课程</span>
               </li>
+              <li class="submenu-item"
+                  :class="{active: $route.path.includes('/teacher/courses/') && $route.path.includes('/progress')}"
+                  @click="navigateTo('/teacher/courses/1/progress')">
+                <i class="fas fa-chart-line"></i>
+                <span>进度管理</span>
+              </li>
             </ul>
           </li>
 

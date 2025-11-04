@@ -24,7 +24,7 @@
       <el-radio-group v-model="applicationStatusFilter" @change="filterGroups">
         <el-radio-button label="">全部</el-radio-button>
         <el-radio-button label="pending">未审批</el-radio-button>
-        <el-radio-button label="approved">已同意</el-radio-button>
+        <el-radio-button label="approval">已同意</el-radio-button>
         <el-radio-button label="rejected">已驳回</el-radio-button>
       </el-radio-group>
     </div>
@@ -229,16 +229,23 @@ export default {
     // 过滤分组
     const filteredGroups = computed(() => {
       let result = groups.value
+      console.log('filteredGroups - 初始groups.value:', result)
+      console.log('filteredGroups - 初始数量:', result.length)
 
       if (courseFilter.value) {
         result = result.filter(group => group.courseId == courseFilter.value)
+        console.log('filteredGroups - 课程筛选后:', result.length)
       }
 
       // 根据申请状态筛选
       if (applicationStatusFilter.value) {
+        console.log('filteredGroups - 当前状态过滤器:', applicationStatusFilter.value)
+        console.log('filteredGroups - 过滤前每个小组的status:', result.map(g => ({ id: g.id, name: g.name, status: g.status })))
         result = result.filter(group => group.status === applicationStatusFilter.value)
+        console.log('filteredGroups - 状态筛选后:', result.length)
       }
 
+      console.log('filteredGroups - 最终结果:', result)
       return result
     })
 
@@ -255,9 +262,15 @@ export default {
       if (courseFilter.value) params.courseId = courseFilter.value
       if (applicationStatusFilter.value) params.approvalStatus = applicationStatusFilter.value
 
-      // 直接使用 POST 请求，因为 GET 方法不被允许
+      console.log('请求参数:', params)
+      console.log('courseFilter:', courseFilter.value)
+      console.log('applicationStatusFilter:', applicationStatusFilter.value)
+
+      // 使用 POST 请求，但将参数作为查询参数（URL params）而不是 body
       try {
-        return await api.post('/student-group/approvalStatus', params)
+        const result = await api.post('/student-group/approvalStatus', null, { params })
+        console.log('API响应:', result)
+        return result
       } catch (e) {
         console.error('请求分组数据失败:', e)
         throw e
@@ -268,8 +281,27 @@ export default {
       loading.value = true
       try {
         const res = await requestApprovalStatus()
+        console.log('=== 开始加载小组数据 ===')
+        console.log('后端返回原始数据:', res)
+        console.log('res.data:', res?.data)
         const raw = res?.data
+        console.log('raw:', raw)
+        console.log('raw.data:', raw?.data)
+        console.log('Array.isArray(raw?.data):', Array.isArray(raw?.data))
+        console.log('Array.isArray(raw):', Array.isArray(raw))
         const list = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : [])
+        console.log('解析后的列表:', list)
+        console.log('列表长度:', list.length)
+        // 打印每个小组的详细信息
+        list.forEach((g, index) => {
+          console.log(`小组${index + 1}:`, {
+            id: g.id,
+            name: g.name,
+            approvalStatus: g.approvalStatus,
+            status: g.status,
+            完整数据: g
+          })
+        })
         const groupsWithDetails = list.map((g) => {
           const id = g.id || g.groupId || g.group_id
           const courseIdVal = g.courseId || g.course_id || g.course?.id
@@ -322,7 +354,10 @@ export default {
           }
         })
 
+        console.log('处理后的分组数据:', groupsWithDetails)
+        console.log('处理后的分组数量:', groupsWithDetails.length)
         groups.value = groupsWithDetails
+        console.log('groups.value 赋值后:', groups.value)
         // 从分组聚合课程下拉
         const uniqueCourses = new Map()
         for (const g of groupsWithDetails) {

@@ -168,10 +168,10 @@
             </el-table>
 
             <h4 style="margin-top: 20px;">小组整体评语</h4>
-            <el-input
+                <el-input
               v-model="gradingForm.groupComment"
-              type="textarea"
-              :rows="4"
+                  type="textarea"
+                  :rows="4"
               :maxlength="500"
               show-word-limit
               placeholder="请输入对整个小组的评语（最多500字）"

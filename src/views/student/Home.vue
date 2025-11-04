@@ -97,6 +97,7 @@
     <DocumentViewer
         v-model="docVisible"
         :id="activeDoc?.id"
+        :course-id="activeDoc?.id || activeDoc?.courseId"
         :title="activeDoc?.title || '文档课程'"
         :file-url="activeDoc?.fileUrl || activeDoc?.url || ''"
         :html-content="activeDoc?.html || ''"
@@ -105,6 +106,7 @@
         :chapter-index="1"
         :progress="0"
         :image="activeDoc?.image || ''"
+        :enable-questions="!isTeacherCoursesPage"
         :duration="activeDoc?.duration || ''"
     />
 

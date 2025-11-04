@@ -63,7 +63,7 @@
         <div class="dashboard-card">
           <div class="card-header">
             <h3>最近课程</h3>
-            <router-link to="/teacher/courses" class="view-all">查看全部</router-link>
+            <router-link to="/teacher/courses/list" class="view-all">查看全部</router-link>
           </div>
           <div class="card-content">
             <div v-if="loading.recentCourses" class="loading">
@@ -256,7 +256,7 @@ import { useRouter } from 'vue-router'
 import { Bell } from '@element-plus/icons-vue'
 
 // 动态后端基址 + Token 拦截（与其他页面保持一致）
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   try {
@@ -367,35 +367,94 @@ const fetchTeacherInfo = async () => {
   loadCurrentTeacher()
 }
 
-// 获取统计数据（基于 /api/teacher/videos 与 /api/student-group/approvalStatus）
+// 获取统计数据（所有课程和所有学生的总数）
 const fetchStats = async () => {
   try {
     loadCurrentTeacher()
-    const requests = []
-    if (teacherId.value) {
-      requests.push(api.get('/teacher/videos', { params: { teacherId: teacherId.value } }))
-    } else {
-      requests.push(Promise.resolve({ data: { data: { courses: [] } } }))
-    }
-    // 分组总数（全部）
-    requests.push(api.post('/student-group/approvalStatus'))
-
-    const [videosRes, groupsRes] = await Promise.all(requests)
-    const vr = videosRes?.data
-    const vdata = vr?.data || vr
-    const courses = Array.isArray(vdata?.courses) ? vdata.courses : []
-
+    
+    // 获取所有课程和所有分组
+    const [coursesRes, groupsRes] = await Promise.all([
+      api.get('/course/list'),  // 获取所有课程，不按教师过滤
+      api.post('/student-group/approvalStatus')
+    ])
+    
+    // 处理课程数据
+    const courseBody = coursesRes?.data
+    const allCourses = (courseBody && Number(courseBody.code) === 200 && Array.isArray(courseBody.data)) ? courseBody.data : []
+    
+    // 处理分组数据
     const gr = groupsRes?.data
     const groupList = Array.isArray(gr?.data) ? gr.data : (Array.isArray(gr) ? gr : [])
 
-    const courseCount = courses.length
-    const studentCount = courses.reduce((sum, c) => sum + (c?.studentCount || 0), 0)
-    const avgCompletion = courseCount === 0 ? 0 : Math.round((courses.reduce((sum, c) => sum + (c?.completionRate || 0), 0) / courseCount))
+    const courseCount = allCourses.length
+    
+    // 获取所有学生总数（从所有课程的选课记录中去重）
+    let uniqueStudentCount = 0
+    let totalCompletionRate = 0
+    let courseWithProgressCount = 0
+    
+    if (courseCount > 0) {
+      try {
+        const studentSet = new Set()
+        const courseIds = allCourses.map(c => c.courseId || c.id).filter(Boolean)
+        
+        // 并发查询每门课程的选课学生和进度
+        const enrollmentPromises = courseIds.map(async (courseId) => {
+          try {
+            const res = await api.get('/teacher/enrollments/students', { params: { courseId } })
+            const body = res?.data
+            const students = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
+            
+            // 为每个学生查询进度
+            if (students.length > 0) {
+              const progressPromises = students.map(async (s) => {
+                try {
+                  const pRes = await api.get('/progress/course', { params: { studentId: s.id, courseId } })
+                  const pBody = pRes?.data
+                  if (pBody && Number(pBody.code) === 200 && pBody.data) {
+                    let p = Number(pBody.data.completionPercentage || pBody.data.completion_percentage || pBody.data.coursePercent || 0)
+                    if (p >= 0 && p <= 1) p *= 100
+                    return Number.isFinite(p) ? Math.max(0, Math.min(100, p)) : 0
+                  }
+                  return 0
+                } catch { return 0 }
+              })
+              
+              const progressList = await Promise.all(progressPromises)
+              const sum = progressList.reduce((acc, p) => acc + p, 0)
+              totalCompletionRate += sum
+              courseWithProgressCount += students.length
+            }
+            
+            return students
+          } catch {
+            return []
+          }
+        })
+        
+        const allEnrollments = await Promise.all(enrollmentPromises)
+        // 将所有学生ID加入Set去重
+        allEnrollments.forEach(students => {
+          students.forEach(student => {
+            if (student.id) {
+              studentSet.add(student.id)
+            }
+          })
+        })
+        
+        uniqueStudentCount = studentSet.size
+      } catch (error) {
+        console.error('统计学生数量失败:', error)
+      }
+    }
+    
+    // 计算平均完成率
+    const avgCompletion = courseWithProgressCount === 0 ? 0 : Math.round(totalCompletionRate / courseWithProgressCount)
     const groupCount = groupList.length
 
     stats.value = {
       courseCount,
-      studentCount,
+      studentCount: uniqueStudentCount,
       completionRate: avgCompletion,
       assignmentCount: groupCount
     }
@@ -404,24 +463,65 @@ const fetchStats = async () => {
   }
 }
 
-// 获取最近课程（基于 /api/teacher/videos 的 courses）
+// 获取最近课程（显示所有课程）
 const fetchRecentCourses = async () => {
   loading.value.recentCourses = true
   try {
     loadCurrentTeacher()
-    if (!teacherId.value) { recentCourses.value = []; return }
-    const res = await api.get('/teacher/videos', { params: { teacherId: teacherId.value } })
-    const vr = res?.data
-    const vdata = vr?.data || vr
-    const courses = Array.isArray(vdata?.courses) ? vdata.courses : []
-    recentCourses.value = courses.slice(0, 8).map(c => ({
-      id: c.id || c.courseId,
-      title: c.title || c.courseName || '未命名课程',
-      date: formatDate(c.createTime || c.startDate || c.createdAt),
-      studentCount: c.studentCount || 0,
-      completionRate: c.completionRate || 0,
-      coverUrl: c.resourceUrl || c.image || ''
-    }))
+    // 获取所有课程
+    const res = await api.get('/course/list')
+    const body = res?.data
+    const allCourses = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
+    
+    // 为每门课程获取学生数和完成率
+    const coursesWithStats = await Promise.all(
+      allCourses.slice(0, 8).map(async (c) => {
+        const courseId = c.courseId || c.id
+        let studentCount = 0
+        let completionRate = 0
+        
+        try {
+          // 获取课程的选课学生
+          const enrollRes = await api.get('/teacher/enrollments/students', { params: { courseId } })
+          const enrollBody = enrollRes?.data
+          const students = (enrollBody && Number(enrollBody.code) === 200 && Array.isArray(enrollBody.data)) ? enrollBody.data : []
+          studentCount = students.length
+          
+          // 计算平均完成率
+          if (students.length > 0) {
+            const progressPromises = students.map(async (s) => {
+              try {
+                const pRes = await api.get('/progress/course', { params: { studentId: s.id, courseId } })
+                const pBody = pRes?.data
+                if (pBody && Number(pBody.code) === 200 && pBody.data) {
+                  let p = Number(pBody.data.completionPercentage || pBody.data.completion_percentage || pBody.data.coursePercent || 0)
+                  if (p >= 0 && p <= 1) p *= 100
+                  return Number.isFinite(p) ? Math.max(0, Math.min(100, p)) : 0
+                }
+                return 0
+              } catch { return 0 }
+            })
+            
+            const progressList = await Promise.all(progressPromises)
+            const sum = progressList.reduce((acc, p) => acc + p, 0)
+            completionRate = Math.round(sum / students.length)
+          }
+        } catch (error) {
+          console.error(`获取课程 ${courseId} 统计失败:`, error)
+        }
+        
+        return {
+          id: courseId,
+          title: c.courseName || c.title || '未命名课程',
+          date: formatDate(c.createTime || c.startDate || c.createdAt),
+          studentCount,
+          completionRate,
+          coverUrl: c.image || c.cover || c.resourceUrl || ''
+        }
+      })
+    )
+    
+    recentCourses.value = coursesWithStats
   } catch (error) {
     console.error('获取最近课程失败:', error)
     recentCourses.value = []
@@ -445,20 +545,57 @@ const fetchStudentActivities = async () => {
   }
 }
 
-// 获取课程统计（复用 /api/teacher/videos 的 courses）
+// 获取课程统计（显示所有课程的统计）
 const fetchCourseStats = async () => {
   loading.value.courseStats = true
   try {
     loadCurrentTeacher()
-    if (!teacherId.value) { courseStats.value = []; return }
-    const res = await api.get('/teacher/videos', { params: { teacherId: teacherId.value } })
-    const vr = res?.data
-    const vdata = vr?.data || vr
-    const courses = Array.isArray(vdata?.courses) ? vdata.courses : []
-    courseStats.value = courses.map(c => ({
-      courseName: c.title || c.courseName || '未命名课程',
-      completionRate: c.completionRate || 0
-    }))
+    // 获取所有课程
+    const res = await api.get('/course/list')
+    const body = res?.data
+    const allCourses = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
+    
+    // 为每门课程计算完成率
+    const statsPromises = allCourses.map(async (c) => {
+      const courseId = c.courseId || c.id
+      let completionRate = 0
+      
+      try {
+        // 获取课程的选课学生
+        const enrollRes = await api.get('/teacher/enrollments/students', { params: { courseId } })
+        const enrollBody = enrollRes?.data
+        const students = (enrollBody && Number(enrollBody.code) === 200 && Array.isArray(enrollBody.data)) ? enrollBody.data : []
+        
+        // 计算平均完成率
+        if (students.length > 0) {
+          const progressPromises = students.map(async (s) => {
+            try {
+              const pRes = await api.get('/progress/course', { params: { studentId: s.id, courseId } })
+              const pBody = pRes?.data
+              if (pBody && Number(pBody.code) === 200 && pBody.data) {
+                let p = Number(pBody.data.completionPercentage || pBody.data.completion_percentage || pBody.data.coursePercent || 0)
+                if (p >= 0 && p <= 1) p *= 100
+                return Number.isFinite(p) ? Math.max(0, Math.min(100, p)) : 0
+              }
+              return 0
+            } catch { return 0 }
+          })
+          
+          const progressList = await Promise.all(progressPromises)
+          const sum = progressList.reduce((acc, p) => acc + p, 0)
+          completionRate = Math.round(sum / students.length)
+        }
+      } catch (error) {
+        console.error(`获取课程 ${courseId} 统计失败:`, error)
+      }
+      
+      return {
+        courseName: c.courseName || c.title || '未命名课程',
+        completionRate
+      }
+    })
+    
+    courseStats.value = await Promise.all(statsPromises)
 
     // 更新图表
     updateChart()

@@ -67,13 +67,23 @@
       <div class="student-manager">
         <div class="toolbar">
           <el-input v-model="studentSearch" placeholder="搜索姓名或学号" clearable style="max-width: 300px;" />
+          <el-select v-model="selectedClassName" placeholder="选择班级（全部）" clearable style="max-width: 200px; margin-left: 10px;">
+            <el-option v-for="className in availableClasses" :key="className" :label="className" :value="className" />
+          </el-select>
           <div class="actions">
             <el-button type="primary" :loading="enrolling" :disabled="selectedToEnroll.length===0" @click="enrollSelectedStudents">加入选中学生</el-button>
           </div>
         </div>
+        <div class="student-count-info" v-if="studentTab === 'not'">
+          <span>未选课学生：{{ filteredNotEnrolledList.length }} 人</span>
+          <span v-if="selectedClassName" style="margin-left: 10px; color: #409eff;">（{{ selectedClassName }}）</span>
+        </div>
+        <div class="student-count-info" v-else>
+          <span>已选课学生：{{ filteredEnrolledList.length }} 人</span>
+        </div>
         <el-tabs v-model="studentTab">
           <el-tab-pane label="未选课学生" name="not">
-            <el-table :data="filteredNotEnrolledList" style="width: 100%" height="360" v-loading="studentLoading" @selection-change="onNotSelectionChange">
+            <el-table ref="notEnrolledTable" :data="filteredNotEnrolledList" style="width: 100%" height="360" v-loading="studentLoading" @selection-change="onNotSelectionChange">
               <el-table-column type="selection" width="48" fixed="left" />
               <el-table-column prop="studentNumber" label="学号" width="140" />
               <el-table-column prop="name" label="姓名" width="120" />
@@ -100,7 +110,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CoursePlayer from '/src/components/CoursePlayer.vue'
 import DocumentViewer from '/src/components/DocumentViewer.vue'
@@ -183,7 +193,7 @@ const loadCourses = async () => {
     const res = await api.get('/course/list')
     const body = res?.data
     const all = (body && Number(body.code) === 200 && Array.isArray(body.data)) ? body.data : []
-    const filtered = teacherId ? all.filter(c => Number(c.teacherId) === teacherId) : all
+    const filtered = all  // 所有教师都能看到所有课程
     
     // 为每个课程生成视频和文档的独立卡片
     const list = []
@@ -370,20 +380,50 @@ const managingCourse = ref(null)
 const enrolling = ref(false)
 const studentTab = ref('not')
 const selectedToEnroll = ref([])
+const selectedClassName = ref('')
+const notEnrolledTable = ref(null)
 
 const enrolledIds = ref(new Set())
 const notEnrolledList = computed(() => (studentList.value || []).filter(s => !enrolledIds.value.has(s.id)))
 const enrolledList = computed(() => (studentList.value || []).filter(s => enrolledIds.value.has(s.id)))
-const filteredNotEnrolledList = computed(() => {
-  const q = (studentSearch.value || '').toLowerCase().trim()
-  const arr = notEnrolledList.value
-  if (!q) return arr
-  return arr.filter(s => {
-    const name = String(s.name || '').toLowerCase()
-    const no = String(s.studentNumber || s.studentId || '').toLowerCase()
-    return name.includes(q) || no.includes(q)
+
+// 获取所有可用的班级（从未选课学生中提取）
+const availableClasses = computed(() => {
+  const classes = new Set()
+  notEnrolledList.value.forEach(s => {
+    const className = s.className || s.class_name
+    if (className) {
+      classes.add(className)
+    }
   })
+  return Array.from(classes).sort()
 })
+// 过滤未选课学生列表（按班级和搜索词过滤）
+const filteredNotEnrolledList = computed(() => {
+  let arr = notEnrolledList.value
+  
+  // 按班级过滤
+  if (selectedClassName.value) {
+    arr = arr.filter(s => {
+      const className = s.className || s.class_name
+      return className === selectedClassName.value
+    })
+  }
+  
+  // 按搜索关键词过滤
+  const q = (studentSearch.value || '').toLowerCase().trim()
+  if (q) {
+    arr = arr.filter(s => {
+      const name = String(s.name || '').toLowerCase()
+      const no = String(s.studentNumber || s.studentId || '').toLowerCase()
+      return name.includes(q) || no.includes(q)
+    })
+  }
+  
+  return arr
+})
+
+// 过滤已选课学生列表（按搜索词过滤）
 const filteredEnrolledList = computed(() => {
   const q = (studentSearch.value || '').toLowerCase().trim()
   const arr = enrolledList.value
@@ -399,8 +439,10 @@ const openStudentManager = async (course) => {
   studentManagerVisible.value = true
   studentTab.value = 'not'
   selectedToEnroll.value = []
+  selectedClassName.value = ''
   await fetchStudentLists()
 }
+
 const fetchStudentLists = async () => {
   try {
     studentLoading.value = true
@@ -418,29 +460,93 @@ const fetchEnrolledStudents = async () => {
     const base = (import.meta?.env?.VITE_API_BASE_URL || '/api')
     const cid = managingCourse.value?.id || managingCourse.value?.courseId
     if (!cid) { enrolledIds.value = new Set(); return }
-    const res = await fetch(`${base}/teacher/enrollments/students?courseId=${encodeURIComponent(cid)}`)
+    
+    const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+    
+    const res = await fetch(`${base}/teacher/enrollments/students?courseId=${encodeURIComponent(cid)}`, { headers })
     const raw = await res.json().catch(() => ({}))
     const list = (raw && Number(raw.code) === 200 && Array.isArray(raw.data)) ? raw.data : []
     enrolledIds.value = new Set(list.map(s => s.id))
-  } catch { enrolledIds.value = new Set() }
+    
+    console.log(`✓ 已加载 ${list.length} 名已选课学生`)
+  } catch (error) {
+    console.error('获取已选课学生失败:', error)
+    enrolledIds.value = new Set()
+  }
 }
 const onNotSelectionChange = (rows) => { selectedToEnroll.value = rows || [] }
 const enrollSelectedStudents = async () => {
   if (!managingCourse.value) return
   const cid = managingCourse.value.id || managingCourse.value.courseId
   if (!cid) return
-  const base = (import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:9999/api')
+  const base = (import.meta?.env?.VITE_API_BASE_URL || '/api')
   const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
   const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  
   try {
     enrolling.value = true
-    for (const stu of selectedToEnroll.value) {
-      const sid = stu.id; if (!sid) continue
-      await fetch(`${base}/teacher/enroll?studentId=${encodeURIComponent(sid)}&courseId=${encodeURIComponent(cid)}`, { method: 'POST', headers })
+    let successCount = 0
+    let failCount = 0
+    const total = selectedToEnroll.value.length
+    
+    // 同步逐个导入学生
+    for (let i = 0; i < selectedToEnroll.value.length; i++) {
+      const stu = selectedToEnroll.value[i]
+      const sid = stu.id
+      if (!sid) {
+        failCount++
+        continue
+      }
+      
+      try {
+        const res = await fetch(`${base}/teacher/enroll?studentId=${encodeURIComponent(sid)}&courseId=${encodeURIComponent(cid)}`, { 
+          method: 'POST', 
+          headers 
+        })
+        
+        const data = await res.json().catch(() => ({}))
+        
+        // 检查响应状态
+        if (res.ok && Number(data?.code) === 200) {
+          successCount++
+          console.log(`✓ 成功导入学生: ${stu.name || stu.studentNumber} (${i + 1}/${total})`)
+          
+          // 立即更新已选课学生ID集合，实现动态更新
+          enrolledIds.value = new Set([...enrolledIds.value, sid])
+        } else {
+          failCount++
+          console.error(`✗ 导入失败: ${stu.name || stu.studentNumber} - ${data?.message || res.status}`)
+        }
+      } catch (error) {
+        failCount++
+        console.error(`✗ 导入异常: ${stu.name || stu.studentNumber}`, error)
+      }
     }
-    alert('已加入所选学生')
-    studentManagerVisible.value = false
-  } catch { alert('操作失败，请稍后重试') } finally { enrolling.value = false }
+    
+    // 导入完成后再次刷新学生列表（确保数据一致性）
+    await fetchStudentLists()
+    
+    // 显示详细的结果反馈
+    if (failCount === 0) {
+      alert(`成功导入 ${successCount} 名学生！`)
+    } else {
+      alert(`导入完成！\n成功: ${successCount} 名\n失败: ${failCount} 名\n总计: ${total} 名`)
+    }
+    
+    // 清空选择
+    selectedToEnroll.value = []
+    
+    // 如果全部成功，关闭对话框
+    if (failCount === 0) {
+      studentManagerVisible.value = false
+    }
+  } catch (error) {
+    console.error('导入学生时发生错误:', error)
+    alert('操作失败，请稍后重试')
+  } finally {
+    enrolling.value = false
+  }
 }
 
 // 跳转
@@ -463,7 +569,7 @@ const editCourse = (course) => { const id = course.id || course.courseId; if (!i
 const editCourseMaterials = (course) => { const id = course.id || course.courseId; if (!id) return; router.push(`/teacher/courses/${id}/materials`) }
 const deleteCourse = async (course) => {
   try {
-    const ok = window.confirm(`确定要删除课程 “${course.title || ''}” 吗？此操作不可恢复。`)
+    const ok = window.confirm(`确定要删除课程 "${course.title || ''}" 吗？此操作不可恢复。`)
     if (!ok) return
     const base = (import.meta?.env?.VITE_API_BASE_URL || '/api')
     const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
@@ -473,6 +579,35 @@ const deleteCourse = async (course) => {
     if (Number(data?.code) === 200) { courses.value = courses.value.filter(c => (c.id || c.courseId) !== (course.id || course.courseId)); alert('课程删除成功') } else { alert(`删除失败：${data?.message || res.status}`) }
   } catch { alert('删除失败，请稍后重试') }
 }
+
+// 定时刷新学生列表的定时器
+let refreshTimer = null
+
+// 监听学生管理对话框的打开/关闭，实现动态刷新
+watch(studentManagerVisible, (isVisible) => {
+  if (isVisible) {
+    // 对话框打开时，启动定时刷新（每5秒刷新一次）
+    refreshTimer = setInterval(async () => {
+      if (studentManagerVisible.value && managingCourse.value && !enrolling.value) {
+        await fetchEnrolledStudents()
+      }
+    }, 5000)
+  } else {
+    // 对话框关闭时，停止定时刷新
+    if (refreshTimer) {
+      clearInterval(refreshTimer)
+      refreshTimer = null
+    }
+  }
+})
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+})
 </script>
 
 <style scoped>
@@ -521,6 +656,42 @@ const deleteCourse = async (course) => {
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 @media (max-width: 992px) { .courses-container { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); } }
 @media (max-width: 768px) { .header { flex-direction: column; align-items: flex-start; gap: 10px; } .search-filters { flex-wrap: wrap; } .courses-container { grid-template-columns: 1fr; } }
+
+/* 学生管理对话框样式 */
+.student-manager .toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.student-manager .toolbar .actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.student-manager .student-count-info {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: #f0f8ff;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #666;
+}
+
+@media (max-width: 768px) {
+  .student-manager .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .student-manager .toolbar .actions {
+    margin-left: 0;
+    flex-direction: column;
+  }
+}
 </style>
 
 

@@ -507,7 +507,7 @@ export default {
 
     // API 函数 - 集成在组件中
     // Axios 实例（与全站一致）
-    const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+    const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
     const apiClient = axios.create({ baseURL: API_BASE, timeout: 20000 })
     apiClient.interceptors.request.use((config) => {
       try {
