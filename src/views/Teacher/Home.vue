@@ -59,7 +59,7 @@
     </div>
 
     <div class="teacher-dashboard">
-      <div class="dashboard-column">
+      <div class="dashboard-row">
         <div class="dashboard-card">
           <div class="card-header">
             <h3>最近课程</h3>
@@ -135,65 +135,6 @@
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="dashboard-column">
-        <div class="dashboard-card">
-          <div class="card-header">
-            <h3>学生动态</h3>
-            <div class="pagination-controls">
-              <button @click="prevActivityPage" :disabled="activityCurrentPage <= 1">
-                <i class="fas fa-chevron-left"></i>
-              </button>
-              <span>{{ activityCurrentPage }} / {{ activityTotalPages }}</span>
-              <button @click="nextActivityPage" :disabled="activityCurrentPage >= activityTotalPages">
-                <i class="fas fa-chevron-right"></i>
-              </button>
-            </div>
-          </div>
-          <div class="card-content">
-            <div v-if="loading.studentActivities" class="loading">
-              <i class="fas fa-spinner fa-spin"></i> 加载中...
-            </div>
-            <div v-else-if="studentActivities.length === 0" class="empty-state">
-              <i class="fas fa-user-graduate"></i>
-              <p>暂无学生动态</p>
-            </div>
-            <div v-else class="activity-list">
-              <div
-                v-for="activity in paginatedActivities"
-                :key="activity.id"
-                class="activity-item"
-              >
-                <div class="activity-avatar">
-                  <div class="avatar">{{ activity.studentName.charAt(0) }}</div>
-                </div>
-                <div class="activity-content">
-                  <p>
-                    <strong>{{ activity.studentName }}</strong>
-                    {{ activity.action }}
-                    <strong>{{ activity.courseName }}</strong>
-                  </p>
-                  <span class="activity-time">{{ activity.time }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="dashboard-card">
-          <div class="card-header">
-            <h3>课程统计</h3>
-          </div>
-          <div class="card-content">
-            <div v-if="loading.courseStats" class="loading">
-              <i class="fas fa-spinner fa-spin"></i> 加载中...
-            </div>
-            <div v-else class="chart-container">
-              <canvas id="courseStatsChart" ref="chartCanvas"></canvas>
             </div>
           </div>
         </div>
@@ -279,20 +220,15 @@ const stats = ref({
 
 const recentCourses = ref([])
 const todos = ref([])
-const studentActivities = ref([])
 const courseStats = ref([])
 const pendingApplicationsCount = ref(0)
 
 // 加载状态
 const loading = ref({
   recentCourses: false,
-  studentActivities: false,
   courseStats: false
 })
 
-// 学生动态分页
-const activityCurrentPage = ref(1)
-const activityPageSize = ref(5)
 
 // 待办事项表单
 const showAddTodoModal = ref(false)
@@ -308,16 +244,6 @@ const todoForm = ref({
 let chart = null
 const chartCanvas = ref(null)
 
-// 计算属性
-const activityTotalPages = computed(() => {
-  return Math.ceil(studentActivities.value.length / activityPageSize.value)
-})
-
-const paginatedActivities = computed(() => {
-  const start = (activityCurrentPage.value - 1) * activityPageSize.value
-  const end = start + activityPageSize.value
-  return studentActivities.value.slice(start, end)
-})
 
 // 从本地存储获取当前教师ID/姓名
 function loadCurrentTeacher() {
@@ -344,18 +270,6 @@ function formatDate(input) {
   } catch { return '-' }
 }
 
-// 分页控制
-const prevActivityPage = () => {
-  if (activityCurrentPage.value > 1) {
-    activityCurrentPage.value--
-  }
-}
-
-const nextActivityPage = () => {
-  if (activityCurrentPage.value < activityTotalPages.value) {
-    activityCurrentPage.value++
-  }
-}
 
 // 处理未审批数量更新事件
 const handlePendingCountUpdate = (event) => {
@@ -530,20 +444,6 @@ const fetchRecentCourses = async () => {
   }
 }
 
-// 获取学生动态
-const fetchStudentActivities = async () => {
-  loading.value.studentActivities = true
-  try {
-    const response = await api.get('/teacher/activities')
-    studentActivities.value = response.data
-    // 重置分页
-    activityCurrentPage.value = 1
-  } catch (error) {
-    console.error('获取学生动态失败:', error)
-  } finally {
-    loading.value.studentActivities = false
-  }
-}
 
 // 获取课程统计（显示所有课程的统计）
 const fetchCourseStats = async () => {
@@ -734,7 +634,6 @@ onMounted(() => {
   fetchTeacherInfo()
   fetchStats()
   fetchRecentCourses()
-  fetchStudentActivities()
   fetchCourseStats()
   fetchPendingApplicationsCount()
 
@@ -861,8 +760,13 @@ watch(courseStats, () => {
 }
 
 .teacher-dashboard {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dashboard-row {
+  display: flex;
   gap: 20px;
 }
 
@@ -870,8 +774,8 @@ watch(courseStats, () => {
   background: white;
   border-radius: 10px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-  margin-bottom: 20px;
   overflow: hidden;
+  flex: 1;
 }
 
 .card-header {
@@ -1333,8 +1237,8 @@ watch(courseStats, () => {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .teacher-dashboard {
-    grid-template-columns: 1fr;
+  .dashboard-row {
+    flex-direction: column;
   }
 }
 

@@ -83,8 +83,8 @@
         </div>
         <el-tabs v-model="studentTab">
           <el-tab-pane label="未选课学生" name="not">
-            <el-table ref="notEnrolledTable" :data="filteredNotEnrolledList" style="width: 100%" height="360" v-loading="studentLoading" @selection-change="onNotSelectionChange">
-              <el-table-column type="selection" width="48" fixed="left" />
+            <el-table ref="notEnrolledTable" :data="filteredNotEnrolledList" row-key="id" style="width: 100%" height="360" v-loading="studentLoading" @selection-change="onNotSelectionChange">
+              <el-table-column type="selection" width="48" fixed="left" reserve-selection />
               <el-table-column prop="studentNumber" label="学号" width="140" />
               <el-table-column prop="name" label="姓名" width="120" />
               <el-table-column prop="className" label="班级" width="120" />
@@ -92,7 +92,7 @@
             </el-table>
           </el-tab-pane>
           <el-tab-pane label="已选课学生" name="enrolled">
-            <el-table :data="filteredEnrolledList" style="width: 100%" height="360" v-loading="studentLoading">
+            <el-table :data="filteredEnrolledList" row-key="id" style="width: 100%" height="360" v-loading="studentLoading">
               <el-table-column prop="studentNumber" label="学号" width="140" />
               <el-table-column prop="name" label="姓名" width="120" />
               <el-table-column prop="className" label="班级" width="120" />
@@ -475,7 +475,10 @@ const fetchEnrolledStudents = async () => {
     enrolledIds.value = new Set()
   }
 }
-const onNotSelectionChange = (rows) => { selectedToEnroll.value = rows || [] }
+const onNotSelectionChange = (rows) => { 
+  selectedToEnroll.value = rows || []
+  console.log('选中学生数量:', selectedToEnroll.value.length, '学生列表:', selectedToEnroll.value.map(s => s.name))
+}
 const enrollSelectedStudents = async () => {
   if (!managingCourse.value) return
   const cid = managingCourse.value.id || managingCourse.value.courseId
@@ -483,6 +486,9 @@ const enrollSelectedStudents = async () => {
   const base = (import.meta?.env?.VITE_API_BASE_URL || '/api')
   const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
   const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  
+  console.log('开始导入学生，总数:', selectedToEnroll.value.length)
+  console.log('选中的学生:', selectedToEnroll.value.map(s => `${s.name}(ID:${s.id})`))
   
   try {
     enrolling.value = true
@@ -527,15 +533,20 @@ const enrollSelectedStudents = async () => {
     // 导入完成后再次刷新学生列表（确保数据一致性）
     await fetchStudentLists()
     
+    // 清空选择（在刷新前清空，避免表格选择状态问题）
+    selectedToEnroll.value = []
+    
+    // 清空表格选中状态
+    if (notEnrolledTable.value) {
+      notEnrolledTable.value.clearSelection()
+    }
+    
     // 显示详细的结果反馈
     if (failCount === 0) {
       alert(`成功导入 ${successCount} 名学生！`)
     } else {
       alert(`导入完成！\n成功: ${successCount} 名\n失败: ${failCount} 名\n总计: ${total} 名`)
     }
-    
-    // 清空选择
-    selectedToEnroll.value = []
     
     // 如果全部成功，关闭对话框
     if (failCount === 0) {
@@ -587,9 +598,13 @@ let refreshTimer = null
 watch(studentManagerVisible, (isVisible) => {
   if (isVisible) {
     // 对话框打开时，启动定时刷新（每5秒刷新一次）
+    // 但只在没有选中学生的情况下刷新，避免清除用户的选择
     refreshTimer = setInterval(async () => {
       if (studentManagerVisible.value && managingCourse.value && !enrolling.value) {
-        await fetchEnrolledStudents()
+        // 只有在没有选中学生时才自动刷新，避免清除用户选择
+        if (selectedToEnroll.value.length === 0) {
+          await fetchEnrolledStudents()
+        }
       }
     }, 5000)
   } else {

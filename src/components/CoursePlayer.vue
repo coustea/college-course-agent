@@ -926,7 +926,10 @@ async function prefetchQuestions() {
     if (prefetchedDict.value[key] || prefetchingKeys.has(key)) return
     prefetchingKeys.add(key)
     const token = localStorage.getItem('token') || ''
-    const body = { courseId, studentId, choiceCount: 2, judgeCount: 0 }
+    // 获取当前视频的 videoId
+    const ch = props.chapters[currentIndex.value]
+    const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? null
+    const body = { courseId, studentId, choiceCount: 2, judgeCount: 0, videoId, documentId: null }
     const res = await axios.post(`${BASE_URL}/aiexam/generate`, body, {
       headers: {
         Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'

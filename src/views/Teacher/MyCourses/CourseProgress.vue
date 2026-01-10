@@ -132,6 +132,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 分页组件 -->
+      <div style="margin-top: 20px; display: flex; justify-content: center;">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="totalStudents"
+          layout="total, sizes, prev, pager, next, jumper"
+          @current-change="handlePageChange"
+          @size-change="handlePageSizeChange"
+        />
+      </div>
     </el-card>
 
     <!-- 学生详细进度对话框 -->
@@ -214,7 +227,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 
@@ -241,6 +254,10 @@ const detailVideoProgress = ref([])
 const detailDocProgress = ref([])
 const detailExamAccuracy = ref(-1)
 
+// 分页相关
+const currentPage = ref(1)
+const pageSize = ref(10)
+
 // 当前课程名称
 const courseName = computed(() => {
   const course = courseList.value.find(c => (c.courseId || c.id) === courseId.value)
@@ -256,15 +273,8 @@ const classList = computed(() => {
   return Array.from(classes).sort()
 })
 
-const totalStudents = computed(() => filteredStudentProgress.value.length)
-const averageProgress = computed(() => {
-  if (filteredStudentProgress.value.length === 0) return 0
-  const sum = filteredStudentProgress.value.reduce((acc, s) => acc + (s.progress || 0), 0)
-  return sum / filteredStudentProgress.value.length
-})
-const completedStudents = computed(() => filteredStudentProgress.value.filter(s => s.progress >= 100).length)
-
-const filteredStudentProgress = computed(() => {
+// 筛选后的完整数据（用于统计和分页）
+const filteredAllStudents = computed(() => {
   let result = studentProgressList.value
   
   // 按班级筛选
@@ -284,6 +294,31 @@ const filteredStudentProgress = computed(() => {
   
   return result
 })
+
+const totalStudents = computed(() => filteredAllStudents.value.length)
+const averageProgress = computed(() => {
+  if (filteredAllStudents.value.length === 0) return 0
+  const sum = filteredAllStudents.value.reduce((acc, s) => acc + (s.progress || 0), 0)
+  return sum / filteredAllStudents.value.length
+})
+const completedStudents = computed(() => filteredAllStudents.value.filter(s => s.progress >= 100).length)
+
+// 当前页显示的数据（分页后）
+const filteredStudentProgress = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredAllStudents.value.slice(start, end)
+})
+
+// 分页事件处理
+const handlePageChange = (page) => {
+  currentPage.value = page
+}
+
+const handlePageSizeChange = (size) => {
+  pageSize.value = size
+  currentPage.value = 1 // 重置到第一页
+}
 
 const progressColor = (pct) => {
   if (pct >= 80) return '#67c23a'
@@ -516,6 +551,11 @@ onMounted(async () => {
   
   // 加载进度数据
   loadCourseProgress()
+})
+
+// 当搜索条件或筛选条件改变时，重置到第一页
+watch([searchText, selectedClass], () => {
+  currentPage.value = 1
 })
 </script>
 

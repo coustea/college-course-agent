@@ -60,7 +60,10 @@ export async function fetchHomeCourses(signal) {
                     duration: d.duration || d.pages || '',
                     // 兼容后端字段：docUrl / fileUrl / url / resourceUrl
                     fileUrl: toUrl(d.docUrl || d.fileUrl || d.url || d.resourceUrl || ''),
-                    html: d.html || d.content || ''
+                    html: d.html || d.content || '',
+                    // 传递后端的唯一标识，便于统计上报
+                    documentId: d.documentId ?? d.id ?? d.docIndex ?? (i + 1),
+                    courseId: c.courseId ?? c.id ?? null
                 }))
 
                 // B 方案：两种类型都有时视为视频类

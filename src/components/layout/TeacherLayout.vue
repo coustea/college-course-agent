@@ -48,6 +48,12 @@
                 <i class="fas fa-chart-line"></i>
                 <span>进度管理</span>
               </li>
+              <li class="submenu-item"
+                  :class="{active: $route.path.includes('/teacher/courses/') && $route.path.includes('/grades')}"
+                  @click="navigateTo('/teacher/courses/1/grades')">
+                <i class="fas fa-chart-bar"></i>
+                <span>成绩管理</span>
+              </li>
             </ul>
           </li>
 
@@ -288,7 +294,7 @@ onMounted(() => {
     const candidate = (u && (u.name || (u.profile && u.profile.name))) ? String(u.name || u.profile.name).trim() : ''
     if (candidate && isChinese(candidate)) { teacherName.value = candidate; return }
   } catch {}
-  // 默认只显示“老师”，待拿到中文姓名后再切换为“姓氏+老师”
+  // 默认只显示"老师"，待拿到中文姓名后再切换为"姓氏+老师"
   teacherName.value = '老师'
 })
 

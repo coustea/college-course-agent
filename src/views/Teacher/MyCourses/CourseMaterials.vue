@@ -53,7 +53,7 @@
         <el-form-item label="课程ID"><el-input v-model.number="doc.courseId" placeholder="请输入课程ID" /></el-form-item>
         <el-form-item label="文档序号(docIndex)"><el-input v-model.number="doc.docIndex" placeholder="例如 1、2、3..." /></el-form-item>
         <el-form-item label="文档标题"><el-input v-model="doc.docTitle" placeholder="请输入文档标题" /></el-form-item>
-        <el-form-item label="文档文件"><input type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" @change="onDocFileChange" /></el-form-item>
+        <el-form-item label="文档文件"><input ref="docFileInput" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" @change="onDocFileChange" /></el-form-item>
         <el-form-item><el-button type="primary" :loading="submittingDoc" @click="submitDoc">提交文档</el-button></el-form-item>
       </el-form>
     </div>
@@ -136,6 +136,7 @@ export default {
     const savingCourse = ref(false)
     const video = ref({ courseId: routeCourseId, videoIndex: null, videoTitle: '', file: null, duration: null })
     const doc = ref({ courseId: routeCourseId, docIndex: null, docTitle: '', file: null })
+    const docFileInput = ref(null) // 文档文件输入框引用
     const submittingVideo = ref(false)
     const submittingDoc = ref(false)
     const savingVideo = ref(false)
@@ -458,13 +459,46 @@ export default {
 
     const submitDoc = async () => {
       try {
+        if (!doc.value.file) {
+          ElMessage.error('请先选择文档文件')
+          return
+        }
+        if (!doc.value.courseId) {
+          ElMessage.error('请输入课程ID')
+          return
+        }
+        
         submittingDoc.value = true
-        const form = new FormData(); form.append('courseId', doc.value.courseId); if (doc.value.docIndex != null) form.append('docIndex', String(doc.value.docIndex)); if (doc.value.docTitle) form.append('docTitle', doc.value.docTitle); if (doc.value.file) form.append('file', doc.value.file)
+        const form = new FormData()
+        form.append('courseId', doc.value.courseId)
+        if (doc.value.docIndex != null) form.append('docIndex', String(doc.value.docIndex))
+        if (doc.value.docTitle) form.append('docTitle', doc.value.docTitle)
+        form.append('file', doc.value.file)
+        
         const res = await axios.post(`${base}/course/document/insert`, form, { headers: getAuthHeaders() })
         const body = res?.data
-        if (body && Number(body.code) === 200) { ElMessage.success('文档添加成功'); doc.value.docTitle = ''; doc.value.file = null }
-        else { ElMessage.error(body?.message || '文档添加失败') }
-      } catch (e) { console.error(e); ElMessage.error('文档添加失败，请稍后重试') } finally { submittingDoc.value = false }
+        
+        if (body && Number(body.code) === 200) {
+          ElMessage.success('文档添加成功')
+          // 清空表单
+          doc.value.docTitle = ''
+          doc.value.docIndex = null
+          doc.value.file = null
+          // 重置文件输入框
+          if (docFileInput.value) {
+            docFileInput.value.value = ''
+          }
+          // 刷新文档列表
+          await loadDocs()
+        } else {
+          ElMessage.error(body?.message || '文档添加失败')
+        }
+      } catch (e) {
+        console.error(e)
+        ElMessage.error('文档添加失败，请稍后重试')
+      } finally {
+        submittingDoc.value = false
+      }
     }
 
     // 加载当前课程的视频/文档列表
@@ -541,7 +575,7 @@ export default {
     // 初始化加载
     ;(async () => { await Promise.all([loadVideos(), loadDocs()]) })()
 
-    return { course, imagePreview, savingCourse, onCourseImageChange, saveCourse, video, doc, submittingVideo, submittingDoc, savingVideo, savingDoc, videos, documents, loadingVideos, loadingDocs, onVideoFileChange, onDocFileChange, onVideoRowClick, onDocRowClick, submitVideo, submitDoc, updateVideo, updateDoc, editVideoVisible, editVideo, openEditVideo, onEditVideoFileChange, submitEditVideo, editDocVisible, editDoc, openEditDoc, onEditDocFileChange, submitEditDoc, uploadProgress, uploadStatus, formatFileSize }
+    return { course, imagePreview, savingCourse, onCourseImageChange, saveCourse, video, doc, docFileInput, submittingVideo, submittingDoc, savingVideo, savingDoc, videos, documents, loadingVideos, loadingDocs, onVideoFileChange, onDocFileChange, onVideoRowClick, onDocRowClick, submitVideo, submitDoc, updateVideo, updateDoc, editVideoVisible, editVideo, openEditVideo, onEditVideoFileChange, submitEditVideo, editDocVisible, editDoc, openEditDoc, onEditDocFileChange, submitEditDoc, uploadProgress, uploadStatus, formatFileSize }
   }
 }
 </script>

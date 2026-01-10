@@ -142,7 +142,8 @@ const flatChapters = computed(() => {
       const title = n.title || n.name || n.docTitle || ''
       const fileUrl = n.docUrl || n.fileUrl || n.url || n.resourceUrl || ''
       const html = n.html || n.content || ''
-      if (title || fileUrl || html) list.push({ title, fileUrl, html })
+      const documentId = n.documentId ?? n.id ?? null
+      if (title || fileUrl || html) list.push({ title, fileUrl, html, documentId })
       if (Array.isArray(n.children)) walk(n.children)
     }
   }
@@ -151,7 +152,8 @@ const flatChapters = computed(() => {
     list.push({
       title: props.title || '文档',
       fileUrl: props.fileUrl,
-      html: props.htmlContent
+      html: props.htmlContent,
+      documentId: props.id
     })
   }
   return list
@@ -172,7 +174,8 @@ watch(currentIndex, () => {
   answersSoFar.value = []
   quizStarted.value = false
   isClosing.value = false  // 重置关闭标志
-  console.log('[DocumentViewer]切换章节，重置答题状态')
+  readProgress.value = 0   // 立即重置进度，避免显示上一章节的进度
+  console.log('[DocumentViewer]切换章节，重置答题状态和进度')
   // 同步进度时不重置答题状态（仅读取后端进度，不清空本地答题记录）
   try { syncDocumentProgressFromCourse(false) } catch (e) { console.error(e) }
 })
@@ -258,16 +261,26 @@ async function syncDocumentProgressFromCourse(resetQuizState = false) {
     const data = res.data.data
     if (!data) return
     const docs =  data.documents
-    const docId = (Number(currentIndex.value) || 0) + 1
+    // 使用当前章节的真实 documentId
+    const currentChapter = flatChapters.value[currentIndex.value]
+    const docId = currentChapter?.documentId
+    if (!docId) {
+      console.log('[DocumentViewer]当前章节没有 documentId，无法同步进度')
+      return
+    }
     const cur = docs.find(d => String(d.documentId) === String(docId))
     if (cur) {
       const completed = cur.completed === true 
-      readProgress.value = completed ? 1 : (readProgress.value || 0)
-      console.log('[DocumentViewer]同步进度 - 后端完成状态:', completed, '当前进度:', readProgress.value)
+      // 根据后端状态设置进度：已完成=1，未完成=后端百分比或0
+      readProgress.value = completed ? 1 : (cur.percentage || cur.maxScrollPct || 0)
+      console.log('[DocumentViewer]同步进度 - documentId:', docId, '后端完成状态:', completed, '后端百分比:', cur.percentage, '当前进度:', readProgress.value)
       // 如果后端已完成，且不需要重置答题状态，则保留已答题记录
       if (completed && !resetQuizState) {
         console.log('[DocumentViewer]后端已完成，保留答题状态不重置')
       }
+    } else {
+      console.log('[DocumentViewer]未找到 documentId:', docId, '的进度记录，重置为0')
+      readProgress.value = 0  // 未找到记录，重置为0
     }
   } catch (e) { console.error('[DocumentViewer]同步文档进度失败', e) }
 }
@@ -394,7 +407,10 @@ async function fetchQuestionsOnce(courseId) {
     
     const studentId = localStorage.getItem('userId')
     const token = localStorage.getItem('token')
-    const body = { courseId, studentId, choiceCount: 5, judgeCount: 0 }
+    // 获取当前文档的真实 documentId
+    const currentChapter = flatChapters.value[currentIndex.value]
+    const docId = currentChapter?.documentId
+    const body = { courseId, studentId, choiceCount: 5, judgeCount: 0, videoId: null, documentId: docId }
     console.log('[DocumentViewer]请求参数:', body)
     const res = await axios.post(`${BASE_URL}/aiexam/generate`, body, {
       headers: { 
@@ -732,14 +748,20 @@ async function submitDocumentAnswersAndProgress() {
     }
     // 上报文档进度为已完成（所有题目答完后）
     if (studentId && props.id) {
-      const docId = (Number(currentIndex.value) || 0) + 1
+      // 使用当前章节的真实 documentId
+      const currentChapter = flatChapters.value[currentIndex.value]
+      const docId = currentChapter?.documentId
+      if (!docId) {
+        console.log('[DocumentViewer]当前章节没有 documentId，无法上报进度')
+        return
+      }
       const params = {
         studentId: studentId,
         courseId: props.id,
         documentId: docId,
         completed: true
       }
-      console.log('[DocumentViewer]上报文档已看完（5题全部答完）:', params)
+      console.log('[DocumentViewer]上报文档已看完（5题全部答完）, documentId:', docId, 'params:', params)
       const res2 = await axios.post(`${BASE_URL}/progress/report`, null, {
         params: params,
         headers: { Authorization: `Bearer ${token}` }
