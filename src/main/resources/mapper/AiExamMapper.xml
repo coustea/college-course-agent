@@ -12,6 +12,8 @@
         <result property="totalScore" column="total_score"/>
         <result property="status" column="status"/>
         <result property="createdAt" column="created_at"/>
+        <result property="videoId" column="video_id"/>
+        <result property="documentId" column="document_id"/>
     </resultMap>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
@@ -25,6 +27,8 @@
                 <if test="totalScore != null">total_score,</if>
                 <if test="status != null">status,</if>
                 <if test="createdAt != null">created_at,</if>
+                <if test="videoId != null">video_id,</if>
+                <if test="documentId != null">document_id,</if>
             </trim>
         ) VALUES (
             <trim suffixOverrides=",">
@@ -36,6 +40,8 @@
                 <if test="totalScore != null">#{totalScore},</if>
                 <if test="status != null">#{status},</if>
                 <if test="createdAt != null">#{createdAt},</if>
+                <if test="videoId != null">#{videoId},</if>
+                <if test="documentId != null">#{documentId},</if>
             </trim>
         )
     </insert>
@@ -50,9 +56,60 @@
     </update>
 
     <select id="selectById" resultMap="AiExamRM">
-        SELECT id, course_id, course_name, student_id, topic, question_count, total_score, status, created_at
+        SELECT id, course_id, course_name, student_id, topic, question_count, total_score, status, created_at, video_id, document_id
         FROM ai_exams
         WHERE id = #{id}
+    </select>
+
+    <select id="getAverageScoreByStudentAndCourse" resultType="java.lang.Double">
+        SELECT AVG(total_score) 
+        FROM ai_exams
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+          AND question_count = 5
+          AND total_score IS NOT NULL
+          AND total_score > 0
+    </select>
+
+    <!-- 获取每个视频的平均成绩（只统计submitted状态） -->
+    <select id="getVideoScoresByStudentAndCourse" resultType="java.util.HashMap">
+        SELECT 
+            video_id as videoId,
+            ROUND(AVG(total_score), 2) as averageScore,
+            COUNT(*) as attemptCount
+        FROM ai_exams
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+          AND status = 'submitted'
+          AND video_id IS NOT NULL
+          AND total_score IS NOT NULL
+        GROUP BY video_id
+        ORDER BY video_id
+    </select>
+
+    <!-- 获取每个文档的平均成绩（只统计submitted状态） -->
+    <select id="getDocumentScoresByStudentAndCourse" resultType="java.util.HashMap">
+        SELECT 
+            document_id as documentId,
+            ROUND(AVG(total_score), 2) as averageScore,
+            COUNT(*) as attemptCount
+        FROM ai_exams
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+          AND status = 'submitted'
+          AND document_id IS NOT NULL
+          AND total_score IS NOT NULL
+        GROUP BY document_id
+        ORDER BY document_id
+    </select>
+
+    <!-- 获取学生在某课程中的所有考试记录 -->
+    <select id="listByStudentAndCourse" resultMap="AiExamRM">
+        SELECT id, course_id, course_name, student_id, topic, question_count, total_score, status, created_at, video_id, document_id
+        FROM ai_exams
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+        ORDER BY created_at DESC
     </select>
 
 </mapper>

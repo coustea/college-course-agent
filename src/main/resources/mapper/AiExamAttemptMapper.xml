@@ -42,7 +42,8 @@
     </update>
 
   <!-- 按学生+课程统计正确率：
-       取该学生在该课程下所有试卷的所有尝试的作答，正确题数 / 总题数 -->
+       取该学生在该课程下所有试卷的所有尝试的作答，正确题数 / 总题数
+       排除 score 为 0 的记录 -->
   <select id="calcAccuracyByStudentAndCourse" resultType="double">
     SELECT
       CASE WHEN SUM(CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END) = 0 THEN 0
@@ -55,6 +56,8 @@
     LEFT JOIN ai_exam_answers a ON a.attempt_id = att.id
     WHERE att.student_id = #{studentId}
       AND ex.course_id = #{courseId}
+      AND att.score IS NOT NULL
+      AND att.score > 0
   </select>
 
 </mapper>

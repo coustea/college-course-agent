@@ -3,23 +3,19 @@ package com.ccut.controller;
 import com.ccut.entity.Result;
 import com.ccut.entity.Student;
 import com.ccut.entity.Teacher;
+import com.ccut.mapper.CourseDocumentMapper;
+import com.ccut.mapper.CourseMapper;
+import com.ccut.mapper.CourseVideoMapper;
+import com.ccut.mapper.EnrollmentMapper;
 import com.ccut.service.Impl.StudentServiceImpl;
 import com.ccut.service.Impl.TeacherServiceImpl;
-import com.ccut.mapper.EnrollmentMapper;
-import com.ccut.mapper.CourseMapper;
-import com.ccut.mapper.LearningProgressMapper;
-import com.ccut.mapper.CourseDocumentMapper;
-import com.ccut.mapper.CourseVideoMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -32,11 +28,8 @@ TeacherController {
     private TeacherServiceImpl teacherService;
     @Autowired
     private EnrollmentMapper enrollmentMapper;
-    // private StudentMapper studentMapper; // 未使用
     @Autowired
     private CourseMapper courseMapper;
-    @Autowired
-    private LearningProgressMapper learningProgressMapper;
     @Autowired
     private CourseVideoMapper courseVideoMapper;
     @Autowired
@@ -79,7 +72,7 @@ TeacherController {
     public Result<String> updateTeacher(@PathVariable("id") Long id, @RequestBody Teacher teacher){
         try {
             teacher.setId(id);
-            System.out.println(teacher.getBio());
+            log.debug("Updating teacher bio: {}", teacher.getBio());
             int n = teacherService.update(teacher);
             if (n > 0) return Result.success("更新成功");
             return Result.error(404, "未找到或未变更");
@@ -114,7 +107,7 @@ TeacherController {
         try {
             if (id == null) return Result.error(400, "id 不能为空");
             student.setId(id);
-            System.out.println(student);
+            log.debug("Updating student: {}", student);
             int n = studentService.updateById(student);
             if (n > 0) return Result.success("更新成功");
             return Result.error(404, "未找到或未变更");

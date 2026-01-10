@@ -2,8 +2,6 @@ package com.ccut.service.Impl;
 
 import com.ccut.entity.Student;
 import com.ccut.mapper.StudentMapper;
-import com.ccut.mapper.UserMapper;
-import com.ccut.entity.User;
 import com.ccut.service.StudentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,9 +14,6 @@ public class StudentServiceImpl implements StudentService {
 
     @Autowired
     private StudentMapper studentMapper;
-
-    @Autowired
-    private UserMapper userMapper;
 
 
     @Override

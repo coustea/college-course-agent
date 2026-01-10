@@ -12,6 +12,7 @@ import org.mp4parser.IsoFile;
 
 import java.io.FileInputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.*;
 import java.time.LocalDate;
 import java.util.*;
@@ -81,7 +82,7 @@ public class CourseVideoController {
                     long d = isoFile.getMovieBox().getMovieHeaderBox().getDuration();
                     long scale = isoFile.getMovieBox().getMovieHeaderBox().getTimescale();
                     int seconds = (scale > 0)
-                            ? new BigDecimal(d).divide(new BigDecimal(scale), 0, BigDecimal.ROUND_HALF_UP).intValue()
+                            ? new BigDecimal(d).divide(new BigDecimal(scale), 0, RoundingMode.HALF_UP).intValue()
                             : 0;
                     v.setDuration(Math.max(0, seconds));
                     isoFile.close();

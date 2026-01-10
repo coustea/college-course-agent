@@ -52,7 +52,7 @@ public class AiExamController {
         this.answerMapper = answerMapper;
     }
 
-    public record GenerateReq(Long courseId, Long studentId, Integer choiceCount, Integer judgeCount) {}
+    public record GenerateReq(Long courseId, Long studentId, Integer choiceCount, Integer judgeCount, Long videoId, Long documentId) {}
     public record SubmitReq(Long examId, Long studentId, List<SubmitAnswer> answers) {}
     public record SubmitAnswer(Long questionId, String answer) {}
     public record AccuracyReq(Long studentId, Long courseId) {}
@@ -85,6 +85,8 @@ public class AiExamController {
             exam.setQuestionCount(ai.getQuestions() == null ? 0 : ai.getQuestions().size());
             exam.setStatus("generated");
             exam.setCreatedAt(new Date());
+            exam.setVideoId(req.videoId);      // 设置视频ID（可为空）
+            exam.setDocumentId(req.documentId); // 设置文档ID（可为空）
             aiExamMapper.insert(exam);
 
             if (ai.getQuestions() != null) {
@@ -161,6 +163,89 @@ public class AiExamController {
             resp.put("accuracy", acc);
             resp.put("percentage", Math.round(acc * 10000.0) / 100.0);
             return Result.success(resp);
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    // 获取学生在某课程中题目数为5的考试的平均成绩
+    @GetMapping("/average-score")
+    public Result<Map<String, Object>> getAverageScore(@RequestParam("studentId") Long studentId,
+                                                       @RequestParam("courseId") Long courseId) {
+        try {
+            if (studentId == null || courseId == null) {
+                return Result.error(400, "studentId 和 courseId 不能为空");
+            }
+            
+            Double avgScore = aiExamMapper.getAverageScoreByStudentAndCourse(studentId, courseId);
+            if (avgScore == null) avgScore = 0.0;
+            
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("studentId", studentId);
+            resp.put("courseId", courseId);
+            resp.put("averageScore", Math.round(avgScore * 100.0) / 100.0); // 保留两位小数
+            return Result.success(resp);
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取学生在某课程中每个视频和文档的详细成绩
+     * 每个视频/文档返回其所有submitted状态考试的平均成绩
+     */
+    @GetMapping("/detailed-scores")
+    public Result<Map<String, Object>> getDetailedScores(@RequestParam("studentId") Long studentId,
+                                                          @RequestParam("courseId") Long courseId) {
+        try {
+            if (studentId == null || courseId == null) {
+                return Result.error(400, "studentId 和 courseId 不能为空");
+            }
+            
+            // 获取每个视频的成绩
+            List<Map<String, Object>> videoScores = aiExamMapper.getVideoScoresByStudentAndCourse(studentId, courseId);
+            // 获取每个文档的成绩
+            List<Map<String, Object>> documentScores = aiExamMapper.getDocumentScoresByStudentAndCourse(studentId, courseId);
+            
+            // 格式化成绩数据，保留两位小数
+            for (Map<String, Object> score : videoScores) {
+                if (score.get("averageScore") != null) {
+                    Double avg = ((Number) score.get("averageScore")).doubleValue();
+                    score.put("averageScore", Math.round(avg * 100.0) / 100.0);
+                }
+            }
+            for (Map<String, Object> score : documentScores) {
+                if (score.get("averageScore") != null) {
+                    Double avg = ((Number) score.get("averageScore")).doubleValue();
+                    score.put("averageScore", Math.round(avg * 100.0) / 100.0);
+                }
+            }
+            
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("studentId", studentId);
+            resp.put("courseId", courseId);
+            resp.put("videoScores", videoScores);
+            resp.put("documentScores", documentScores);
+            
+            return Result.success(resp);
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取学生在某课程中的所有考试记录
+     */
+    @GetMapping("/list")
+    public Result<List<AiExam>> listExams(@RequestParam("studentId") Long studentId,
+                                           @RequestParam("courseId") Long courseId) {
+        try {
+            if (studentId == null || courseId == null) {
+                return Result.error(400, "studentId 和 courseId 不能为空");
+            }
+            
+            List<AiExam> exams = aiExamMapper.listByStudentAndCourse(studentId, courseId);
+            return Result.success(exams);
         } catch (Exception e) {
             return Result.error(500, e.getMessage());
         }

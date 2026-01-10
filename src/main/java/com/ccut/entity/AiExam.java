@@ -19,6 +19,8 @@ public class AiExam {
     private Integer totalScore; // 最近一次提交的得分（可选）
     private String status;  // generated / submitted
     private Date createdAt;
+    private Long videoId;   // 关联的视频ID（可为空）
+    private Long documentId; // 关联的文档ID（可为空）
 }
 
 

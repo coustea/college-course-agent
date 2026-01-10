@@ -1,25 +1,25 @@
 -- ================================================
 -- ⚙️ 删除表（按外键依赖顺序）
 -- ================================================
-DROP TABLE IF EXISTS document_progress;
-DROP TABLE IF EXISTS video_progress;
-DROP TABLE IF EXISTS course_documents;
-DROP TABLE IF EXISTS course_videos;
-DROP TABLE IF EXISTS learning_progress;
-DROP TABLE IF EXISTS enrollments;
-DROP TABLE IF EXISTS ai_exam_answers;
-DROP TABLE IF EXISTS ai_exam_attempts;
-DROP TABLE IF EXISTS ai_exam_questions;
-DROP TABLE IF EXISTS ai_exams;
-DROP TABLE IF EXISTS student_member_scores;
-DROP TABLE IF EXISTS student_submissions;
-DROP TABLE IF EXISTS group_members;
-DROP TABLE IF EXISTS student_groups;
-DROP TABLE IF EXISTS teacher_assignments;
-DROP TABLE IF EXISTS courses;
-DROP TABLE IF EXISTS teachers;
-DROP TABLE IF EXISTS students;
-DROP TABLE IF EXISTS users;
+# DROP TABLE IF EXISTS document_progress;
+# DROP TABLE IF EXISTS video_progress;
+# DROP TABLE IF EXISTS course_documents;
+# DROP TABLE IF EXISTS course_videos;
+# DROP TABLE IF EXISTS learning_progress;
+# DROP TABLE IF EXISTS enrollments;
+# DROP TABLE IF EXISTS ai_exam_answers;
+# DROP TABLE IF EXISTS ai_exam_attempts;
+# DROP TABLE IF EXISTS ai_exam_questions;
+# DROP TABLE IF EXISTS ai_exams;
+# DROP TABLE IF EXISTS student_member_scores;
+# DROP TABLE IF EXISTS student_submissions;
+# DROP TABLE IF EXISTS group_members;
+# DROP TABLE IF EXISTS student_groups;
+# DROP TABLE IF EXISTS teacher_assignments;
+# DROP TABLE IF EXISTS courses;
+# DROP TABLE IF EXISTS teachers;
+# DROP TABLE IF EXISTS students;
+# DROP TABLE IF EXISTS users;
 
 # ================================================
 # 用户表
@@ -321,5 +321,24 @@ INDEX idx_attempt (attempt_id),
 INDEX idx_question (question_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 试卷作答';
 
+-- ================================================
+--  后续表结构调整（ALTER TABLE）
+-- ================================================
+
+-- 为 ai_exams 表添加视频ID字段（可为空）
+ALTER TABLE ai_exams
+ADD COLUMN video_id BIGINT NULL COMMENT '关联的视频ID（可为空）',
+ADD INDEX idx_video (video_id),
+ADD CONSTRAINT fk_aiexam_video FOREIGN KEY (video_id) REFERENCES course_videos(video_id) ON DELETE SET NULL;
+
+-- 为 ai_exams 表添加文档ID字段（可为空）
+ALTER TABLE ai_exams
+ADD COLUMN document_id BIGINT NULL COMMENT '关联的文档ID（可为空）',
+ADD INDEX idx_document (document_id),
+ADD CONSTRAINT fk_aiexam_document FOREIGN KEY (document_id) REFERENCES course_documents(document_id) ON DELETE SET NULL;
+
+-- 为 student_submissions 表添加小组评语字段
 ALTER TABLE student_submissions
 ADD COLUMN group_comment VARCHAR(500) COMMENT '教师对整个小组作业的评语（最多500字）';
+
+

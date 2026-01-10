@@ -4,18 +4,13 @@ spring:
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://39.96.172.21:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
-    username: ccut
-    password: Aa123456
+    url: jdbc:mysql://localhost:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
     hikari:
-      pool-name: HikariCP
-      maximum-pool-size: 50        # 最大连接数（并发能力提升）
-      minimum-idle: 10             # 最小空闲连接数
-      idle-timeout: 600000         # 空闲连接存活时间（10分钟）
-      max-lifetime: 1800000        # 连接最长生命周期（30分钟）
+      maximum-pool-size: 20        # 最大连接数
+      minimum-idle: 5              # 最小空闲连接数
       connection-timeout: 30000    # 获取连接超时时间（30秒）
-      validation-timeout: 5000     # 连接校验超时（5秒）
-      leak-detection-threshold: 20000  # 检测连接泄漏（20秒警告）
 
   servlet:
     multipart:
@@ -30,15 +25,13 @@ spring:
 server:
   port: 9999
 
-  # === 内嵌 Tomcat 并发优化 ===
+  # === 内嵌 Tomcat 优化 ===
   tomcat:
     threads:
-      max: 200         # 最大处理线程数（支持200并发）
-      min-spare: 20     # 最小空闲线程数
-    accept-count: 100   # 请求排队上限（超过会被拒绝）
+      max: 100         # 最大处理线程数
+      min-spare: 10    # 最小空闲线程数
+    accept-count: 50   # 请求排队上限
     connection-timeout: 20000  # 连接超时时间20秒
-    max-connections: 10000     # 支持更多TCP连接
-    keep-alive-timeout: 15000  # HTTP连接保持15秒
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -47,12 +40,12 @@ mybatis:
 
 # === 日志系统（使用 logback-spring.xml） ===
 logging:
-#  config: classpath:logback-spring.xml
+  config: classpath:logback-spring.xml
   level:
     com.ccut.mapper: debug   # 打印SQL语句
 
 file:
-  #windows
-#  upload-dir: D:/develop/ccut/backend/uploads
-  # ubuntu
-  upload-dir: /home/coustea/develop/Project/ccut/backend/uploads
+  # windows
+  upload-dir: C:/Users/lenovo/Desktop/12/college-course-agent/uploads
+#   ubuntu
+#  upload-dir: /home/project/uploads

@@ -2,10 +2,8 @@ package com.ccut.controller;
 
 import com.ccut.entity.Result;
 import com.ccut.entity.Student;
-import com.ccut.entity.Teacher;
 import com.ccut.entity.User;
 import com.ccut.service.Impl.StudentServiceImpl;
-import com.ccut.service.Impl.TeacherServiceImpl;
 import com.ccut.service.Impl.UserServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
@@ -29,65 +27,12 @@ public class UserController {
     @Autowired
     private StudentServiceImpl studentService;
 
-    @Autowired
-    private TeacherServiceImpl teacherService;
-
-    @GetMapping("/init")
-    public Result<String> initUsers(){
-        // 定义用户信息
-        String[][] users = {
-                {"admin", "admin"},
-                {"luhuimin", "luhuimin"},
-                {"dangyuanyuan", "dangyuanyuan"},
-                {"guyu", "guyu"},
-                {"zhouxiaotang", "zhouxiaotang"},
-                {"madeyin", "madeyin"},
-                {"wenboge", "wenboge"}
-        };
-
-        String[] names = {
-                "admin",
-                "鲁慧民",
-                "党源源",
-                "谷钰",
-                "周晓堂",
-                "马德印",
-                "温博阁"
-        };
-
-        int successCount = 0;
-
-        for (int i = 0; i < users.length; i++) {
-            try {
-                // 创建用户
-                User user = new User(users[i][0], users[i][1], User.Role.teacher);
-                int res = userService.insert(user);
-                if (res <= 0) {
-                    log.error("添加用户失败：{}", user);
-                    continue;
-                }
-                // 创建对应的教师信息
-                Teacher teacher = new Teacher(user.getId(), names[i]);
-                res = teacherService.insert(teacher);
-                if (res <= 0) {
-                    log.error("添加教师失败：{}", teacher);
-                    continue;
-                }
-
-                successCount++;
-            } catch (Exception e) {
-                log.error("添加用户或教师时发生异常：{}", users[i][0], e);
-            }
-        }
-
-        return Result.success("成功初始化 " + successCount + " 个用户和教师");
-    }
 
 
     @PostMapping("/insert")
     public Result<User> insert(@RequestBody User user){
         int result = userService.insert(user);
-        System.out.println(result);
+        log.debug("Insert user result: {}", result);
         if (result > 0) {
             return Result.success(user);
         }
