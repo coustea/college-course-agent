@@ -71,39 +71,42 @@
             class="message-item"
             :class="msg.role"
           >
-            <div class="message-avatar">
-              <el-avatar v-if="msg.role === 'user'" :size="36" :icon="User" />
-              <el-avatar v-else :size="36" class="ai-avatar">
-                <el-icon><ChatDotRound /></el-icon>
-              </el-avatar>
-            </div>
-            <div class="message-content">
-              <div class="message-header">
-                <span class="message-role">{{ msg.role === 'user' ? '我' : 'AI 助手' }}</span>
-                <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
+            <div class="message-wrapper">
+              <div class="message-avatar">
+                <span v-if="msg.role === 'assistant'" class="avatar-label">AI 助手</span>
+                <el-avatar v-if="msg.role === 'user'" :size="32" :icon="User" />
+                <el-avatar v-else :size="32" class="ai-avatar">
+                  <el-icon><ChatDotRound /></el-icon>
+                </el-avatar>
               </div>
-              <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
-              <!-- 附件显示 -->
-              <div v-if="msg.files && msg.files.length" class="message-files">
-                <div v-for="file in msg.files" :key="file.name" class="file-tag">
-                  <el-icon><Document /></el-icon>
-                  {{ file.name }}
+              <div class="message-content">
+                <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
+                <!-- 附件显示 -->
+                <div v-if="msg.files && msg.files.length" class="message-files">
+                  <div v-for="file in msg.files" :key="file.name" class="file-tag">
+                    <el-icon><Document /></el-icon>
+                    {{ file.name }}
+                  </div>
                 </div>
+                <div class="message-time">{{ formatTime(msg.timestamp) }}</div>
               </div>
             </div>
           </div>
           <!-- 加载中指示器 -->
           <div v-if="isLoading" class="message-item assistant">
-            <div class="message-avatar">
-              <el-avatar :size="36" class="ai-avatar">
-                <el-icon><ChatDotRound /></el-icon>
-              </el-avatar>
-            </div>
-            <div class="message-content">
-              <div class="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
+            <div class="message-wrapper">
+              <div class="message-avatar">
+                <span class="avatar-label">AI 助手</span>
+                <el-avatar :size="32" class="ai-avatar">
+                  <el-icon><ChatDotRound /></el-icon>
+                </el-avatar>
+              </div>
+              <div class="message-content">
+                <div class="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
               </div>
             </div>
           </div>
@@ -616,22 +619,49 @@ onMounted(() => {
 .messages-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   max-width: 900px;
   margin: 0 auto;
 }
 
 .message-item {
   display: flex;
-  gap: 12px;
 }
 
 .message-item.user {
-  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+
+.message-wrapper {
+  display: flex;
+  flex-direction: column;
+  max-width: 70%;
+}
+
+.message-item.user .message-wrapper {
+  align-items: flex-end;
 }
 
 .message-avatar {
-  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.message-item.user .message-avatar {
+  align-items: flex-end;
+}
+
+.message-item.assistant .message-avatar {
+  align-items: flex-start;
+}
+
+.avatar-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #606266;
+  margin-bottom: 4px;
 }
 
 .ai-avatar {
@@ -639,7 +669,6 @@ onMounted(() => {
 }
 
 .message-content {
-  max-width: 70%;
   background: #fff;
   border-radius: 12px;
   padding: 12px 16px;
@@ -651,24 +680,15 @@ onMounted(() => {
   color: #fff;
 }
 
-.message-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 12px;
-}
-
-.message-role {
-  font-weight: 500;
-}
-
 .message-time {
+  font-size: 11px;
   color: #909399;
+  margin-top: 8px;
 }
 
 .message-item.user .message-time {
   color: rgba(255, 255, 255, 0.7);
+  text-align: right;
 }
 
 .message-text {
@@ -809,7 +829,7 @@ onMounted(() => {
     display: none;
   }
   
-  .message-content {
+  .message-wrapper {
     max-width: 85%;
   }
   
