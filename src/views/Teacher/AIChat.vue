@@ -169,6 +169,15 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
+// 获取当前用户ID，用于隔离不同用户的聊天记录
+const getUserId = () => {
+  return localStorage.getItem('userId') || localStorage.getItem('teacherId') || 'default'
+}
+
+const getStorageKey = () => {
+  return `aiChatHistory_${getUserId()}`
+}
+
 // 状态
 const sidebarCollapsed = ref(false)
 const messages = ref([])
@@ -416,7 +425,7 @@ const saveChatHistory = () => {
   }
   
   currentChatId.value = chatId
-  localStorage.setItem('aiChatHistory', JSON.stringify(chatHistory.value))
+  localStorage.setItem(getStorageKey(), JSON.stringify(chatHistory.value))
 }
 
 const loadChat = (chatId) => {
@@ -430,7 +439,7 @@ const loadChat = (chatId) => {
 
 const deleteChat = (chatId) => {
   chatHistory.value = chatHistory.value.filter(c => c.id !== chatId)
-  localStorage.setItem('aiChatHistory', JSON.stringify(chatHistory.value))
+  localStorage.setItem(getStorageKey(), JSON.stringify(chatHistory.value))
   
   if (currentChatId.value === chatId) {
     currentChatId.value = null
@@ -440,7 +449,7 @@ const deleteChat = (chatId) => {
 
 // 初始化
 onMounted(() => {
-  const saved = localStorage.getItem('aiChatHistory')
+  const saved = localStorage.getItem(getStorageKey())
   if (saved) {
     try {
       chatHistory.value = JSON.parse(saved)
