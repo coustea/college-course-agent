@@ -5,6 +5,10 @@
         <h2>教师工作台</h2>
       </div>
       <div class="header-right">
+        <el-button type="primary" class="ai-chat-btn" @click="goToAIChat">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>AI 助手</span>
+        </el-button>
         <div class="notification-box" @click="goToGroups">
           <el-badge :is-dot="pendingApplicationsCount > 0" class="item">
             <el-icon :size="24" color="#409eff"><Bell /></el-icon>
@@ -194,7 +198,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
-import { Bell } from '@element-plus/icons-vue'
+import { Bell, ChatDotRound } from '@element-plus/icons-vue'
 
 // 动态后端基址 + Token 拦截（与其他页面保持一致）
 const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
@@ -625,6 +629,11 @@ const goToGroups = () => {
   router.push('/teacher/students/groups')
 }
 
+// 跳转到 AI 对话页面
+const goToAIChat = () => {
+  router.push('/teacher/ai-chat')
+}
+
 // 初始化数据
 onMounted(() => {
   // 加载本地待办事项
@@ -707,6 +716,21 @@ watch(courseStats, () => {
 
 .notification-box:hover {
   background-color: #f0f0f0;
+}
+
+.ai-chat-btn {
+  margin-right: 16px;
+  border-radius: 20px;
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #409eff, #67c23a);
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-chat-btn:hover {
+  background: linear-gradient(135deg, #66b1ff, #85ce61);
 }
 
 .notification-text {

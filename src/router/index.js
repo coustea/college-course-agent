@@ -77,6 +77,7 @@ const teacherRoutes = [
   },
   { path: '/teacher/analytics', name: 'TeacherAnalytics', component: () => import('@/views/Teacher/Analytics.vue'), meta: { requiresAuth: true, role: 'teacher', title: '教学分析' } },
   { path: '/teacher/profile', name: 'TeacherProfile', component: () => import('@/views/Teacher/Profile.vue'), meta: { requiresAuth: true, role: 'teacher', title: '个人中心' } },
+  { path: '/teacher/ai-chat', name: 'TeacherAIChat', component: () => import('@/views/Teacher/AIChat.vue'), meta: { requiresAuth: true, role: 'teacher', title: 'AI 助手' } },
 ]
 
 // 公共路由
