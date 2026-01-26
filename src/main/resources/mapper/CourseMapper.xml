@@ -132,7 +132,7 @@
     </select>
 
     <!-- 新增：按教师ID返回课程卡片字段汇总，适配前端 CoursesList.vue -->
-    <resultMap id="TeacherCourseCardRM" type="com.ccut.entity.TeacherCourseCard">
+    <resultMap id="TeacherCourseCardRM" type="com.ccut.dto.TeacherCourseCard">
         <id property="id" column="course_id"/>
         <result property="title" column="course_name"/>
         <result property="description" column="description"/>

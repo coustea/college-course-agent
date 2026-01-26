@@ -1,7 +1,7 @@
 package com.ccut.controller;
 
 import com.ccut.entity.CourseVideo;
-import com.ccut.entity.Result;
+import com.ccut.dto.Result;
 import com.ccut.mapper.CourseVideoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

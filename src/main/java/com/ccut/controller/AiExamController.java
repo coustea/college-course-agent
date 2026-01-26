@@ -1,5 +1,7 @@
 package com.ccut.controller;
 
+import com.ccut.dto.Question;
+import com.ccut.dto.Result;
 import com.ccut.entity.*;
 import com.ccut.mapper.*;
 import org.springframework.ai.chat.client.ChatClient;

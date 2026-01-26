@@ -1,6 +1,6 @@
 package com.ccut.mapper;
 
-import com.ccut.entity.StudentMemberScore;
+import com.ccut.dto.StudentMemberScore;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

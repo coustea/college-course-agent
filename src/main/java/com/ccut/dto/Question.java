@@ -1,4 +1,4 @@
-package com.ccut.entity;
+package com.ccut.dto;
 
 import lombok.Data;
 import java.util.List;
@@ -14,5 +14,3 @@ public class Question {
     private String answer;
     private String analysis;
 }
-
-

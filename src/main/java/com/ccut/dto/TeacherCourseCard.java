@@ -1,4 +1,4 @@
-package com.ccut.entity;
+package com.ccut.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,5 +24,3 @@ public class TeacherCourseCard {
     private Integer documentCount;   // 文档数量
     private Double completionRate;   // 完成率（learning_progress.completed=true / 选课人数）
 }
-
-

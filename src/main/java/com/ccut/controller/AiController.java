@@ -2,10 +2,9 @@ package com.ccut.controller;
 
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.ccut.entity.Exam;
-import com.ccut.entity.Result;
+import com.ccut.dto.Result;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -57,10 +56,10 @@ public class AiController {
         this.chatClient = builder
                 .defaultOptions(
                         DashScopeChatOptions.builder()
-                                .withModel("qwen-max")
-                                .withEnableThinking(true)
-                                .withTemperature(1.0)
-                                .withEnableSearch(true)
+                                .model("qwen-flash")
+                                .enableThinking(true)
+                                .temperature(0.1)
+                                .enableSearch(true)
                                 .build()
                 )
                 .defaultAdvisors(

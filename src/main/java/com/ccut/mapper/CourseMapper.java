@@ -1,5 +1,6 @@
 package com.ccut.mapper;
 
+import com.ccut.dto.TeacherCourseCard;
 import com.ccut.entity.Course;
 import org.apache.ibatis.annotations.Mapper;
 
@@ -18,6 +19,6 @@ public interface CourseMapper {
             @org.apache.ibatis.annotations.Param("description") String description);
 
     // 新增：按教师ID返回课程卡片字段
-    List<com.ccut.entity.TeacherCourseCard> listCourseCardsByTeacher(@org.apache.ibatis.annotations.Param("teacherId") Long teacherId);
+    List<TeacherCourseCard> listCourseCardsByTeacher(@org.apache.ibatis.annotations.Param("teacherId") Long teacherId);
 }
 

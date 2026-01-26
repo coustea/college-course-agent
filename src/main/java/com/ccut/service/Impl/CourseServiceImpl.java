@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
-public class CourserServiceImpl implements CourseService {
+public class CourseServiceImpl implements CourseService {
 
     @Autowired
     private CourseMapper courseMapper;

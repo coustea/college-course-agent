@@ -1,7 +1,7 @@
 package com.ccut.controller;
 
 import com.ccut.entity.CourseDocument;
-import com.ccut.entity.Result;
+import com.ccut.dto.Result;
 import com.ccut.mapper.CourseDocumentMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

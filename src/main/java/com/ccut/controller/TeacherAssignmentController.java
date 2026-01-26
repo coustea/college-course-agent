@@ -1,7 +1,7 @@
 package com.ccut.controller;
 
-import com.ccut.entity.FileInfo;
-import com.ccut.entity.Result;
+import com.ccut.dto.FileInfo;
+import com.ccut.dto.Result;
 import com.ccut.entity.Teacher;
 import com.ccut.entity.TeacherAssignment;
 import com.ccut.service.Impl.TeacherAssignmentServiceImpl;

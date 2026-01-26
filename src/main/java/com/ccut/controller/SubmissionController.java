@@ -1,7 +1,7 @@
 package com.ccut.controller;
 
-import com.ccut.entity.FileInfo;
-import com.ccut.entity.Result;
+import com.ccut.dto.FileInfo;
+import com.ccut.dto.Result;
 import com.ccut.entity.Student;
 import com.ccut.entity.StudentSubmission;
 import com.ccut.mapper.StudentSubmissionMapper;

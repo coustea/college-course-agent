@@ -1,7 +1,7 @@
 package com.ccut.controller;
 
-import com.ccut.entity.Result;
-import com.ccut.entity.StudentMemberScore;
+import com.ccut.dto.Result;
+import com.ccut.dto.StudentMemberScore;
 import com.ccut.entity.StudentSubmission;
 import com.ccut.mapper.StudentMemberScoreMapper;
 import com.ccut.mapper.StudentSubmissionMapper;

@@ -1,7 +1,7 @@
 package com.ccut.controller;
 
 import com.ccut.entity.GroupMember;
-import com.ccut.entity.Result;
+import com.ccut.dto.Result;
 import com.ccut.entity.Student;
 import com.ccut.service.Impl.GroupMemberServiceImpl;
 import com.ccut.service.Impl.StudentServiceImpl;

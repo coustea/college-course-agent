@@ -1,4 +1,4 @@
-package com.ccut.entity;
+package com.ccut.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -27,5 +27,3 @@ public class TeacherVideoItem {
     // 可选统计字段
     private Integer studentCount;
 }
-
-

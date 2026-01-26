@@ -63,7 +63,7 @@
     </select>
 
     <!-- 新增：按教师ID查询其课程下的视频列表（拍平结构，满足前端卡片列表展示） -->
-    <resultMap id="TeacherVideoItemRM" type="com.ccut.entity.TeacherVideoItem">
+    <resultMap id="TeacherVideoItemRM" type="com.ccut.dto.TeacherVideoItem">
         <result property="id" column="video_id"/>
         <result property="courseId" column="course_id"/>
         <result property="courseName" column="course_name"/>

@@ -1,5 +1,6 @@
 package com.ccut.mapper;
 
+import com.ccut.dto.TeacherVideoItem;
 import com.ccut.entity.CourseVideo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -15,7 +16,7 @@ public interface CourseVideoMapper {
     Integer findMaxIndexByCourseId(@Param("courseId") Long courseId);
 
     // 新增：按教师ID查询其课程下的视频列表
-    List<com.ccut.entity.TeacherVideoItem> listByTeacherId(@Param("teacherId") Long teacherId);
+    List<TeacherVideoItem> listByTeacherId(@Param("teacherId") Long teacherId);
 }
 
 

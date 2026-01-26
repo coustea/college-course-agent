@@ -1,7 +1,7 @@
 package com.ccut.controller;
 
 import com.ccut.entity.LearningProgress;
-import com.ccut.entity.Result;
+import com.ccut.dto.Result;
 import com.ccut.entity.VideoProgress;
 import com.ccut.entity.DocumentProgress;
 import com.ccut.entity.CourseVideo;

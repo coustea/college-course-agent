@@ -1,8 +1,7 @@
-package com.ccut.entity;
+package com.ccut.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Data
 @AllArgsConstructor

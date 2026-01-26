@@ -1,7 +1,7 @@
 package com.ccut.controller;
 
 import com.ccut.entity.Course;
-import com.ccut.entity.Result;
+import com.ccut.dto.Result;
 import com.ccut.service.CourseService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;

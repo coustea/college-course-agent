@@ -1,6 +1,6 @@
 package com.ccut.controller;
 
-import com.ccut.entity.Result;
+import com.ccut.dto.Result;
 import com.ccut.entity.User;
 import com.ccut.entity.Teacher;
 import com.ccut.entity.Student;
@@ -50,8 +50,8 @@ public class AuthController {
             }
             log.info("用户登录: userId={}, username={}", dbUser.getId(), dbUser.getUsername());
 
-        //  密码校验
-        if (!dbUser.getPassword().equals(user.getPassword())) {
+        // 密码校验
+        if (!user.getPassword().equals(dbUser.getPassword())) {
             log.warn("密码错误: {}", user.getUsername());
             return Result.error(401, "密码错误");
         }

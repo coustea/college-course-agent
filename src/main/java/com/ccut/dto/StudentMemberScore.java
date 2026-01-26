@@ -1,4 +1,4 @@
-package com.ccut.entity;
+package com.ccut.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

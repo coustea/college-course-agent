@@ -1,26 +1,3 @@
--- ================================================
--- ⚙️ 删除表（按外键依赖顺序）
--- ================================================
-# DROP TABLE IF EXISTS document_progress;
-# DROP TABLE IF EXISTS video_progress;
-# DROP TABLE IF EXISTS course_documents;
-# DROP TABLE IF EXISTS course_videos;
-# DROP TABLE IF EXISTS learning_progress;
-# DROP TABLE IF EXISTS enrollments;
-# DROP TABLE IF EXISTS ai_exam_answers;
-# DROP TABLE IF EXISTS ai_exam_attempts;
-# DROP TABLE IF EXISTS ai_exam_questions;
-# DROP TABLE IF EXISTS ai_exams;
-# DROP TABLE IF EXISTS student_member_scores;
-# DROP TABLE IF EXISTS student_submissions;
-# DROP TABLE IF EXISTS group_members;
-# DROP TABLE IF EXISTS student_groups;
-# DROP TABLE IF EXISTS teacher_assignments;
-# DROP TABLE IF EXISTS courses;
-# DROP TABLE IF EXISTS teachers;
-# DROP TABLE IF EXISTS students;
-# DROP TABLE IF EXISTS users;
-
 # ================================================
 # 用户表
 # ================================================
@@ -341,4 +318,53 @@ ADD CONSTRAINT fk_aiexam_document FOREIGN KEY (document_id) REFERENCES course_do
 ALTER TABLE student_submissions
 ADD COLUMN group_comment VARCHAR(500) COMMENT '教师对整个小组作业的评语（最多500字）';
 
+-- ================================================
+--  测试数据插入
+-- ================================================
 
+-- 插入学生账号（密码: 123456）
+INSERT INTO users (username, password, role) VALUES ('2021001', '123456', 'student');
+
+-- 插入学生信息（id必须与users表的id对应）
+INSERT INTO students (id, student_number, name, class_name, email, phone, major, grade, enrollment_year, status, group_status)
+VALUES (LAST_INSERT_ID(), '2021001', '张三', '计算机21-1班', 'zhangsan@example.com', '13800138000', '计算机科学与技术', '2021级', 2021, 'IN_SCHOOL', 'pending');
+
+-- 插入教师账号（密码: 123456）
+INSERT INTO users (username, password, role) VALUES ('T001', '123456', 'teacher');
+
+-- 插入教师信息（id必须与users表的id对应）
+INSERT INTO teachers (id, name, email, phone, department, title, position, bio)
+VALUES (LAST_INSERT_ID(), '李老师', 'liteacher@example.com', '13900139000', '计算机学院', '副教授', '系主任', '从事计算机教育多年，研究方向为人工智能与教育。');
+
+
+
+-- ================================================
+-- AI 会话表
+-- ================================================
+CREATE TABLE IF NOT EXISTS conversations (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '会话ID',
+    conversation_id VARCHAR(255) UNIQUE NOT NULL COMMENT '会话唯一标识（username:序号）',
+    username VARCHAR(50) NOT NULL COMMENT '用户名',
+    sequence_num INT NOT NULL COMMENT '该用户的第几个会话',
+    title VARCHAR(255) DEFAULT '新对话' COMMENT '会话标题',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_username (username),
+    INDEX idx_conversation_id (conversation_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI对话会话表';
+
+-- ================================================
+-- AI 聊天消息表
+-- ================================================
+CREATE TABLE IF NOT EXISTS messages (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '消息ID',
+    conversation_id VARCHAR(255) NOT NULL COMMENT '会话唯一标识（关联conversations表）',
+    role VARCHAR(20) NOT NULL COMMENT '角色（user/assistant/system）',
+    content TEXT NOT NULL COMMENT '消息内容',
+    sequence_num INT NOT NULL COMMENT '消息序号（同一会话内递增）',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    tokens_used INT DEFAULT 0 COMMENT '使用的token数（可选）',
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    INDEX idx_conversation_id (conversation_id),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI聊天消息表';

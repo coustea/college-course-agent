@@ -1,6 +1,8 @@
 package com.ccut.controller;
 
-import com.ccut.entity.Result;
+import com.ccut.dto.Result;
+import com.ccut.dto.TeacherCourseCard;
+import com.ccut.dto.TeacherVideoItem;
 import com.ccut.entity.Student;
 import com.ccut.entity.Teacher;
 import com.ccut.mapper.CourseDocumentMapper;
@@ -186,8 +188,8 @@ TeacherController {
             @RequestParam("teacherId") Long teacherId) {
         try {
             if (teacherId == null) return Result.error(400, "teacherId 不能为空");
-            List<com.ccut.entity.TeacherVideoItem> videos = courseVideoMapper.listByTeacherId(teacherId);
-            List<com.ccut.entity.TeacherCourseCard> courses = courseMapper.listCourseCardsByTeacher(teacherId);
+            List<TeacherVideoItem> videos = courseVideoMapper.listByTeacherId(teacherId);
+            List<TeacherCourseCard> courses = courseMapper.listCourseCardsByTeacher(teacherId);
 
             Map<String, Object> resp = new HashMap<>();
             resp.put("videos", videos);
