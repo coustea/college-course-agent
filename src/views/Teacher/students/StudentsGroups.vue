@@ -1,0 +1,633 @@
+<template>
+  <div class="students-groups">
+    <div class="page-header">
+      <h2>分组管理</h2>
+    </div>
+
+    <div class="filter-bar">
+      <el-select v-model="courseFilter" placeholder="按课程筛选" clearable
+                 style="width: 150px; margin-right: 12px;">
+        <el-option
+            v-for="course in courses"
+            :key="course.id"
+            :label="course.name"
+            :value="course.id"
+        />
+      </el-select>
+      <el-button type="primary" :icon="Search" @click="fetchGroups">
+        搜索
+      </el-button>
+    </div>
+
+    <!-- 添加申请状态筛选 -->
+    <div class="application-status-filter">
+      <el-radio-group v-model="applicationStatusFilter" @change="filterGroups">
+        <el-radio-button label="">全部</el-radio-button>
+        <el-radio-button label="pending">未审批</el-radio-button>
+        <el-radio-button label="approval">已同意</el-radio-button>
+        <el-radio-button label="rejected">已驳回</el-radio-button>
+      </el-radio-group>
+    </div>
+
+    <div class="table-container">
+      <el-table :data="paginatedGroups" style="width: 100%" v-loading="loading" height="100%">
+        <el-table-column type="index" label="序号" width="80" align="center"/>
+
+        <el-table-column prop="name" label="队伍名称" width="200" align="center"/>
+        <el-table-column prop="leaderName" label="组长" width="150" align="center"/>
+        <el-table-column prop="members" label="组员" width="200" align="center">
+          <template #default="scope">
+            <span>{{ scope.row.members }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="memberCount" label="人数" width="80" align="center"/>
+        <el-table-column prop="status" label="申请状态" width="120" align="center">
+          <template #default="scope">
+            <el-tag :type="getStatusTagType(scope.row.status)">
+              {{ getStatusText(scope.row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right" align="center">
+          <template #default="scope">
+            <el-button size="small" @click="viewGroupDetails(scope.row)">查看</el-button>
+            <el-button
+                v-if="scope.row.status === 'pending'"
+                size="small"
+                type="success"
+                @click="approveGroup(scope.row)"
+            >
+              同意
+            </el-button>
+            <el-button
+                v-if="scope.row.status === 'pending'"
+                size="small"
+                type="danger"
+                @click="rejectGroup(scope.row)"
+            >
+              驳回
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <el-pagination
+        v-if="filteredGroups.length > 0"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="filteredGroups.length"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+        class="pagination"
+    />
+
+    <!-- 查看分组详情对话框 -->
+    <el-dialog
+        title="分组详情"
+        v-model="showDetailsDialog"
+        width="600px"
+    >
+      <div class="group-details-content">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="队伍名称">{{
+              currentGroupDetails?.name
+            }}
+          </el-descriptions-item>
+
+          <el-descriptions-item label="组长">{{
+              currentGroupDetails?.leaderName
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="组员">
+            <div class="member-list">
+              <el-tag
+                  v-for="member in currentGroupDetails?.memberList"
+                  :key="member.id"
+                  class="member-tag"
+              >
+                {{ member.name }}
+              </el-tag>
+            </div>
+          </el-descriptions-item>
+          <el-descriptions-item label="人数">{{
+              currentGroupDetails?.memberCount
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="分工描述">
+            <div class="description-content">
+              {{ currentGroupDetails?.description || '暂无分工描述' }}
+            </div>
+          </el-descriptions-item>
+          <el-descriptions-item label="申请状态">
+            <el-tag :type="getStatusTagType(currentGroupDetails?.status)">
+              {{ getStatusText(currentGroupDetails?.status) }}
+            </el-tag>
+          </el-descriptions-item>
+        </el-descriptions>
+      </div>
+      <template #footer>
+        <el-button @click="showDetailsDialog = false">关闭</el-button>
+        <el-button
+            v-if="currentGroupDetails?.status === 'pending'"
+            type="success"
+            @click="approveGroup(currentGroupDetails)"
+        >
+          同意
+        </el-button>
+        <el-button
+            v-if="currentGroupDetails?.status === 'pending'"
+            type="danger"
+            @click="rejectGroup(currentGroupDetails)"
+        >
+          驳回
+        </el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+import {ref, computed, onMounted} from 'vue'
+import {ElMessage, ElMessageBox} from 'element-plus'
+import {Search} from '@element-plus/icons-vue'
+import axios from 'axios'
+
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://192.168.52.75:9999/api' : '/api'))
+const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
+api.interceptors.request.use((config) => {
+  try {
+    const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+    if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  } catch {}
+  return config
+})
+
+export default {
+  name: 'StudentsGroups',
+  components: {
+    Search
+  },
+  setup() {
+    const loading = ref(false)
+    const courseFilter = ref('')
+    const applicationStatusFilter = ref('')
+    const currentPage = ref(1)
+    const pageSize = ref(10)
+    const showDetailsDialog = ref(false)
+    const currentGroupDetails = ref(null)
+
+    // 数据
+    const groups = ref([])
+    const courses = ref([])
+    const students = ref([])
+
+    // 获取状态标签类型
+    const getStatusTagType = (status) => {
+      switch (status) {
+        case 'pending':
+          return 'warning'
+        case 'approval':
+        case 'approved':
+          return 'success'
+        case 'rejected':
+          return 'danger'
+        default:
+          return 'info'
+      }
+    }
+
+    // 获取状态文本
+    const getStatusText = (status) => {
+      switch (status) {
+        case 'pending':
+          return '未审批'
+        case 'approval':
+          return '已同意'
+        case 'rejected':
+          return '已驳回'
+        default:
+          return '未知'
+      }
+    }
+
+    // 计算未审批分组数量
+    const pendingGroupsCount = computed(() => {
+      return groups.value.filter(group => group.status === 'pending').length
+    })
+
+    // 更新本地存储的未审批数量
+    const updatePendingCountStorage = () => {
+      localStorage.setItem('pendingGroupsCount', pendingGroupsCount.value.toString())
+      // 触发自定义事件，通知首页更新
+      window.dispatchEvent(new CustomEvent('pendingGroupsCountUpdated', {
+        detail: {count: pendingGroupsCount.value}
+      }))
+    }
+
+    // 过滤分组
+    const filteredGroups = computed(() => {
+      let result = groups.value
+      console.log('filteredGroups - 初始groups.value:', result)
+      console.log('filteredGroups - 初始数量:', result.length)
+
+      if (courseFilter.value) {
+        result = result.filter(group => group.courseId == courseFilter.value)
+        console.log('filteredGroups - 课程筛选后:', result.length)
+      }
+
+      // 根据申请状态筛选
+      if (applicationStatusFilter.value) {
+        console.log('filteredGroups - 当前状态过滤器:', applicationStatusFilter.value)
+        console.log('filteredGroups - 过滤前每个小组的status:', result.map(g => ({ id: g.id, name: g.name, status: g.status })))
+        result = result.filter(group => group.status === applicationStatusFilter.value)
+        console.log('filteredGroups - 状态筛选后:', result.length)
+      }
+
+      console.log('filteredGroups - 最终结果:', result)
+      return result
+    })
+
+    // 分页后的分组
+    const paginatedGroups = computed(() => {
+      const start = (currentPage.value - 1) * pageSize.value
+      const end = start + pageSize.value
+      return filteredGroups.value.slice(start, end)
+    })
+
+    // 获取分组数据（接后端 /api/student-group/approvalStatus）
+    const requestApprovalStatus = async () => {
+      const params = {}
+      if (courseFilter.value) params.courseId = courseFilter.value
+      if (applicationStatusFilter.value) params.approvalStatus = applicationStatusFilter.value
+
+      console.log('请求参数:', params)
+      console.log('courseFilter:', courseFilter.value)
+      console.log('applicationStatusFilter:', applicationStatusFilter.value)
+
+      // 使用 POST 请求，但将参数作为查询参数（URL params）而不是 body
+      try {
+        const result = await api.post('/student-group/approvalStatus', null, { params })
+        console.log('API响应:', result)
+        return result
+      } catch (e) {
+        console.error('请求分组数据失败:', e)
+        throw e
+      }
+    }
+
+    const fetchGroups = async () => {
+      loading.value = true
+      try {
+        const res = await requestApprovalStatus()
+        console.log('=== 开始加载小组数据 ===')
+        console.log('后端返回原始数据:', res)
+        console.log('res.data:', res?.data)
+        const raw = res?.data
+        console.log('raw:', raw)
+        console.log('raw.data:', raw?.data)
+        console.log('Array.isArray(raw?.data):', Array.isArray(raw?.data))
+        console.log('Array.isArray(raw):', Array.isArray(raw))
+        const list = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : [])
+        console.log('解析后的列表:', list)
+        console.log('列表长度:', list.length)
+        // 打印每个小组的详细信息
+        list.forEach((g, index) => {
+          console.log(`小组${index + 1}:`, {
+            id: g.id,
+            name: g.name,
+            approvalStatus: g.approvalStatus,
+            status: g.status,
+            完整数据: g
+          })
+        })
+        const groupsWithDetails = list.map((g) => {
+          const id = g.id || g.groupId || g.group_id
+          const courseIdVal = g.courseId || g.course_id || g.course?.id
+          const courseName = g.courseName || g.course_name || g.course?.courseName || g.course?.name || '未知课程'
+
+          // 统一成员列表（后端字段为 groupMemberList）
+          const gmRaw = Array.isArray(g.groupMemberList) ? g.groupMemberList : (Array.isArray(g.memberList) ? g.memberList : [])
+          const memberListFromGroup = gmRaw.map(m => ({
+            id: m.studentId != null ? m.studentId : (m.id != null ? m.id : undefined),
+            name: m.studentName || m.name || m.username || '',
+            role: m.role,
+            joinStatus: m.joinStatus
+          }))
+
+          // 兼容旧字段（members/memberList 为字符串数组或逗号分隔）
+          const fallbackMemberRaw = g.members || g.memberList || g.students || []
+          const fallbackMemberList = Array.isArray(fallbackMemberRaw)
+              ? fallbackMemberRaw.map(m => (typeof m === 'string' ? { name: m } : m))
+              : String(fallbackMemberRaw || '').split(',').filter(Boolean).map(n => ({ name: n.trim() }))
+
+          const normalizedMemberList = memberListFromGroup.length > 0 ? memberListFromGroup : fallbackMemberList
+
+          // 组长与组员拆分
+          const leaderFromMembers = normalizedMemberList.find(m => m.role === 'leader')
+          const leaderIdVal = g.groupLeaderId || g.leaderId || leaderFromMembers?.id
+          const leaderName = g.leaderName || leaderFromMembers?.name || '未知'
+
+          const membersOnly = normalizedMemberList.filter(m => m.role !== 'leader')
+          const members = membersOnly.map(m => m.name || m.username || '').filter(Boolean).join(', ')
+
+          // 人数（总人数，包含组长）
+          const memberCount = normalizedMemberList.length
+
+          // 审批状态（严格使用 approvalStatus，避免误用 status: active/disbanded）
+          const approvalStatus = g.approvalStatus || g.groupApprovalStatus || g.approval_status || g.approvalstatus || ''
+          const status = approvalStatus || g.state || ''
+
+          return {
+            id,
+            name: g.name || g.groupName || `分组#${id ?? ''}`,
+            courseId: courseIdVal,
+            courseName,
+            leaderId: leaderIdVal,
+            leaderName,
+            description: g.description || g.groupDescription || g.remark || '',
+            members,
+            memberList: normalizedMemberList,
+            memberCount,
+            status,
+          }
+        })
+
+        console.log('处理后的分组数据:', groupsWithDetails)
+        console.log('处理后的分组数量:', groupsWithDetails.length)
+        groups.value = groupsWithDetails
+        console.log('groups.value 赋值后:', groups.value)
+        // 从分组聚合课程下拉
+        const uniqueCourses = new Map()
+        for (const g of groupsWithDetails) {
+          if (!uniqueCourses.has(g.courseId)) uniqueCourses.set(g.courseId, { id: g.courseId, name: g.courseName })
+        }
+        courses.value = Array.from(uniqueCourses.values()).filter(c => c.id != null)
+
+        updatePendingCountStorage()
+      } catch (error) {
+        console.error('获取数据失败:', error)
+        const msg = error?.response?.data?.message || error?.message || '获取数据失败'
+        ElMessage.error(msg)
+      } finally {
+        loading.value = false
+      }
+    }
+
+    // 查看分组详情
+    const viewGroupDetails = (group) => {
+      currentGroupDetails.value = group
+      showDetailsDialog.value = true
+    }
+
+    // 筛选分组
+    const filterGroups = () => {
+      currentPage.value = 1 // 重置到第一页
+    }
+
+    // 同意分组申请 - 修改为正确的参数格式
+    const approveGroup = async (group) => {
+      try {
+        const gid = group?.id || group?.groupId || group?.group_id
+        if (!gid) { ElMessage.error('缺少分组ID'); return }
+
+        await ElMessageBox.confirm(
+            `确定要同意"${group.name}"的分组申请吗？`,
+            '确认操作',
+            {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning',
+            }
+        )
+
+        // 构建完整的 StudentGroup 对象
+        const payload = {
+          groupId: gid,
+          groupName: group.name,
+          groupLeaderId: group.leaderId,
+          groupDescription: group.description,
+          approvalStatus: 'approval', // 使用正确的枚举值
+          status: 'active' // 保持小组状态为活跃
+        }
+
+        console.log('发送同意请求:', { url: `/student-group/${gid}`, payload })
+
+        // 使用 PUT 方法
+        const response = await api.put(`/student-group/${gid}`, payload)
+        console.log('同意响应:', response.data)
+
+        // 更新本地状态
+        group.status = 'approved'
+        ElMessage.success('分组申请已同意')
+
+        // 更新未审批数量
+        updatePendingCountStorage()
+
+        // 如果当前在查看详情，关闭对话框
+        if (currentGroupDetails.value && currentGroupDetails.value.id === group.id) {
+          showDetailsDialog.value = false
+        }
+
+        // 刷新数据
+        await fetchGroups()
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('操作失败:', error)
+          console.log('错误详情:', error.response?.data)
+          ElMessage.error(error?.response?.data?.message || error?.response?.data || '操作失败')
+        }
+      }
+    }
+
+// 驳回分组申请 - 同样的修改
+    const rejectGroup = async (group) => {
+      try {
+        const gid = group?.id || group?.groupId || group?.group_id
+        if (!gid) { ElMessage.error('缺少分组ID'); return }
+
+        await ElMessageBox.confirm(
+            `确定要驳回"${group.name}"的分组申请吗？`,
+            '确认操作',
+            {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning',
+            }
+        )
+
+        // 构建完整的 StudentGroup 对象
+        const payload = {
+          groupId: gid,
+          groupName: group.name,
+          groupLeaderId: group.leaderId,
+          groupDescription: group.description,
+          approvalStatus: 'rejected', // 使用正确的枚举值
+          status: 'active' // 保持小组状态为活跃
+        }
+
+        console.log('发送驳回请求:', { url: `/student-group/${gid}`, payload })
+
+        // 使用 PUT 方法
+        const response = await api.put(`/student-group/${gid}`, payload)
+        console.log('驳回响应:', response.data)
+
+        // 更新本地状态
+        group.status = 'rejected'
+        ElMessage.success('分组申请已驳回')
+
+        // 更新未审批数量
+        updatePendingCountStorage()
+
+        // 如果当前在查看详情，关闭对话框
+        if (currentGroupDetails.value && currentGroupDetails.value.id === group.id) {
+          showDetailsDialog.value = false
+        }
+
+        // 刷新数据
+        await fetchGroups()
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('操作失败:', error)
+          console.log('错误详情:', error.response?.data)
+          ElMessage.error(error?.response?.data?.message || error?.response?.data || '操作失败')
+        }
+      }
+    }
+
+    // 初始化数据
+    onMounted(() => {
+      fetchGroups()
+    })
+
+    return {
+      loading,
+      courseFilter,
+      applicationStatusFilter,
+      currentPage,
+      pageSize,
+      showDetailsDialog,
+      currentGroupDetails,
+      groups,
+      courses,
+      students,
+      filteredGroups,
+      paginatedGroups,
+      fetchGroups,
+      viewGroupDetails,
+      filterGroups,
+      approveGroup,
+      rejectGroup,
+      getStatusTagType,
+      getStatusText,
+      Search  // 确保Search图标在模板中可用
+    }
+  }
+}
+</script>
+
+<style scoped>
+.students-groups {
+  padding: 20px;
+  background-color: #f5f7fa;
+  min-height: calc(100vh - 40px);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 16px 24px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.page-header h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 16px 24px;
+  background: white;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.application-status-filter {
+  padding: 16px 24px;
+  background: white;
+  border-top: 1px solid #eee;
+}
+
+.table-container {
+  background: white;
+  padding: 0 24px;
+  height: calc(100vh - 380px);
+  overflow: auto;
+}
+
+.pagination {
+  margin-top: 0;
+  padding: 16px;
+  background: white;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.group-details-content {
+  padding: 20px 0;
+}
+
+.member-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.member-tag {
+  margin-right: 0;
+}
+
+.description-content {
+  white-space: pre-wrap;
+  min-height: 60px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .filter-bar .el-input {
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+
+  .filter-bar .el-select {
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .table-container {
+    padding: 0 16px;
+    height: auto;
+  }
+}
+</style>
