@@ -1,87 +1,113 @@
 <template>
-  <div class="page-header">
-    <div class="header-left">
-      <h2>下发作品定期检测</h2>
+  <div class="create-container">
+    <div class="create-header">
+      <div class="header-left">
+        <el-button @click="$router.push('/teacher/assignments/list')" link class="back-link">
+          <i class="fas fa-arrow-left"></i> 返回列表
+        </el-button>
+        <h2 class="header-title">下发作品定期检测</h2>
+      </div>
+      <div class="header-right">
+        <el-button type="primary" @click="submitForm" :loading="submitting" size="large">
+          <i class="fas fa-paper-plane" style="margin-right: 6px;"></i>
+          {{ submitting ? '提交中...' : '立即下发' }}
+        </el-button>
+      </div>
     </div>
-    <div class="header-right">
-      <el-button @click="$router.push('/teacher/assignments/list')">
-        <i class="fas fa-arrow-left"></i>
-        返回列表
-      </el-button>
-      <el-button type="primary" @click="submitForm" :loading="submitting">
-        {{ submitting ? '提交中...' : '下发检测' }}
-      </el-button>
-    </div>
-  </div>
 
-  <div class="assignment-create">
-    <el-form
-      :model="assignmentForm"
-      :rules="rules"
-      ref="formRef"
-      label-width="120px"
-      class="assignment-form"
-    >
-      <el-form-item label="检测标题" prop="title">
-        <el-input v-model="assignmentForm.title" placeholder="请输入检测标题" />
-      </el-form-item>
-
-      <el-form-item label="教师" prop="teacherId">
-        <el-select
-          v-model="assignmentForm.teacherId"
-          placeholder="请选择教师"
-          filterable
-          style="width: 320px;"
-          :disabled="true"
+    <div class="create-content">
+      <el-card shadow="never" class="form-card" v-loading="submitting">
+        <el-form
+          :model="assignmentForm"
+          :rules="rules"
+          ref="formRef"
+          label-position="top"
+          class="assignment-form"
+          size="large"
         >
-          <el-option
-            v-for="t in teachers"
-            :key="t.id"
-            :label="t.name || ('教师#' + t.id)"
-            :value="t.id"
-          />
-        </el-select>
-      </el-form-item>
+          <el-row :gutter="24">
+            <el-col :xs="24" :md="16">
+              <el-form-item label="检测标题" prop="title">
+                <el-input 
+                  v-model="assignmentForm.title" 
+                  placeholder="请输入检测任务标题（如：第一次阶段性检查）" 
+                  maxlength="100"
+                  show-word-limit
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :xs="24" :md="8">
+              <el-form-item label="截止时间" prop="deadline">
+                <el-date-picker
+                  v-model="assignmentForm.deadline"
+                  type="datetime"
+                  placeholder="选择截止日期"
+                  style="width: 100%"
+                  value-format="YYYY-MM-DD HH:mm"
+                  :default-time="new Date(2000, 1, 1, 23, 59, 59)"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
 
-      <el-form-item label="截止日期" prop="deadline">
-        <el-date-picker
-          v-model="assignmentForm.deadline"
-          type="datetime"
-          placeholder="选择截止日期和时间"
-          value-format="YYYY-MM-DD HH:mm"
-        />
-      </el-form-item>
+          <el-row :gutter="24">
+            <el-col :span="24">
+              <el-form-item label="负责教师" prop="teacherId">
+                <el-select
+                  v-model="assignmentForm.teacherId"
+                  placeholder="请选择教师"
+                  filterable
+                  style="width: 100%;"
+                  :disabled="true"
+                >
+                  <el-option
+                    v-for="t in teachers"
+                    :key="t.id"
+                    :label="t.name || ('教师#' + t.id)"
+                    :value="t.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
 
-      <el-form-item label="检测要求" prop="description">
-        <el-input
-          v-model="assignmentForm.description"
-          type="textarea"
-          :rows="5"
-          placeholder="请输入检测详细要求和说明"
-        />
-      </el-form-item>
+          <el-form-item label="检测要求与说明" prop="description">
+            <el-input
+              v-model="assignmentForm.description"
+              type="textarea"
+              :rows="6"
+              placeholder="请输入本次检测的详细要求、评分标准及注意事项..."
+              resize="none"
+            />
+          </el-form-item>
 
-      <el-form-item label="参考附件">
-        <el-upload
-          action="#"
-          multiple
-          :on-change="handleFileChange"
-          :on-remove="handleFileRemove"
-          :auto-upload="false"
-          :file-list="fileList"
-          :before-upload="beforeUpload"
-        >
-          <el-button type="primary">
-            <i class="fas fa-upload"></i> 选择文件
-          </el-button>
-          <template #tip>
-            <div class="el-upload__tip">
-              支持PDF、Word、Excel等格式，单个文件不超过10MB
+          <el-form-item label="参考附件（可选）">
+            <div class="upload-area">
+              <el-upload
+                action="#"
+                multiple
+                drag
+                :on-change="handleFileChange"
+                :on-remove="handleFileRemove"
+                :auto-upload="false"
+                :file-list="fileList"
+                :before-upload="beforeUpload"
+                class="upload-demo"
+              >
+                <i class="el-icon-upload fas fa-cloud-upload-alt upload-icon"></i>
+                <div class="el-upload__text">
+                  将文件拖到此处，或 <em>点击上传</em>
+                </div>
+                <!-- tip slot was removed in Element Plus drag sometimes, putting tip below -->
+              </el-upload>
+              <div class="upload-tip">
+                支持 PDF、Word、Excel 等格式，单个文件不超过 10MB
+              </div>
             </div>
-          </template>
-        </el-upload>
-      </el-form-item>
-    </el-form>
+          </el-form-item>
+        </el-form>
+      </el-card>
+    </div>
   </div>
 </template>
 
@@ -272,69 +298,89 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.assignment-create {
+.create-container {
+  max-width: 1000px;
+  margin: 0 auto;
   padding: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
-.page-header {
+.create-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  padding: 16px 24px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-
 .header-left {
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
-
-.page-header h2 {
+.back-link {
+  padding: 0;
+  height: auto;
+  justify-content: flex-start;
+  color: #606266;
+  font-weight: normal;
+}
+.back-link:hover {
+  color: #409eff;
+}
+.header-title {
   font-size: 24px;
-  font-weight: 600;
-  color: #2c3e50;
-  margin: 0 0 8px 0;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.create-content {
+  margin-top: 10px;
+}
+.form-card {
+  border-radius: 12px;
+  border: 1px solid #ebeef5;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
 }
 
 .assignment-form {
-  max-width: 800px;
+  padding: 10px;
 }
 
-:deep(.el-upload-list) {
-  margin-top: 10px;
+.upload-area {
+  width: 100%;
+}
+.upload-demo :deep(.el-upload-dragger) {
+  width: 100%;
+  border: 2px dashed #dcdfe6;
+}
+.upload-demo :deep(.el-upload-dragger:hover) {
+  border-color: #409eff;
+}
+.upload-icon {
+  font-size: 40px;
+  color: #a8abb2;
+  margin-bottom: 10px;
+}
+.upload-tip {
+  font-size: 13px;
+  color: #909399;
+  margin-top: 8px;
 }
 
-/* 响应式设计 */
+/* Responsive adjustments */
 @media (max-width: 768px) {
-  .page-header {
+  .create-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
   }
-
-  .header-left {
-    margin-bottom: 16px;
-  }
-
   .header-right {
     width: 100%;
-    justify-content: flex-end;
   }
-
-  .assignment-form {
-    max-width: 100%;
+  .header-right .el-button {
+    width: 100%;
+  }
+  .create-container {
+    padding: 10px;
   }
 }
 </style>

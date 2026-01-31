@@ -1,45 +1,79 @@
 <template>
   <div class="assignments-check">
-    <div class="check-header">
-      <div class="header-left">
-        <h2>检查情况：{{ assignmentTitle }}</h2>
-        <p>班级：{{ courseName }} | 截止日期：{{ formatDate(deadline) }}</p>
-        <p>完成进度：{{ submittedCount }}/{{ totalGroups }} 个小组</p>
-      </div>
-      <div class="header-right">
-        <el-button @click="$router.push('/teacher/assignments/list')">
-          <i class="fas fa-arrow-left"></i> 返回列表
-        </el-button>
+    <div class="check-header-white">
+      <div class="header-content">
+        <div class="header-top">
+          <el-button @click="$router.push('/teacher/assignments/list')" link class="back-link">
+            <i class="fas fa-arrow-left"></i> 返回列表
+          </el-button>
+        </div>
+        <div class="header-main">
+          <div class="header-info">
+            <h2 class="page-title">{{ assignmentTitle }}</h2>
+            <div class="meta-tags">
+              <el-tag effect="plain" type="info" class="meta-tag"><i class="fas fa-users"></i> {{ courseName }}</el-tag>
+              <el-tag effect="plain" type="warning" class="meta-tag"><i class="far fa-clock"></i> 截止：{{ formatDate(deadline) }}</el-tag>
+              <el-tag effect="plain" type="success" class="meta-tag" v-if="submittedCount === totalGroups"><i class="fas fa-check-circle"></i> 全部收齐</el-tag>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="check-content">
+    <div class="check-content-premium">
       <!-- 统计概览 -->
-      <div class="stats-overview">
-        <el-row :gutter="20">
+      <div class="stats-overview-premium">
+        <el-row :gutter="24">
           <el-col :span="6">
-            <div class="stat-card">
-              <div class="stat-value">{{ submittedCount }}</div>
-              <div class="stat-label">已提交</div>
-            </div>
+            <el-card shadow="hover" class="stat-card-premium submitted-card">
+              <div class="stat-icon-wrapper">
+                <i class="fas fa-file-alt"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value">{{ submittedCount }}</div>
+                <div class="stat-label">已提交小组</div>
+              </div>
+            </el-card>
           </el-col>
           <el-col :span="6">
-            <div class="stat-card">
-              <div class="stat-value">{{ totalGroups - submittedCount }}</div>
-              <div class="stat-label">未提交</div>
-            </div>
+            <el-card shadow="hover" class="stat-card-premium pending-card">
+              <div class="stat-icon-wrapper">
+                <i class="fas fa-spinner"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value">{{ totalGroups - submittedCount }}</div>
+                <div class="stat-label">未提交小组</div>
+              </div>
+            </el-card>
           </el-col>
           <el-col :span="6">
-            <div class="stat-card">
-              <div class="stat-value">{{ completedCount }}</div>
-              <div class="stat-label">已完成检查</div>
-            </div>
+            <el-card shadow="hover" class="stat-card-premium graded-card">
+              <div class="stat-icon-wrapper">
+                <i class="fas fa-check-double"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value">{{ completedCount }}</div>
+                <div class="stat-label">已完成检查</div>
+              </div>
+            </el-card>
           </el-col>
           <el-col :span="6">
-            <div class="stat-card">
-              <div class="stat-value">{{ Math.round((submittedCount / totalGroups) * 100) }}%</div>
-              <div class="stat-label">提交率</div>
-            </div>
+            <el-card shadow="hover" class="stat-card-premium progress-card">
+              <div class="stat-icon-wrapper">
+                <el-progress 
+                  type="circle" 
+                  :percentage="Math.round(((submittedCount / totalGroups) || 0) * 100)" 
+                  :width="40"
+                  :stroke-width="5"
+                  :show-text="false"
+                  :color="customColors"
+                />
+              </div>
+              <div class="stat-info">
+                <div class="stat-value">{{ Math.round(((submittedCount / totalGroups) || 0) * 100) }}%</div>
+                <div class="stat-label">整体提交率</div>
+              </div>
+            </el-card>
           </el-col>
         </el-row>
       </div>
@@ -48,8 +82,24 @@
       <div class="groups-list">
         <h3>小组检查情况</h3>
         <el-table :data="groups" style="width: 100%" stripe>
-          <el-table-column prop="groupName" label="小组名称" width="150" align="center" />
-          <el-table-column prop="leaderName" label="组长" width="120" align="center" />
+          <el-table-column prop="groupName" label="小组名称" min-width="160">
+            <template #default="scope">
+              <div class="group-name-cell">
+                <div class="group-avatar" :style="{ backgroundColor: getAvatarColor(scope.row.groupName) }">
+                  {{ scope.row.groupName.charAt(0) }}
+                </div>
+                <span class="group-name-text">{{ scope.row.groupName }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="leaderName" label="组长" width="140" align="center">
+             <template #default="scope">
+                <div class="leader-cell">
+                  <span>{{ scope.row.leaderName }}</span>
+                  <i v-if="scope.row.leaderName" class="fas fa-crown leader-icon" title="组长"></i>
+                </div>
+             </template>
+          </el-table-column>
           <el-table-column prop="members" label="组员" width="200" align="center">
             <template #default="scope">
               <el-tag
@@ -308,6 +358,25 @@ const completedCount = computed(() => {
 const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString('zh-CN')
 }
+
+// 自动生成头像颜色
+const getAvatarColor = (name) => {
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1']
+  if (!name) return colors[0]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
+}
+
+const customColors = [
+  { color: '#f56c6c', percentage: 20 },
+  { color: '#e6a23c', percentage: 40 },
+  { color: '#5cb87a', percentage: 60 },
+  { color: '#1989fa', percentage: 80 },
+  { color: '#6f7ad3', percentage: 100 },
+]
 
 const formatDateTime = (dateTimeString) => {
   return new Date(dateTimeString).toLocaleString('zh-CN')
@@ -832,110 +901,258 @@ onMounted(async () => {
 
 <style scoped>
 .assignments-check {
-  padding: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  background: #f3f4f6;
+  min-height: 100vh;
 }
 
-.check-header {
+/* Header White Styles */
+.check-header-white {
+  position: relative;
+  background: white;
+  padding: 24px 32px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 24px;
+}
+
+.header-top {
+  margin-bottom: 16px;
+}
+
+.back-link {
+  color: #6b7280 !important;
+  font-weight: 500;
+  padding: 0;
+}
+.back-link:hover {
+  color: #111827 !important;
+}
+
+.header-main {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: #1f2937; /* Dark text */
+}
+
+.meta-tags {
+  display: flex;
+  gap: 12px;
+}
+
+.meta-tag {
+  font-weight: 500;
+}
+
+/* Content Area */
+.check-content-premium {
+  padding: 0 32px 32px;
+  margin-top: 0; /* Reset negative margin */
+  position: relative;
+  z-index: 10;
+}
+
+/* Stats Cards */
+.stats-overview-premium {
   margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #eaeaea;
 }
 
-.header-left h2 {
-  margin-bottom: 8px;
-  color: #1f2937;
+.stat-card-premium {
+  height: 100px;
+  background: white;
+  border: none;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  position: relative;
 }
 
-.header-left p {
-  color: #6b7280;
-  font-size: 14px;
-  margin: 4px 0;
+.stat-card-premium:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-.stats-overview {
-  margin-bottom: 30px;
+.stat-card-premium :deep(.el-card__body) {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 20px !important;
 }
 
-.stat-card {
-  background: #f8fafc;
-  padding: 20px;
-  border-radius: 8px;
-  text-align: center;
-  border-left: 4px solid #3b82f6;
+.stat-icon-wrapper {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+
+.submitted-card .stat-icon-wrapper { background: #eff6ff; color: #3b82f6; }
+.pending-card .stat-icon-wrapper { background: #fef2f2; color: #ef4444; }
+.graded-card .stat-icon-wrapper { background: #f0fdf4; color: #10b981; }
+.progress-card .stat-icon-wrapper { background: #fdf2f8; color: #db2777; }
+
+.stat-info {
+  flex: 1;
 }
 
 .stat-value {
-  font-size: 28px;
-  font-weight: bold;
-  color: #1f2937;
-  margin-bottom: 8px;
+  font-size: 24px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.2;
 }
 
 .stat-label {
-  font-size: 14px;
+  font-size: 13px;
   color: #6b7280;
+  margin-top: 4px;
+}
+
+/* Progress Card needs special styling due to different structure */
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.stat-value-small {
+  font-weight: 700;
+  color: #111827;
+}
+
+/* Table Area */
+.groups-list {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
 }
 
 .groups-list h3 {
-  margin-bottom: 15px;
-  color: #1f2937;
-}
-
-.content-preview {
-  background: #f9fafb;
-  padding: 15px;
-  border-radius: 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
   margin-bottom: 20px;
-  min-height: 60px;
+  padding-left: 10px;
+  border-left: 4px solid #3b82f6;
 }
 
-.attachment-item {
+/* Group Avatar */
+.group-name-cell {
   display: flex;
   align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #f3f4f6;
 }
-
-.attachment-item i {
-  margin-right: 10px;
-  color: #6b7280;
+.group-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
-
-.attachment-item span {
-  flex: 1;
-}
-
-.grading-form {
-  background: #f9fafb;
-  padding: 20px;
-  border-radius: 8px;
-}
-
-.grading-form h4 {
-  margin-bottom: 15px;
+.group-name-text {
+  font-weight: 500;
   color: #374151;
 }
 
-.score-total {
-  margin-left: 10px;
-  color: #6b7280;
+.leader-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.leader-icon {
+  color: #f59e0b;
+  font-size: 12px;
+}
+
+/* Dialog Stylings */
+.content-preview {
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 24px;
+  min-height: 80px;
+}
+
+.attachment-item {
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+}
+.attachment-item:hover {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+}
+.attachment-item i {
+  color: #3b82f6;
+}
+
+.grading-form {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* Custom Scrollbar for big lists */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #f3f4f6;
 }
 
 :deep(.centered-dialog .el-dialog) {
-  margin: 0 auto !important;
-  max-height: calc(100vh - 100px);
-  display: flex;
-  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+}
+:deep(.el-dialog__header) {
+  margin: 0;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f3f4f6;
+}
+:deep(.el-dialog__footer) {
+  padding: 20px 24px;
+  background: #f9fafb;
+  border-top: 1px solid #f3f4f6;
 }
 
-:deep(.centered-dialog .el-dialog__body) {
-  flex: 1;
-  overflow-y: auto;
+/* Responsive adjustment for small screens */
+@media (max-width: 768px) {
+  .check-header-premium {
+    padding: 20px;
+    padding-bottom: 40px;
+  }
+  .check-content-premium {
+    padding: 0 16px 20px;
+  }
 }
 </style>
