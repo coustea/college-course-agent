@@ -1,35 +1,31 @@
 package com.ccut.controller;
 
-import com.ccut.entity.LearningProgress;
 import com.ccut.dto.Result;
-import com.ccut.entity.VideoProgress;
 import com.ccut.entity.DocumentProgress;
-import com.ccut.entity.CourseVideo;
-import com.ccut.entity.CourseDocument;
-import com.ccut.mapper.LearningProgressMapper;
-import com.ccut.mapper.CourseVideoMapper;
-import com.ccut.mapper.VideoProgressMapper;
-import com.ccut.mapper.DocumentProgressMapper;
-import com.ccut.mapper.CourseDocumentMapper;
+import com.ccut.entity.LearningProgress;
+import com.ccut.entity.VideoProgress;
+import com.ccut.service.ProgressService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 学习进度控制器
+ */
 @RestController
+@Slf4j
 @RequestMapping("/api/progress")
 public class ProgressController {
 
     @Autowired
-    private LearningProgressMapper learningProgressMapper;
-    @Autowired
-    private CourseVideoMapper courseVideoMapper;
-    @Autowired
-    private VideoProgressMapper videoProgressMapper;
-    @Autowired
-    private DocumentProgressMapper documentProgressMapper;
-    @Autowired
-    private CourseDocumentMapper courseDocumentMapper;
+    private ProgressService progressService;
 
-    // 上报学习增量：支持 videoId 或 documentId
+    /**
+     * 上报学习增量：支持 videoId 或 documentId
+     */
     @PostMapping("/report")
     public Result<String> report(@RequestParam("studentId") Long studentId,
                                  @RequestParam("courseId") Long courseId,
@@ -37,178 +33,103 @@ public class ProgressController {
                                  @RequestParam(value = "documentId", required = false) Long documentId,
                                  @RequestParam(value = "deltaSec", defaultValue = "0") Integer deltaSec,
                                  @RequestParam(value = "scrollPct", required = false) Double scrollPct,
-                                 @RequestParam(value = "completed", defaultValue = "false") Boolean completed){
+                                 @RequestParam(value = "completed", defaultValue = "false") Boolean completed) {
         try {
-            if (deltaSec == null || deltaSec < 0) deltaSec = 0;
-            if (scrollPct == null) scrollPct = 0.0;
-
-            if (videoId == null && documentId == null) {
-                return Result.error(400, "需要提供 videoId 或 documentId 之一");
-            }
-            if (videoId != null && documentId != null) {
-                return Result.error(400, "videoId 与 documentId 不能同时提供");
-            }
-
-            // 先更新子项维度
-            if (videoId != null) {
-                videoProgressMapper.upsert(studentId, courseId, videoId, deltaSec, completed);
-            } else {
-                documentProgressMapper.upsert(studentId, courseId, documentId, deltaSec, scrollPct, completed);
-            }
-
-            // 重新计算课程层的百分比与完成（由 SQL 聚合：视频+文档个数完成度）
-            // 这里仍然保留 time_spent 的累计字段，用于历史兼容或展示
-            learningProgressMapper.upsert(studentId, courseId, 0.0, deltaSec, completed);
-
+            progressService.reportProgress(studentId, courseId, videoId, documentId, deltaSec, scrollPct, completed);
             return Result.success("ok");
-        } catch (Exception e){
+        } catch (IllegalArgumentException e) {
+            log.warn("进度上报参数错误: {}", e.getMessage());
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            log.error("进度上报异常", e);
             return Result.error(500, e.getMessage());
         }
     }
 
-    // 查询课程汇总进度
+    /**
+     * 查询课程汇总进度
+     */
     @GetMapping("/course")
     public Result<LearningProgress> getCourseProgress(@RequestParam("studentId") Long studentId,
-                                                      @RequestParam("courseId") Long courseId){
+                                                      @RequestParam("courseId") Long courseId) {
         try {
-            LearningProgress lp = learningProgressMapper.findOne(studentId, courseId);
-            Double pct = learningProgressMapper.calcCoursePercent(studentId, courseId);
-            if (pct == null) pct = 0.0;
-            boolean courseCompleted = Boolean.TRUE.equals(learningProgressMapper.isCourseCompleted(studentId, courseId));
-            if (lp == null) {
-                lp = new LearningProgress(null, studentId, courseId, courseCompleted, pct, 0, null);
-            } else {
-                lp.setCompleted(courseCompleted);
-                lp.setCompletionPercentage(courseCompleted ? 100.0 : pct);
-            }
-            return Result.success(lp);
-        } catch (Exception e){
+            return Result.success(progressService.getCourseProgress(studentId, courseId));
+        } catch (Exception e) {
+            log.error("查询课程进度异常", e);
             return Result.error(500, e.getMessage());
         }
     }
 
-    // 查询某个视频的学习进度
+    /**
+     * 查询某个视频的学习进度
+     */
     @GetMapping("/video")
-    public Result<com.ccut.entity.VideoProgress> getVideoProgress(@RequestParam("studentId") Long studentId,
-                                                                  @RequestParam("courseId") Long courseId,
-                                                                  @RequestParam("videoId") Long videoId){
+    public Result<VideoProgress> getVideoProgress(@RequestParam("studentId") Long studentId,
+                                                  @RequestParam("courseId") Long courseId,
+                                                  @RequestParam("videoId") Long videoId) {
         try {
-            return Result.success(videoProgressMapper.findOne(studentId, courseId, videoId));
-        } catch (Exception e){
+            return Result.success(progressService.getVideoProgress(studentId, courseId, videoId));
+        } catch (Exception e) {
+            log.error("查询视频进度异常", e);
             return Result.error(500, e.getMessage());
         }
     }
 
-    // 列出一个课程下该生所有视频的进度
+    /**
+     * 列出一个课程下该生所有视频的进度
+     */
     @GetMapping("/video/list")
-    public Result<java.util.List<com.ccut.entity.VideoProgress>> listVideoProgress(@RequestParam("studentId") Long studentId,
-                                                                                   @RequestParam("courseId") Long courseId){
+    public Result<List<VideoProgress>> listVideoProgress(@RequestParam("studentId") Long studentId,
+                                                         @RequestParam("courseId") Long courseId) {
         try {
-            return Result.success(videoProgressMapper.listByCourse(studentId, courseId));
-        } catch (Exception e){
+            return Result.success(progressService.listVideoProgress(studentId, courseId));
+        } catch (Exception e) {
+            log.error("查询视频进度列表异常", e);
             return Result.error(500, e.getMessage());
         }
     }
 
-    // 查询某个文档的学习进度
+    /**
+     * 查询某个文档的学习进度
+     */
     @GetMapping("/document")
-    public Result<com.ccut.entity.DocumentProgress> getDocumentProgress(@RequestParam("studentId") Long studentId,
-                                                                        @RequestParam("courseId") Long courseId,
-                                                                        @RequestParam("documentId") Long documentId){
+    public Result<DocumentProgress> getDocumentProgress(@RequestParam("studentId") Long studentId,
+                                                        @RequestParam("courseId") Long courseId,
+                                                        @RequestParam("documentId") Long documentId) {
         try {
-            return Result.success(documentProgressMapper.findOne(studentId, courseId, documentId));
-        } catch (Exception e){
+            return Result.success(progressService.getDocumentProgress(studentId, courseId, documentId));
+        } catch (Exception e) {
+            log.error("查询文档进度异常", e);
             return Result.error(500, e.getMessage());
         }
     }
 
-    // 列出一个课程下该生所有文档的进度
+    /**
+     * 列出一个课程下该生所有文档的进度
+     */
     @GetMapping("/document/list")
-    public Result<java.util.List<com.ccut.entity.DocumentProgress>> listDocumentProgress(@RequestParam("studentId") Long studentId,
-                                                                                          @RequestParam("courseId") Long courseId){
+    public Result<List<DocumentProgress>> listDocumentProgress(@RequestParam("studentId") Long studentId,
+                                                               @RequestParam("courseId") Long courseId) {
         try {
-            return Result.success(documentProgressMapper.listByCourse(studentId, courseId));
-        } catch (Exception e){
+            return Result.success(progressService.listDocumentProgress(studentId, courseId));
+        } catch (Exception e) {
+            log.error("查询文档进度列表异常", e);
             return Result.error(500, e.getMessage());
         }
     }
 
-    // 聚合查询：课程下该生所有视频与文档的进度 + 汇总（未学的节也以0%返回）
+    /**
+     * 聚合查询：课程下该生所有视频与文档的进度 + 汇总（未学的节也以0%返回）
+     */
     @GetMapping("/course/all")
-    public Result<java.util.Map<String, Object>> getAllProgress(@RequestParam("studentId") Long studentId,
-                                                                @RequestParam("courseId") Long courseId){
+    public Result<Map<String, Object>> getAllProgress(@RequestParam("studentId") Long studentId,
+                                                      @RequestParam("courseId") Long courseId) {
         try {
-            // 1. 获取学生已有的进度记录
-            java.util.List<VideoProgress> studentVideos = videoProgressMapper.listByCourse(studentId, courseId);
-            java.util.List<DocumentProgress> studentDocs = documentProgressMapper.listByCourse(studentId, courseId);
-
-            // 2. 获取课程的全部视频与文档
-            java.util.List<CourseVideo> allVideos = courseVideoMapper.findByCourseId(courseId);
-            java.util.List<CourseDocument> allDocs = courseDocumentMapper.findByCourseId(courseId);
-
-            // 3. 构建已有进度的映射（按 videoId/documentId 作为 key）
-            java.util.Map<Long, VideoProgress> vpMap = new java.util.HashMap<>();
-            for (VideoProgress vp : studentVideos) {
-                if (vp.getVideoId() != null) vpMap.put(vp.getVideoId(), vp);
-            }
-            java.util.Map<Long, DocumentProgress> dpMap = new java.util.HashMap<>();
-            for (DocumentProgress dp : studentDocs) {
-                if (dp.getDocumentId() != null) dpMap.put(dp.getDocumentId(), dp);
-            }
-
-            // 4. 合并：对所有视频，如果学生有进度则用进度，否则构造 0% 占位
-            java.util.List<VideoProgress> mergedVideos = new java.util.ArrayList<>();
-            for (CourseVideo cv : allVideos) {
-                Long vid = cv.getVideoId();
-                if (vpMap.containsKey(vid)) {
-                    mergedVideos.add(vpMap.get(vid));
-                } else {
-                    VideoProgress placeholder = new VideoProgress();
-                    placeholder.setId(0L); // 占位ID，表示无实际进度记录
-                    placeholder.setVideoId(vid);
-                    placeholder.setStudentId(studentId);
-                    placeholder.setCourseId(courseId);
-                    placeholder.setWatchedSeconds(0);
-                    placeholder.setCompleted(false);
-                    placeholder.setPercentage(0.0);
-                    placeholder.setUpdatedAt(null);
-                    mergedVideos.add(placeholder);
-                }
-            }
-
-            // 5. 合并文档
-            java.util.List<DocumentProgress> mergedDocs = new java.util.ArrayList<>();
-            for (CourseDocument cd : allDocs) {
-                Long did = cd.getDocumentId();
-                if (dpMap.containsKey(did)) {
-                    mergedDocs.add(dpMap.get(did));
-                } else {
-                    DocumentProgress placeholder = new DocumentProgress();
-                    placeholder.setDocumentId(did);
-                    placeholder.setStudentId(studentId);
-                    placeholder.setCourseId(courseId);
-                    placeholder.setTimeSpent(0);
-                    placeholder.setMaxScrollPct(0.0);
-                    placeholder.setCompleted(false);
-                    placeholder.setPercentage(0.0);
-                    mergedDocs.add(placeholder);
-                }
-            }
-
-            Double pct = learningProgressMapper.calcCoursePercent(studentId, courseId);
-            if (pct == null) pct = 0.0;
-            boolean courseCompleted = Boolean.TRUE.equals(learningProgressMapper.isCourseCompleted(studentId, courseId));
-
-            java.util.Map<String, Object> resp = new java.util.HashMap<>();
-            resp.put("videos", mergedVideos);
-            resp.put("documents", mergedDocs);
-            resp.put("coursePercent", courseCompleted ? 100.0 : pct);
-            resp.put("courseCompleted", courseCompleted);
-            return Result.success(resp);
-        } catch (Exception e){
+            return Result.success(progressService.getAllProgress(studentId, courseId));
+        } catch (Exception e) {
+            log.error("查询全部进度异常", e);
             return Result.error(500, e.getMessage());
         }
     }
+
 }
-
-

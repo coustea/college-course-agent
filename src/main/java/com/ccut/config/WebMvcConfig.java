@@ -18,8 +18,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Autowired
     private JwtInterceptor jwtInterceptor;
 
+    @Autowired
+    private LoggingInterceptor loggingInterceptor;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // 日志拦截器 - 拦截所有请求
+        registry.addInterceptor(loggingInterceptor)
+                .addPathPatterns("/api/**");
+
+        // JWT 认证拦截器
         registry.addInterceptor(jwtInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns("/api/auth/login", "/api/user/init");
