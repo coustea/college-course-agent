@@ -61,7 +61,8 @@ logging:
 file:
   # 文件上传目录 - 按日期分文件夹存储在 resources/upload 目录下
   # 示例结构：resources/upload/2024-01-31/uuid-filename.jpg
-  upload-dir: ./server/src/main/resources/upload
+  # 使用绝对路径，避免 Tomcat 运行时相对路径解析错误
+  upload-dir: /home/couseta/develop/CCUT/backend/server/src/main/resources/upload
 
 # JWT认证开关（开发环境设为false，生产环境设为true）
 jwt:

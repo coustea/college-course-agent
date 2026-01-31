@@ -1,5 +1,6 @@
 package com.ccut.controller;
 
+import com.ccut.dto.PersonalSubmissionDTO;
 import com.ccut.dto.Result;
 import com.ccut.entity.StudentSubmission;
 import com.ccut.service.SubmissionService;
@@ -10,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 作业提交控制器
@@ -172,6 +174,41 @@ public class SubmissionController {
         } catch (Exception e) {
             log.error("查询小组提交记录失败: groupId={}, error={}", groupId, e.getMessage(), e);
             return Result.error(500, "查询小组提交记录失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 教师：查看某个作业的所有个人提交记录（按提交人）
+     * 前端调用路径：/api/personal-submission/by-assignment
+     */
+    @GetMapping("/personal-submission/by-assignment")
+    public Result<List<PersonalSubmissionDTO>> getPersonalSubmissionsByAssignment(@RequestParam Long assignmentId) {
+        try {
+            if (assignmentId == null) {
+                return Result.error(400, "assignmentId 不能为空");
+            }
+
+            List<StudentSubmission> submissions = submissionService.selectByAssignmentId(assignmentId);
+
+            // 转换为前端期望的 DTO 格式
+            List<PersonalSubmissionDTO> dtoList = submissions.stream()
+                    .map(sub -> {
+                        PersonalSubmissionDTO dto = new PersonalSubmissionDTO();
+                        dto.setStudentId(sub.getSubmittedBy()); // submittedBy -> studentId
+                        dto.setSubmittedAt(sub.getSubmittedAt());
+                        dto.setStatus(sub.getStatus() != null ? sub.getStatus().toString() : null);
+                        dto.setScore(null); // 当前数据库没有score字段，设为null
+                        dto.setSubmissionContent(sub.getSubmissionContent());
+                        dto.setSubmissionFiles(sub.getSubmissionFiles());
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+
+            log.info("查询作业的个人提交记录: assignmentId={}, 找到{}条记录", assignmentId, dtoList.size());
+            return Result.success(dtoList);
+        } catch (Exception e) {
+            log.error("查询作业个人提交记录失败: assignmentId={}, error={}", assignmentId, e.getMessage(), e);
+            return Result.error(500, "查询失败: " + e.getMessage());
         }
     }
 

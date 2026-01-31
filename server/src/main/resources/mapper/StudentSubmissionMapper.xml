@@ -50,6 +50,8 @@
 		<id property="submissionId" column="submission_id"/>
 		<result property="assignmentId" column="assignment_id"/>
 		<result property="groupId" column="group_id"/>
+		<result property="submittedBy" column="submitted_by"/>
+		<result property="className" column="class_name"/>
 		<result property="submissionContent" column="submission_content"/>
 		<result property="submissionFiles" column="submission_files"/>
 		<result property="groupComment" column="group_comment"/>

@@ -57,6 +57,7 @@ public class StudentGroupController {
     }
 
     @PostMapping
+    @Transactional
     public Result<StudentGroup> create(@RequestParam String groupName,
                                        @RequestParam Long groupLeaderId,
                                        @RequestParam String groupDescription,
@@ -101,13 +102,13 @@ public class StudentGroupController {
             int insertResult = studentGroupService.insert(studentGroup);
             if (insertResult <= 0) {
                 log.error("插入分组失败: {}", studentGroup);
-                return Result.error(500, "插入分组失败");
+                throw new RuntimeException("插入分组失败");
             }
 
             Long groupId = studentGroup.getGroupId();
             log.info("小组创建成功，groupId={}", groupId);
 
-            // === 4. 插入组长 ===
+            // === 4. 插入组长到 group_members 表 ===
             GroupMember leaderMember = new GroupMember(
                     groupId,
                     groupLeaderId,
@@ -116,9 +117,16 @@ public class StudentGroupController {
                     GroupMember.GroupMemberRole.leader,
                     GroupMember.Status.approval
             );
-            int leaderInsert = groupMemberService.insertMember(leaderMember);
-            if (leaderInsert <= 0) {
-                throw new RuntimeException("插入组长成员失败");
+            try {
+                int leaderInsert = groupMemberService.insertMember(leaderMember);
+                if (leaderInsert <= 0) {
+                    log.error("插入组长到 group_members 表失败: groupId={}, leaderId={}", groupId, groupLeaderId);
+                    throw new RuntimeException("插入组长成员失败");
+                }
+                log.info("组长插入成功: groupId={}, leaderId={}", groupId, groupLeaderId);
+            } catch (Exception e) {
+                log.error("插入组长时发生异常: groupId={}, leaderId={}", groupId, groupLeaderId, e);
+                throw new RuntimeException("插入组长成员失败: " + e.getMessage(), e);
             }
             // 更新组长状态为已加入
             leader.setGroupStatus("approval");
