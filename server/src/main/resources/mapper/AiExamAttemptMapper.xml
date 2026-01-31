@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.AiExamAttemptMapper">
+
+    <resultMap id="AiExamAttemptRM" type="com.ccut.entity.AiExamAttempt">
+        <id property="id" column="id"/>
+        <result property="examId" column="exam_id"/>
+        <result property="studentId" column="student_id"/>
+        <result property="score" column="score"/>
+        <result property="resultJson" column="result_json"/>
+        <result property="submittedAt" column="submitted_at"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_exam_attempts (
+            <trim suffixOverrides=",">
+                <if test="examId != null">exam_id,</if>
+                <if test="studentId != null">student_id,</if>
+                <if test="score != null">score,</if>
+                <if test="resultJson != null">result_json,</if>
+                <if test="submittedAt != null">submitted_at,</if>
+            </trim>
+        ) VALUES (
+            <trim suffixOverrides=",">
+                <if test="examId != null">#{examId},</if>
+                <if test="studentId != null">#{studentId},</if>
+                <if test="score != null">#{score},</if>
+                <if test="resultJson != null">#{resultJson},</if>
+                <if test="submittedAt != null">#{submittedAt},</if>
+            </trim>
+        )
+    </insert>
+
+    <select id="selectById" resultMap="AiExamAttemptRM">
+        SELECT id, exam_id, student_id, score, result_json, submitted_at
+        FROM ai_exam_attempts
+        WHERE id = #{id}
+    </select>
+
+    <update id="updateScore">
+        UPDATE ai_exam_attempts SET score = #{score} WHERE id = #{id}
+    </update>
+
+  <!-- 按学生+课程统计正确率：
+       取该学生在该课程下所有试卷的所有尝试的作答，正确题数 / 总题数
+       排除 score 为 0 的记录 -->
+  <select id="calcAccuracyByStudentAndCourse" resultType="double">
+    SELECT
+      CASE WHEN SUM(CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END) = 0 THEN 0
+           ELSE ROUND(
+             SUM(CASE WHEN a.correct = TRUE THEN 1 ELSE 0 END)
+             / (SUM(CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END) + 0.0), 4)
+      END AS accuracy
+    FROM ai_exam_attempts att
+    JOIN ai_exams ex ON ex.id = att.exam_id
+    LEFT JOIN ai_exam_answers a ON a.attempt_id = att.id
+    WHERE att.student_id = #{studentId}
+      AND ex.course_id = #{courseId}
+      AND att.score IS NOT NULL
+      AND att.score > 0
+  </select>
+
+</mapper>
+
+
+

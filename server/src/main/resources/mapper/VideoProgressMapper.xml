@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.VideoProgressMapper">
+
+    <insert id="upsert">
+        <![CDATA[
+        INSERT INTO video_progress(student_id, course_id, video_id, watched_seconds, completed, updated_at)
+        VALUES(#{studentId}, #{courseId}, #{videoId}, COALESCE(#{deltaSec},0), COALESCE(#{completed},FALSE), NOW())
+        ON DUPLICATE KEY UPDATE
+          watched_seconds = GREATEST(0, watched_seconds + COALESCE(VALUES(watched_seconds),0)),
+          completed = (
+            CASE 
+              WHEN (completed OR COALESCE(VALUES(completed), FALSE)) THEN TRUE
+              ELSE (
+                -- 自动完成：观看时长达到视频时长的95%
+                CASE WHEN (
+                  SELECT CASE WHEN cv.duration IS NULL OR cv.duration <= 0 THEN 0
+                              ELSE ROUND(((LEAST(watched_seconds + COALESCE(VALUES(watched_seconds),0), cv.duration) + 0.0)
+                                   / (cv.duration + 0.0)) * 100.0, 2) END
+                  FROM course_videos cv WHERE cv.video_id = video_progress.video_id
+                ) >= 95 THEN TRUE ELSE FALSE END
+              )
+            END
+          ),
+          updated_at = NOW()
+        ]]>
+    </insert>
+
+    <resultMap id="VP_RM" type="com.ccut.entity.VideoProgress">
+        <id property="id" column="id"/>
+        <result property="studentId" column="student_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="videoId" column="video_id"/>
+        <result property="watchedSeconds" column="watched_seconds"/>
+        <result property="completed" column="completed"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="percentage" column="percentage"/>
+    </resultMap>
+
+    <select id="findOne" resultMap="VP_RM">
+        SELECT vp.id, vp.student_id, vp.course_id, vp.video_id, vp.watched_seconds,
+               CASE WHEN (
+                        CASE WHEN cv.duration IS NULL OR cv.duration &lt;= 0 THEN 0
+                             ELSE ROUND((LEAST(vp.watched_seconds, cv.duration) + 0.0) / (cv.duration + 0.0) * 100.0, 2)
+                        END
+                    ) &gt;= 95 OR vp.completed = TRUE THEN TRUE ELSE FALSE END AS completed,
+               vp.updated_at,
+               CASE WHEN cv.duration IS NULL OR cv.duration &lt;= 0 THEN 0
+                    ELSE ROUND((LEAST(vp.watched_seconds, cv.duration) + 0.0) / (cv.duration + 0.0) * 100.0, 2)
+               END AS percentage
+        FROM video_progress vp
+        LEFT JOIN course_videos cv ON cv.video_id = vp.video_id
+        WHERE vp.student_id = #{studentId} AND vp.course_id = #{courseId} AND vp.video_id = #{videoId}
+        LIMIT 1
+    </select>
+
+    <select id="listByCourse" resultMap="VP_RM">
+        SELECT vp.id, vp.student_id, vp.course_id, vp.video_id, vp.watched_seconds,
+               CASE WHEN (
+                        CASE WHEN cv.duration IS NULL OR cv.duration &lt;= 0 THEN 0
+                             ELSE ROUND((LEAST(vp.watched_seconds, cv.duration) + 0.0) / (cv.duration + 0.0) * 100.0, 2)
+                        END
+                    ) &gt;= 95 OR vp.completed = TRUE THEN TRUE ELSE FALSE END AS completed,
+               vp.updated_at,
+               CASE WHEN cv.duration IS NULL OR cv.duration &lt;= 0 THEN 0
+                    ELSE ROUND((LEAST(vp.watched_seconds, cv.duration) + 0.0) / (cv.duration + 0.0) * 100.0, 2)
+               END AS percentage
+        FROM video_progress vp
+        LEFT JOIN course_videos cv ON cv.video_id = vp.video_id
+        WHERE vp.student_id = #{studentId} AND vp.course_id = #{courseId}
+        ORDER BY vp.updated_at DESC
+    </select>
+
+    <select id="countCompletedVideosByCourse" resultType="int">
+        SELECT COUNT(*)
+        FROM video_progress
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+          AND completed = TRUE
+    </select>
+
+    <select id="countVideosByCourse" resultType="int">
+        SELECT COUNT(*) FROM course_videos WHERE course_id = #{courseId}
+    </select>
+
+</mapper>
+
+

@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.CourseMapper">
+
+    <resultMap id="CourseRM" type="com.ccut.entity.Course">
+        <id property="courseId" column="course_id"/>
+        <result property="courseCode" column="course_code"/>
+        <result property="courseName" column="course_name"/>
+        <result property="description" column="description"/>
+        <result property="credits" column="credits"/>
+        <result property="teacherId" column="teacher_id"/>
+        <result property="startDate" column="start_date"/>
+        <result property="endDate" column="end_date"/>
+        <result property="semester" column="semester"/>
+        <result property="maxStudents" column="max_students"/>
+        <result property="resourceUrl" column="resource_url"/>
+        <result property="vindex" column="vindex"/>
+        <association property="teacher" javaType="com.ccut.entity.Teacher">
+            <id property="id" column="t_id"/>
+            <result property="name" column="t_name"/>
+            <result property="email" column="t_email"/>
+            <result property="phone" column="t_phone"/>
+            <result property="department" column="department"/>
+            <result property="title" column="title"/>
+        </association>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="courseId" keyColumn="course_id">
+        INSERT INTO courses (
+            <trim suffixOverrides=",">
+                <if test="courseCode != null">course_code,</if>
+                <if test="courseName != null">course_name,</if>
+                <if test="description != null">description,</if>
+                <if test="credits != null">credits,</if>
+                <if test="teacherId != null">teacher_id,</if>
+                <if test="startDate != null">start_date,</if>
+                <if test="endDate != null">end_date,</if>
+                <if test="semester != null">semester,</if>
+                <if test="maxStudents != null">max_students,</if>
+                <if test="resourceUrl != null">resource_url,</if>
+                <!-- 始终写入 vindex，若未提供则使用 1 作为默认值 -->
+                <if test="vindex != null">vindex,</if>
+                <if test="vindex == null">vindex,</if>
+            </trim>
+        ) VALUES (
+            <trim suffixOverrides=",">
+                <if test="courseCode != null">#{courseCode},</if>
+                <if test="courseName != null">#{courseName},</if>
+                <if test="description != null">#{description},</if>
+                <if test="credits != null">#{credits},</if>
+                <if test="teacherId != null">#{teacherId},</if>
+                <if test="startDate != null">#{startDate},</if>
+                <if test="endDate != null">#{endDate},</if>
+                <if test="semester != null">#{semester},</if>
+                <if test="maxStudents != null">#{maxStudents},</if>
+                <if test="resourceUrl != null">#{resourceUrl},</if>
+                <!-- vindex 未提供则用 1 -->
+                <if test="vindex != null">#{vindex},</if>
+                <if test="vindex == null">1,</if>
+            </trim>
+        )
+    </insert>
+
+    <update id="updateById">
+        UPDATE courses
+        <set>
+            <if test="courseName != null">course_name = #{courseName},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="credits != null">credits = #{credits},</if>
+            <if test="teacherId != null">teacher_id = #{teacherId},</if>
+            <if test="startDate != null">start_date = #{startDate},</if>
+            <if test="endDate != null">end_date = #{endDate},</if>
+            <if test="semester != null">semester = #{semester},</if>
+            <if test="maxStudents != null">max_students = #{maxStudents},</if>
+            <if test="resourceUrl != null">resource_url = #{resourceUrl},</if>
+            <if test="vindex != null">vindex = #{vindex},</if>
+        </set>
+        WHERE course_id = #{courseId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM courses WHERE course_id = #{courseId}
+    </delete>
+
+    <select id="selectAll" resultMap="CourseRM">
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               t.id AS t_id, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        ORDER BY c.vindex DESC, c.course_id DESC
+    </select>
+
+    <select id="selectById" resultMap="CourseRM">
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               t.id AS t_id, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        WHERE c.course_id = #{courseId}
+    </select>
+
+    <select id="search" resultMap="CourseRM">
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        <where>
+            <if test="name != null and name != ''">
+                c.course_name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="description != null and description != ''">
+                <if test="name != null and name != ''">AND</if>
+                c.description LIKE CONCAT('%', #{description}, '%')
+            </if>
+        </where>
+        ORDER BY c.course_name ASC, c.vindex DESC, c.course_id DESC
+    </select>
+
+    <select id="selectByCourseCode" resultMap="CourseRM">
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               t.id AS t_id, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        WHERE c.course_code = #{courseCode}
+    </select>
+
+    <!-- 新增：按教师ID返回课程卡片字段汇总，适配前端 CoursesList.vue -->
+    <resultMap id="TeacherCourseCardRM" type="com.ccut.dto.TeacherCourseCard">
+        <id property="id" column="course_id"/>
+        <result property="title" column="course_name"/>
+        <result property="description" column="description"/>
+        <result property="image" column="resource_url"/>
+        <result property="resourceUrl" column="resource_url"/>
+        <result property="status" column="status"/>
+        <result property="categoryId" column="category_id"/>
+        <result property="createTime" column="start_date"/>
+        <result property="studentCount" column="student_count"/>
+        <result property="videoCount" column="video_count"/>
+        <result property="documentCount" column="document_count"/>
+        <result property="completionRate" column="completion_rate"/>
+    </resultMap>
+
+    <select id="listCourseCardsByTeacher" resultMap="TeacherCourseCardRM">
+        SELECT c.course_id,
+               c.course_name,
+               c.description,
+               REPLACE(c.resource_url, '/static', '') AS resource_url,
+               'published' AS status,
+               NULL AS category_id,
+               c.start_date,
+               (
+                   SELECT COUNT(*) FROM enrollments e
+                   WHERE e.course_id = c.course_id AND e.status = 'active'
+               ) AS student_count,
+               (SELECT COUNT(*) FROM course_videos cv WHERE cv.course_id = c.course_id) AS video_count,
+               (SELECT COUNT(*) FROM course_documents cd WHERE cd.course_id = c.course_id) AS document_count,
+               COALESCE((
+                   SELECT ROUND(AVG(COALESCE(lp.completion_percentage, 0)), 2)
+                   FROM enrollments e
+                   LEFT JOIN learning_progress lp
+                     ON lp.student_id = e.student_id AND lp.course_id = c.course_id
+                   WHERE e.course_id = c.course_id
+               ), 0) AS completion_rate
+        FROM courses c
+        WHERE c.teacher_id = #{teacherId}
+        ORDER BY c.vindex DESC, c.course_id DESC
+    </select>
+
+</mapper>

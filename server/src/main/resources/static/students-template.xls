@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Worksheet ss:Name="students">
+  <Table>
+   <Row>
+    <Cell><Data ss:Type="String">用户名</Data></Cell>
+    <Cell><Data ss:Type="String">密码</Data></Cell>
+    <Cell><Data ss:Type="String">学号</Data></Cell>
+    <Cell><Data ss:Type="String">姓名</Data></Cell>
+    <Cell><Data ss:Type="String">邮箱</Data></Cell>
+    <Cell><Data ss:Type="String">电话</Data></Cell>
+    <Cell><Data ss:Type="String">专业</Data></Cell>
+    <Cell><Data ss:Type="String">年级</Data></Cell>
+    <Cell><Data ss:Type="String">入学年份</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String">2023001001</Data></Cell>
+    <Cell><Data ss:Type="String">123456</Data></Cell>
+    <Cell><Data ss:Type="String">2023001001</Data></Cell>
+    <Cell><Data ss:Type="String">张三</Data></Cell>
+    <Cell><Data ss:Type="String">zhangsan@example.com</Data></Cell>
+    <Cell><Data ss:Type="String">13800138000</Data></Cell>
+    <Cell><Data ss:Type="String">计算机科学与技术</Data></Cell>
+    <Cell><Data ss:Type="String">2023</Data></Cell>
+    <Cell><Data ss:Type="Number">2023</Data></Cell>
+   </Row>
+  </Table>
+ </Worksheet>
+</Workbook>
+
+
