@@ -1,119 +1,364 @@
 <template>
   <div class="group-build">
-    <div class="header">
-      <div class="header-filters" v-if="!isCreating || isSelecting">
-        <el-input v-model="keyword" placeholder="搜索学生姓名或学号..." clearable class="keyword-input" />
-        <el-select v-model="statusFilter" clearable placeholder="组队状态" class="status-select">
-          <el-option label="全部" :value="''" />
-          <el-option label="未组队" value="available" />
-          <el-option label="已组队" value="unavailable" />
-        </el-select>
+    <div class="page-header">
+      <div class="header-left">
+        <h2>
+          <el-icon class="header-icon"><UserFilled /></el-icon>
+          新建学习小组
+        </h2>
+        <p class="subtitle">选择2-5名成员组建学习小组，明确任务分工</p>
       </div>
-      <div class="header-actions">
-        <span v-if="isSelecting" class="select-hint">请选择 2 ~ 5 名组员</span>
-        <span v-if="!isCreating || isSelecting" class="choose-hint">可选择 2~5 人为组员</span>
-        <el-button v-if="showFinishFromEdit && (!isCreating || isSelecting)" @click="finishReselectFromEdit" type="success" plain>重新选择完成</el-button>
-        <span v-if="!isCreating || isSelecting" class="selected-count">已选择 {{ selectedMembers.length }} 人</span>
-        <el-button v-if="!isCreating" type="primary" @click="startCreate">新建小组</el-button>
-        <el-button v-else-if="isSelecting" type="primary" @click="finishSelecting">选择完成</el-button>
-      </div>
-    </div>
-
-    <div v-if="!isCreating || isSelecting">
-
-      <div class="block-section">
-        <el-table :data="filteredStudents" stripe border class="full-width-table" @row-click="onRowClick" :row-class-name="rowClassName" empty-text="暂无学生">
-          <el-table-column type="index" label="序号" width="64" align="left" />
-          <el-table-column label="学号" width="160">
-            <template #default="{ row }">
-              <span class="col-sid">{{ row.sid }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="姓名" width="140">
-            <template #default="{ row }">
-              <span class="col-name">
-                {{ row.name }}
-                <span v-if="isSelf(row)" class="self-mark"><i class="fa-solid fa-user fa-icon"></i>本人</span>
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column label="组队状态" width="160">
-            <template #default="{ row }">
-              <span class="status-chip" :class="row.status === 'available' ? 'chip-red' : 'chip-green'">
-                <i :class="['fa-solid', row.status === 'available' ? 'fa-user' : 'fa-circle-check', 'fa-icon']"></i>
-                {{ row.status === 'available' ? '未组队' : '已组队' }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column label="手机号" min-width="160">
-            <template #default="{ row }">
-              <i class="fa-solid fa-phone fa-icon"></i>
-              <span class="col-phone">{{ row.phone }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="邮箱" min-width="220">
-            <template #default="{ row }">
-              <i class="fa-solid fa-envelope fa-icon"></i>
-              <span class="col-email">{{ row.email }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="isCreating && isSelecting" label="操作" width="160" align="center">
-            <template #default="{ row }">
-              <el-button v-if="row.status !== 'available'" size="small" disabled>已组队</el-button>
-              <el-button v-else-if="isSelected(row.id)" size="small" type="danger" plain @click.stop="toggleSelect(row)">取消</el-button>
-              <el-button v-else size="small" type="primary" plain @click.stop="toggleSelect(row)">选择</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-    </div>
-
-    <div class="task-inputs block-section" v-if="isCreating && !isSelecting">
-      <div class="task-header">
-        <h4 class="task-title">任务分工</h4>
-      </div>
-      <div class="group-name-row">
-        <label class="group-name-label">我的小组名称：</label>
-        <input class="group-name-input" type="text" v-model="groupName" placeholder="请输入小组名称" />
-      </div>
-      <div class="task-input-row">
-        <span class="task-name">小组任务描述：</span>
-        <textarea class="task-text" v-model="taskDescription" placeholder="请描述分工（示例：张三-资料收集，李四-文档整理，王五-PPT与汇报）" rows="3"></textarea>
-      </div>
-      <div class="role-summary">
-        <div class="role-row">
-          <span class="role-label"><i class="fa-solid fa-medal fa-icon"></i>组长：</span>
-          <span class="role-name">{{ leaderName }}</span>
+      <div class="header-right">
+        <div class="info-tag">
+          <span class="label">当前班级</span>
+          <span class="value">{{ className }}</span>
         </div>
-        <div class="role-row">
-          <span class="role-label"><i class="fa-solid fa-user-group fa-icon"></i>组员：</span>
-          <div class="role-members">
-            <span class="member-chip" v-for="m in membersForTasks" :key="m.id">
-              <span class="member-name">{{ m.name }}</span>
-            </span>
-            <span v-if="membersForTasks.length === 0" class="members-empty">未选择</span>
+        <el-divider direction="vertical" />
+        <div class="info-tag">
+          <span class="label">班级总人数</span>
+          <span class="value">{{ totalStudentCount }}人</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-item">
+        <div class="stat-icon-wrapper bg-blue-subtle">
+          <el-icon class="text-blue"><User /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-num">{{ totalStudentCount }}</div>
+          <div class="stat-desc">班级总人数</div>
+        </div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-icon-wrapper bg-green-subtle">
+          <el-icon class="text-green"><CircleCheck /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-num">{{ availableCount }}</div>
+          <div class="stat-desc">可组队人数</div>
+        </div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-icon-wrapper bg-orange-subtle">
+          <el-icon class="text-orange"><UserFilled /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-num">{{ groupedCount }}</div>
+          <div class="stat-desc">已组队人数</div>
+        </div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-icon-wrapper bg-purple-subtle">
+          <el-icon class="text-purple"><DataAnalysis /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-num">{{ completionRate }}%</div>
+          <div class="stat-desc">组队完成率</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-layout">
+
+      <div class="main-workspace">
+
+        <div v-if="!isCreating || isSelecting" class="workspace-view">
+          <el-card shadow="never" class="main-card">
+            <div class="filter-header">
+              <div class="filter-inputs">
+                <el-input
+                  v-model="keyword"
+                  placeholder="搜索姓名或学号"
+                  clearable
+                  style="width: 260px;"
+                >
+                  <template v-slot:prefix><el-icon><Search /></el-icon></template>
+                </el-input>
+                <el-radio-group v-model="statusFilter" size="default">
+                  <el-radio-button label="">全部</el-radio-button>
+                  <el-radio-button label="available">未组队</el-radio-button>
+                  <el-radio-button label="unavailable">已组队</el-radio-button>
+                </el-radio-group>
+              </div>
+              <div class="filter-actions">
+                 <el-button
+                   v-if="isCreating"
+                   @click="finishSelecting"
+                   type="primary"
+                   plain
+                 >
+                   完成选择
+                 </el-button>
+                 <el-button
+                  v-else
+                  type="primary"
+                  @click="startCreate"
+                  class="create-btn"
+                >
+                  <el-icon style="margin-right: 4px"><Plus /></el-icon>
+                  新建小组
+                </el-button>
+              </div>
+            </div>
+
+            <el-table
+              :data="paginatedStudents"
+              style="width: 100%"
+              :header-cell-style="{ background: '#f8fafc', color: '#64748b', fontWeight: '600' }"
+              :row-style="{ height: '52px' }"
+              :row-class-name="tableRowClassName"
+              highlight-current-row
+              @row-click="onRowClick"
+            >
+              <el-table-column label="序号" width="60" align="center">
+                <template v-slot:default="{ $index }">
+                  {{ (currentPage - 1) * pageSize + $index + 1 }}
+                </template>
+              </el-table-column>
+
+              <el-table-column prop="sid" label="学号" min-width="120" sortable />
+              <el-table-column prop="name" label="姓名" min-width="100">
+                <template v-slot:default="{ row }">
+                  <span class="font-medium">{{ row.name }}</span>
+                  <el-tag v-if="isSelf(row)" type="warning" size="small" effect="plain" class="ml-2">我</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="status" label="状态" width="100" align="center">
+                <template v-slot:default="{ row }">
+                  <div class="status-indicator" :class="row.status === 'available' ? 'is-active' : 'is-disabled'">
+                    <span class="dot"></span>
+                    {{ row.status === 'available' ? '未组队' : '已组队' }}
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="phone" label="联系方式" min-width="140" show-overflow-tooltip />
+
+              <el-table-column v-if="isCreating" label="操作" width="100" align="center" fixed="right">
+                <template v-slot:default="{ row }">
+                  <el-button
+                    v-if="isSelected(row.id)"
+                    type="danger"
+                    link
+                    size="small"
+                    @click.stop="toggleSelect(row)"
+                  >
+                    取消
+                  </el-button>
+                  <el-button
+                    v-else-if="row.status === 'available' && !isSelf(row)"
+                    type="primary"
+                    link
+                    size="small"
+                    @click.stop="toggleSelect(row)"
+                    :disabled="selectedMembers.length >= 5"
+                  >
+                    选择
+                  </el-button>
+                  <span v-else class="text-gray-300">-</span>
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <div class="table-footer">
+              <el-pagination
+                v-model:current-page="currentPage"
+                v-model:page-size="pageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="totalFilteredCount"
+                background
+                small
+              />
+            </div>
+          </el-card>
+        </div>
+
+        <div v-else class="workspace-view">
+          <el-card shadow="never" class="main-card form-mode">
+            <template v-slot:header>
+              <div class="card-title">
+                <el-icon><EditPen /></el-icon>
+                <span>填写小组信息</span>
+              </div>
+            </template>
+
+            <el-form :model="groupForm" label-position="top" class="group-form">
+              <el-form-item label="小组名称" required>
+                <el-input
+                  v-model="groupName"
+                  placeholder="给你们的小组起个响亮的名字"
+                  size="large"
+                  maxlength="30"
+                  show-word-limit
+                />
+              </el-form-item>
+
+              <el-form-item label="任务分工描述" required>
+                <el-input
+                  v-model="taskDescription"
+                  type="textarea"
+                  :rows="6"
+                  placeholder="请详细描述分工（例如：张三负责前端开发，李四负责后端API，王五负责文档撰写...）"
+                  maxlength="500"
+                  show-word-limit
+                />
+              </el-form-item>
+
+              <div class="form-preview-section">
+                <h4 class="section-title">成员概览</h4>
+                <div class="preview-members">
+                  <div class="preview-card leader">
+                    <div class="role-badge">组长</div>
+                    <el-avatar :size="40" class="member-avatar leader-avatar">{{ leaderName?.charAt(0) }}</el-avatar>
+                    <div class="member-details">
+                      <span class="name">{{ leaderName }}</span>
+                      <span class="sid">本人</span>
+                    </div>
+                  </div>
+                  <div v-for="m in selectedMembers" :key="m.id" class="preview-card member">
+                    <el-button class="remove-btn" circle size="small" type="danger" @click="toggleSelect(m)"><el-icon><Close /></el-icon></el-button>
+                    <div class="role-badge member-badge">组员</div>
+                    <el-avatar :size="40" class="member-avatar">{{ m.name?.charAt(0) }}</el-avatar>
+                    <div class="member-details">
+                      <span class="name">{{ m.name }}</span>
+                      <span class="sid">{{ m.sid }}</span>
+                    </div>
+                  </div>
+                  <div class="preview-card add-placeholder" @click="enterSelecting" v-if="selectedMembers.length < 5">
+                    <el-icon><Plus /></el-icon>
+                    <span>添加</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <el-button @click="cancelCreate" size="large">取消</el-button>
+                <el-button type="primary" size="large" @click="submitGroup" :disabled="!canSubmit">
+                  {{ isUpdate ? '提交修改申请' : '立即创建小组' }}
+                </el-button>
+              </div>
+            </el-form>
+          </el-card>
+
+          <div class="tips-section">
+             <el-alert
+               title="组建须知"
+               type="info"
+               show-icon
+               :closable="false"
+               description="请确保所有成员已确认加入。提交后需要等待老师审核，审核通过后小组即正式成立。"
+             />
           </div>
         </div>
       </div>
-      <div class="btn-row block-section">
-        <button class="btn btn-blue" @click="enterSelecting">选择队员</button>
-        <button class="btn btn-yellow" @click="reselect">重新选择</button>
-        <el-tooltip content="可选择 2~5 人为组员" placement="top">
-          <span class="tooltip-wrapper">
-            <button class="btn btn-blue" :disabled="!canSubmit" @click="submitGroup">{{ isUpdate ? '重新申请' : '提交申请' }} ({{ selectedMembers.length }}/5)</button>
-          </span>
-        </el-tooltip>
-        <button class="btn btn-yellow" @click="cancelCreate">取消新建</button>
+
+      <div class="sidebar">
+        <div class="sticky-wrapper">
+
+          <template v-if="isCreating">
+             <el-card shadow="never" class="sidebar-card progress-card">
+               <div class="progress-header">
+                 <span class="title">组队进度</span>
+                 <span class="count">{{ selectedMembers.length + 1 }}/6</span>
+               </div>
+               <el-progress
+                 :percentage="Math.min(((selectedMembers.length + 1) / 6) * 100, 100)"
+                 :show-text="false"
+                 :status="selectedMembers.length >= 2 ? 'success' : ''"
+                 stroke-width="10"
+               />
+               <div class="progress-status-text">
+                 <template v-if="selectedMembers.length < 2">
+                   <el-icon color="#e6a23c"><Warning /></el-icon>
+                   <span>还需至少选择 {{ 2 - selectedMembers.length }} 名组员</span>
+                 </template>
+                 <template v-else>
+                   <el-icon color="#67c23a"><CircleCheck /></el-icon>
+                   <span class="text-green-600">已满足组建条件 ({{selectedMembers.length + 1}}人)</span>
+                 </template>
+               </div>
+             </el-card>
+
+             <el-card shadow="never" class="sidebar-card selected-list-card">
+               <template v-slot:header>
+                 <div class="card-header-row">
+                   <span>已选名单 ({{ selectedMembers.length }})</span>
+                   <el-button v-if="!isSelecting" type="primary" link @click="enterSelecting">继续添加</el-button>
+                 </div>
+               </template>
+
+               <div v-if="selectedMembers.length === 0" class="empty-select-state">
+                  <el-empty description="暂无组员" :image-size="60" />
+               </div>
+
+               <div v-else class="selected-list-scroll">
+                 <div class="selected-item" v-for="m in selectedMembers" :key="m.id">
+                   <div class="item-left">
+                     <el-avatar :size="32" class="bg-gradient">{{ m.name?.charAt(0) }}</el-avatar>
+                     <div class="item-info">
+                       <div class="name">{{ m.name }}</div>
+                       <div class="sid">{{ m.sid }}</div>
+                     </div>
+                   </div>
+                   <el-button link type="danger" @click="toggleSelect(m)"><el-icon><Close /></el-icon></el-button>
+                 </div>
+               </div>
+             </el-card>
+
+             <div class="sidebar-actions">
+               <el-button v-if="isSelecting" type="primary" size="large" class="w-full" @click="finishSelecting" :disabled="selectedMembers.length < 2">
+                  下一步：填写分工
+               </el-button>
+               <el-button v-if="isSelecting" size="large" class="w-full" @click="cancelCreate">
+                  取消
+               </el-button>
+             </div>
+          </template>
+
+          <template v-else>
+             <el-card shadow="never" class="sidebar-card welcome-card">
+               <div class="welcome-content">
+                 <h3>准备好组建团队了吗？</h3>
+                 <p>你可以发起组建申请，邀请同学加入；或者等待其他同学邀请。</p>
+                 <el-button type="primary" class="w-full" @click="startCreate">
+                   <el-icon class="mr-1"><Plus /></el-icon>
+                   立即发起组建
+                 </el-button>
+               </div>
+             </el-card>
+
+             <el-card shadow="never" class="sidebar-card simple-list-card">
+               <template v-slot:header>
+                 <span class="font-bold">最新可组队同学</span>
+               </template>
+               <div class="mini-list">
+                 <div v-for="s in availableStudents.slice(0, 5)" :key="s.id" class="mini-item" @click="onRowClick(s)">
+                   <el-avatar :size="28" style="background: #e0e7ff; color: #4f46e5; font-size: 12px;">{{ s.name?.charAt(0) }}</el-avatar>
+                   <span class="mini-name">{{ s.name }}</span>
+                   <el-tag size="small" type="success" effect="plain" class="ml-auto">闲置</el-tag>
+                 </div>
+               </div>
+             </el-card>
+          </template>
+
+        </div>
       </div>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { getStudentsByClassName, createStudentGroup } from '@/services/groupApi'
-import { updateStudentGroup } from '@/services/groupApi'
+import { ElMessage } from 'element-plus'
+import {
+  Search, Plus, User, UserFilled, Check, Close, RefreshLeft, EditPen,
+  CircleCheck, Select, DataAnalysis, InfoFilled, List, Lightning, Filter, Warning
+} from '@element-plus/icons-vue'
+import { getStudentsByClassName, createStudentGroup, updateStudentGroup } from '@/services/groupApi'
 
 const allStudents = ref([])
 const keyword = ref('')
@@ -121,57 +366,47 @@ const statusFilter = ref('')
 const selectedIds = ref([])
 const groupName = ref('')
 const taskDescription = ref('')
+const className = ref('')
 
+// Pagination State
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+const groupForm = ref({})
 const isCreating = ref(false)
 const isSelecting = ref(false)
 const isUpdate = ref(false)
-const showFinishFromEdit = ref(false)
 
-// 路由实例（用于“重新选择完成”返回我的小组）
 const router = useRouter()
-
 const myId = ref(null)
 const mySid = ref('')
 const myFallbackName = localStorage.getItem('studentName')
 const uiStateStorageKey = 'student_groups_ui_state'
 const GROUP_STATUS_KEY = 'student_group_status'
-
 const REJECTED_SIDS_KEY = 'rejected_group_member_sids'
+
 onMounted(async () => {
   try {
-    // 恢复 UI 状态
+    className.value = localStorage.getItem('className') || ''
     const ui = JSON.parse(localStorage.getItem(uiStateStorageKey) || 'null')
     if (ui && typeof ui === 'object') {
       isCreating.value = !!ui.creating
       isSelecting.value = !!ui.selecting
     }
 
-    // 读取当前用户 id 与学号（用于“本人”标注）
     const idStr = localStorage.getItem('userId')
     if (idStr) myId.value = idStr
     const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
     mySid.value = String(localStorage.getItem('studentNumber') || saved?.studentNumber || saved?.sid || '')
 
-    const className = localStorage.getItem('className')
-    const list = await getStudentsByClassName(className)
-    console.log('学生分组的列表', list)
-
-    showFinishFromEdit.value = localStorage.getItem('from_group_edit') === '1'
+    const list = await getStudentsByClassName(className.value)
 
 
-    const draftName = localStorage.getItem('edit_group_name_draft')
-    const draftTask = localStorage.getItem('edit_group_task_draft')
-    if (draftName) groupName.value = draftName
-    if (draftTask) taskDescription.value = draftTask
-    // 基础成员：未删除的成员（由我的小组传入，按学生ID对齐）
+
     try {
       const baseIds = JSON.parse(localStorage.getItem('base_member_student_ids') || '[]')
       if (Array.isArray(baseIds) && baseIds.length) {
-        const idSet = new Set(
-          (allStudents.value || [])
-            .filter(s => baseIds.includes(Number(s.id) || s.id))
-            .map(s => s.id)
-        )
+        const idSet = new Set((list || []).filter(s => baseIds.includes(Number(s.id) || s.id)).map(s => s.id))
         selectedIds.value = Array.from(idSet)
       }
     } catch {}
@@ -179,19 +414,11 @@ onMounted(async () => {
     const rejectedSids = JSON.parse(localStorage.getItem(REJECTED_SIDS_KEY) || '[]')
     const rejectedSet = new Set((rejectedSids || []).map(x => String(x)))
     const overrides = JSON.parse(localStorage.getItem('student_status_overrides') || '{}')
-    // 标记是否处于“重新申请/覆盖展示”模式
     isUpdate.value = (Array.isArray(rejectedSids) && rejectedSids.length > 0) || (overrides && Object.keys(overrides).length > 0)
 
     allStudents.value = list.map((s, i) => {
       const groupStatusRaw = String(s.groupStatus || s.status || '').toLowerCase()
-      // 默认与后端同步：已审批通过或已分组标记为已组队
-      let mappedUnavailable = (
-          groupStatusRaw === 'approval' ||
-          groupStatusRaw === 'approved' ||
-          s.grouped === true ||
-          s.status === 'grouped'
-      )
-      // 若该学生在覆盖名单中，则强制视为可选（未组队）
+      let mappedUnavailable = (groupStatusRaw === 'approval' || groupStatusRaw === 'approved' || s.grouped === true || s.status === 'grouped')
       const sidStr = String(s.studentNumber || s.sid || '')
       if (sidStr && (rejectedSet.has(sidStr) || overrides[sidStr] === 'available')) mappedUnavailable = false
       return {
@@ -200,11 +427,10 @@ onMounted(async () => {
         sid: s.studentNumber || '-',
         status: mappedUnavailable ? 'unavailable' : 'available',
         phone: s.phone || '-',
-        email: s.email || '-',
       }
     })
   } catch (e) {
-    alert(`加载学生列表失败：${e?.message || e}`)
+    ElMessage.error(`加载学生列表失败：${e?.message || e}`)
   }
 })
 
@@ -219,26 +445,49 @@ const filteredStudents = computed(() => {
       .filter(s => !k || s.name.includes(k) || String(s.sid).includes(k))
 })
 
-const selectedMembers = computed(() => allStudents.value.filter(s => selectedIds.value.includes(s.id)))
-const membersForTasks = computed(() => selectedMembers.value)
-const canSubmit = computed(() => {
-  const count = selectedMembers.value.length
-  return count >= 2 && count <= 5
+// Pagination Logic
+const paginatedStudents = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredStudents.value.slice(start, end)
 })
 
-const leaderStudent = computed(() => allStudents.value.find(s => String(s.id) === String(myId.value)))
-const leaderName = computed(() => leaderStudent.value?.name || myFallbackName.value)
+// Computed properties to avoid template syntax errors with dot notation
+const totalStudentCount = computed(() => allStudents.value.length)
+const totalFilteredCount = computed(() => filteredStudents.value.length)
+const completionRate = computed(() => {
+  const total = allStudents.value.length
+  if (!total) return 0
+  return Math.round((groupedCount.value / total) * 100) || 0
+})
 
-function onRowClick(row) {
-  if (!isSelecting.value) return
-  if (row?.status !== 'available') return
-  toggleSelect(row)
+// Reset pagination when filter changes
+watch([keyword, statusFilter], () => {
+  currentPage.value = 1
+})
+
+const availableStudents = computed(() => allStudents.value.filter(s => s.status === 'available'))
+const selectedMembers = computed(() => allStudents.value.filter(s => selectedIds.value.includes(s.id)))
+const availableCount = computed(() => availableStudents.value.length)
+const groupedCount = computed(() => allStudents.value.filter(s => s.status !== 'available').length)
+const leaderStudent = computed(() => allStudents.value.find(s => String(s.id) === String(myId.value)))
+const leaderName = computed(() => leaderStudent.value?.name || myFallbackName)
+
+const canSubmit = computed(() => {
+  const count = selectedMembers.value.length
+  return count >= 2 && count <= 5 && groupName.value.trim() && taskDescription.value.trim()
+})
+
+function tableRowClassName({ row }) {
+  if (isSelected(row.id)) return 'selected-row'
+  if (row.status !== 'available') return 'disabled-row'
+  return ''
 }
 
-function rowClassName({row}) {
-  if (row.status !== 'available') return 'disabled'
-  if (selectedIds.value.includes(row.id)) return 'selected'
-  return ''
+function onRowClick(row) {
+  if (!isCreating) return
+  if (!isSelecting && isCreating) return
+  toggleSelect(row)
 }
 
 function isSelf(stu) {
@@ -252,21 +501,26 @@ function isSelected(id) {
 }
 
 function toggleSelect(stu) {
-  if (stu.status !== 'available') return
+  if (stu.status !== 'available' && !isSelected(stu.id)) return
   if (isSelf(stu)) return
+
   const idx = selectedIds.value.indexOf(stu.id)
   if (idx >= 0) {
     selectedIds.value.splice(idx, 1)
   } else {
-    if (selectedIds.value.length >= 5) return
+    if (selectedIds.value.length >= 5) {
+      ElMessage.warning('最多只能选择5名组员')
+      return
+    }
     selectedIds.value.push(stu.id)
   }
 }
 
 function startCreate() {
   isCreating.value = true
-  isSelecting.value = false
-  localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: true, selecting: false}))
+  isSelecting.value = true
+  statusFilter.value = 'available'
+  localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: true, selecting: true}))
 }
 
 function enterSelecting() {
@@ -275,340 +529,276 @@ function enterSelecting() {
 }
 
 function finishSelecting() {
+  if (selectedMembers.value.length < 2) {
+    ElMessage.warning('请至少选择2名组员')
+    return
+  }
   isSelecting.value = false
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: true, selecting: false}))
-}
-
-function finishReselectFromEdit() {
-  // 计算“新增选择”成员（相对于基础成员）并带回我的小组页面用于临时展示
-  try {
-    const baseIds = JSON.parse(localStorage.getItem('base_member_student_ids') || '[]')
-    const baseSet = new Set((Array.isArray(baseIds) ? baseIds : []).map(v => Number(v)))
-    const nowSet = new Set(selectedIds.value || [])
-    const addedInfos = (allStudents.value || [])
-      .filter(s => nowSet.has(s.id) && !baseSet.has(Number(s.id)))
-      .map(s => ({ studentId: s.id, name: s.name }))
-    localStorage.setItem('added_member_infos', JSON.stringify(addedInfos))
-  } catch {}
-  try { localStorage.setItem('group_edit_auto_open', '1') } catch {}
-  localStorage.removeItem('student_groups_ui_state')
-  localStorage.removeItem('from_group_edit')
-  router.push('/group/mine')
-}
-
-function reselect() {
-  selectedIds.value = []
-  isSelecting.value = true
-  localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: true, selecting: true}))
 }
 
 function cancelCreate() {
   isCreating.value = false
   isSelecting.value = false
   selectedIds.value = []
+  statusFilter.value = ''
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: false, selecting: false}))
-  localStorage.removeItem('student_status_overrides')
-  localStorage.removeItem(REJECTED_SIDS_KEY)
-
 }
 
 async function submitGroup() {
   if (!canSubmit.value) return
+
   try {
     const leaderId = Number(myId.value) || Number(localStorage.getItem('userId')) || undefined
     const members = selectedMembers.value
     const payload = {
       groupName: groupName.value,
       groupLeaderId: leaderId,
-      memberIds: members.map(m => m.id),
-      teacherId: (() => {
-        const v = localStorage.getItem('userId');
-        return v ? Number(v) : undefined
-      })(),
-      groupDescription: taskDescription.value
+      groupDescription: taskDescription.value,
+      memberIds: members.map(m => m.id)
     }
-    console.log(isUpdate.value ? '重新申请小组信息' : '提交小组信息', payload)
     const res = isUpdate.value ? await updateStudentGroup(payload) : await createStudentGroup(payload)
-    const code = Number(res?.code ?? res?.status ?? 0)
-    if (code === 200) {
+    if (Number(res?.code ?? res?.status) === 200) {
       localStorage.setItem(GROUP_STATUS_KEY, 'pending')
-      alert('已提交小组审批')
-      // 回到初始态
-      isCreating.value = false
-      isSelecting.value = false
-      selectedIds.value = []
-      localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: false, selecting: false}))
-      localStorage.removeItem('student_status_overrides')
-      localStorage.removeItem(REJECTED_SIDS_KEY)
-      await router.push('/group/mine')
+      ElMessage.success('提交成功，等待审核')
+      cancelCreate()
+      router.push('/group/mine')
     } else {
-      alert(`提交失败：${res?.message || code || '未知错误'}`)
+      ElMessage.error(`提交失败：${res?.message || '未知错误'}`)
     }
-  } catch (e) { alert('提交失败，请稍后再试') }
+  } catch (e) {
+    ElMessage.error('系统繁忙，请重试')
+  }
 }
 </script>
 
 <style scoped>
-.header {
+.group-build {
+  background-color: #f1f5f9;
+  min-height: 100vh;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+/* Header */
+.page-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
+  align-items: flex-start;
+  margin-bottom: 24px;
 }
 
-.header-filters {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.select-hint {
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.filters-row .keyword-input {
-  max-width: 420px;
-  width: 100%;
-}
-
-.filters-row .status-select {
-  width: 160px;
-}
-
-.selected-count {
-  margin-left: 12px;
-  color: #6b7280;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.full-width-table {
-  width: 100%;
-}
-
-.status-chip {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.chip-red {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.chip-green {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.task-inputs {
-  background: #f8f9fa;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 22px;
-  margin-top: 8px;
-  position: relative;
-  z-index: 10;
-}
-
-.task-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.group-name-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.group-name-label {
-  width: 160px;
-  text-align: right;
-  color: #2c3e50;
-  font-weight: 600;
-}
-
-.group-name-input {
-  flex: 1;
-  padding: 10px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-}
-
-.task-title {
-  display: block;
-  width: 100%;
-  text-align: center;
+.header-left h2 {
   font-size: 22px;
-  font-weight: 800;
-  color: #111827;
-  margin: 4px 0 18px 0;
-}
-
-.task-input-row {
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 6px 0;
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
 }
-
-.task-name {
-  width: 160px;
-  text-align: right;
-  color: #2c3e50;
-  font-weight: 600;
-  white-space: nowrap;
+.header-icon { color: #3b82f6; }
+.subtitle {
+  color: #64748b;
+  font-size: 14px;
+  margin: 0;
 }
+.header-right {
+  display: flex;
+  align-items: center;
+  background: white;
+  padding: 8px 16px;
+  border-radius: 99px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  gap: 12px;
+}
+.info-tag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.info-tag .label { font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
+.info-tag .value { font-size: 14px; color: #334155; font-weight: 600; }
 
-.task-text {
+/* Stats Row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-item {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: transform 0.2s;
+}
+.stat-item:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+.stat-icon-wrapper {
+  width: 48px; height: 48px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.stat-info { display: flex; flex-direction: column; }
+.stat-num { font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1.2; }
+.stat-desc { font-size: 13px; color: #64748b; }
+
+.bg-blue-subtle { background: #eff6ff; } .text-blue { color: #3b82f6; }
+.bg-green-subtle { background: #f0fdf4; } .text-green { color: #22c55e; }
+.bg-orange-subtle { background: #fff7ed; } .text-orange { color: #f97316; }
+.bg-purple-subtle { background: #faf5ff; } .text-purple { color: #a855f7; }
+
+/* Main Layout */
+.main-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.main-workspace {
   flex: 1;
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  min-width: 0;
 }
-
-.role-summary {
-  margin-top: 8px;
+.sidebar {
+  width: 340px;
+  flex-shrink: 0;
 }
-
-.role-row {
+.sticky-wrapper {
+  position: sticky;
+  top: 20px;
   display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Workspace View (Table) */
+.main-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.filter-header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  margin: 6px 0;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
 }
+.filter-inputs { display: flex; gap: 12px; align-items: center; }
+.create-btn { padding-left: 20px; padding-right: 20px; font-weight: 600; }
 
-.role-label {
-  width: 160px;
-  text-align: right;
-  color: #2c3e50;
-  font-weight: 600;
+.status-indicator {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 500;
 }
+.status-indicator .dot { width: 6px; height: 6px; border-radius: 50%; }
+.status-indicator.is-active { color: #059669; }
+.status-indicator.is-active .dot { background: #059669; }
+.status-indicator.is-disabled { color: #94a3b8; }
+.status-indicator.is-disabled .dot { background: #cbd5e1; }
 
-.role-name {
-  color: #111827;
-  font-weight: 700;
-  font-size: 16px;
-}
-
-.role-members {
+.table-footer {
+  padding-top: 16px;
+  text-align: center;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.members-empty {
-  color: #9ca3af;
-}
-
-.member-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  color: #1f2937;
-}
-
-.self-mark {
-  display: inline-block;
-  margin-left: 6px;
-  background: #fff7ed;
-  color: #b45309;
-  border: 1px solid #fdba74;
-  padding: 2px 6px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.btn-row {
-  display: flex;
-  gap: 110px;
   justify-content: center;
-  margin-top: 16px;
 }
 
-.tooltip-wrapper {
-  display: inline-block;
-}
+:deep(.selected-row) { background-color: #f0f9ff !important; }
+:deep(.disabled-row) { opacity: 0.6; background-color: #f8fafc; }
+.ml-2 { margin-left: 8px; }
 
-.btn {
-  padding: 12px 26px;
-  border: none;
+/* Workspace View (Form) */
+.form-mode :deep(.el-card__header) {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 16px 20px;
+}
+.card-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.form-preview-section {
+  background: #f8fafc;
   border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: all 0.3s;
-  min-width: 160px;
+  padding: 16px;
+  margin-top: 8px;
+  margin-bottom: 24px;
 }
-
-.btn-blue {
-  background: #2563eb;
-  color: #fff;
+.section-title { margin: 0 0 12px 0; font-size: 14px; color: #475569; }
+.preview-members {
+  display: flex; flex-wrap: wrap; gap: 12px;
 }
-
-.btn-blue:hover {
-  background: #1d4ed8;
+.preview-card {
+  position: relative;
+  background: white; border: 1px solid #e2e8f0;
+  border-radius: 8px; width: 140px; padding: 16px 10px;
+  display: flex; flex-direction: column; align-items: center;
+  transition: all 0.2s;
 }
-
-.btn-yellow {
-  background: #fbbf24;
-  color: #1f2937;
+.preview-card.leader { border-color: #bfdbfe; background: #eff6ff; }
+.role-badge {
+  position: absolute; top: 8px; right: 8px;
+  font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700;
 }
-
-.btn-yellow:hover {
-  background: #f59e0b;
+.leader .role-badge { background: #dbeafe; color: #2563eb; }
+.member-badge { background: #f1f5f9; color: #64748b; }
+.member-avatar { margin-bottom: 8px; background: #6366f1; font-size: 16px; }
+.leader-avatar { background: #3b82f6; }
+.member-details { text-align: center; }
+.member-details .name { display: block; font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 2px; }
+.member-details .sid { display: block; font-size: 11px; color: #94a3b8; }
+.remove-btn { position: absolute; top: -6px; left: -6px; opacity: 0; transition: opacity 0.2s; z-index: 2; transform: scale(0.8); }
+.preview-card:hover .remove-btn { opacity: 1; }
+.add-placeholder {
+  border-style: dashed; cursor: pointer; color: #94a3b8; justify-content: center; gap: 4px;
 }
+.add-placeholder:hover { border-color: #3b82f6; color: #3b82f6; }
 
-.fa-icon {
-  margin-right: 6px;
+.form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+
+/* Sidebar */
+.sidebar-card { border-radius: 12px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-bottom: 16px; }
+.sidebar-card :deep(.el-card__header) { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; }
+
+/* Progress Card */
+.progress-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; font-weight: 600; color: #334155; }
+.progress-status-text { margin-top: 12px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+
+/* Selected List Card */
+.card-header-row { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 14px; }
+.selected-list-scroll { max-height: 300px; overflow-y: auto; padding: 0 4px; }
+.selected-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid #f8fafc;
 }
+.selected-item:last-child { border-bottom: none; }
+.item-left { display: flex; align-items: center; gap: 10px; }
+.bg-gradient { background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%); font-size: 12px; }
+.item-info .name { font-size: 13px; font-weight: 500; color: #334155; }
+.item-info .sid { font-size: 11px; color: #94a3b8; }
 
-.header-filters .keyword-input {
-  width: 320px;
+/* Welcome / Mini List */
+.welcome-content { text-align: center; padding: 10px 0; }
+.welcome-content h3 { margin: 0 0 8px 0; font-size: 16px; color: #1e293b; }
+.welcome-content p { font-size: 13px; color: #64748b; margin-bottom: 16px; line-height: 1.5; }
+
+.mini-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s; }
+.mini-item:hover { background: #f8fafc; padding-left: 4px; padding-right: 4px; border-radius: 6px; }
+.mini-name { font-size: 13px; font-weight: 500; color: #475569; }
+
+.mt-2 { margin-top: 8px; }
+.w-full { width: 100%; }
+.ml-auto { margin-left: auto; }
+
+/* Fix Sidebar Actions Alignment */
+.sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-
-.header-filters .status-select {
-  width: 140px;
-}
-
-.choose-hint {
-  color: #9ca3af;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.role-members .member-chip {
-  background: transparent;
-  border: none;
-  padding: 0;
-  border-radius: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #111827;
-  margin-right: 16px;
+.sidebar-actions .el-button {
+  margin-left: 0 !important; /* Force override Element Plus default spacing */
+  width: 100%;
 }
 </style>
-
-
