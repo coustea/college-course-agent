@@ -1,290 +1,251 @@
-# CCUT Backend Service
+# CCUT - 高等院校课程管理平台
 
-高等院校课程管理平台后端服务，基于 Spring Boot 构建。提供课程管理、学生分组、作业提交、AI 智能助教等完整的教务管理功能，集成阿里云 DashScope AI 能力。
+<div align="center">
 
-## 目录
+一个功能完整的高校教务管理系统，集成了现代化 AI 技术
 
-- [技术栈](#技术栈)
-- [核心功能](#核心功能)
-- [项目架构](#项目架构)
-- [环境要求](#环境要求)
-- [快速开始](#快速开始)
-- [配置说明](#配置说明)
-- [API 文档](#api-文档)
-- [数据库设计](#数据库设计)
-- [AI 会话管理系统](#ai-会话管理系统)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.5-brightgreen)](https://spring.io/projects/spring-boot)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3.5.18-brightgreen)](https://vuejs.org/)
+[![Java](https://img.shields.io/badge/Java-17-orange)](https://www.oracle.com/java/)
+[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+
+</div>
+
+## 项目简介
+
+CCUT（高等院校课程管理平台）是一个基于 **Spring Boot + Vue 3** 构建的现代化高校教务管理系统，集成了阿里云通义千问大模型，提供从课程管理到 AI 智能助教的全方位教务解决方案。
+
+### 核心特性
+
+- 双角色设计：学生端 / 教师端
+- 课程管理与选课系统
+- 学习进度实时追踪
+- 学生分组与协作学习
+- 作业下发与评分管理
+- **AI 智能助教**（学小微）- 支持流式对话
+- **AI 试卷生成** - 根据课程内容自动生成测试题
+- **AI 智能评分** - 自动批改和评分系统
+- 文件管理（支持大文件分片上传）
+- 数据可视化分析
+
+---
 
 ## 技术栈
 
-### 后端框架
-- **Java**: 17
-- **Spring Boot**: 3.5.5
-- **MyBatis**: 3.0.4 (ORM 框架)
+### 后端技术
 
-### 数据存储
-- **MySQL**: 8.0.33 (关系型数据库)
-- **Redis**: 缓存层（Spring Data Redis + Lettuce 连接池）
+| 技术 | 版本 | 说明 |
+|------|------|------|
+| Java | 17 | 编程语言 |
+| Spring Boot | 3.5.5 | 应用框架 |
+| MyBatis | 3.0.4 | ORM 持久层框架 |
+| MySQL | 8.0.33 | 关系型数据库 |
+| Redis | 5.0+ | 缓存数据库 |
+| Spring AI Alibaba | 1.1.0.0-RC2 | AI 集成框架 |
+| DashScope | - | 阿里云通义千问大模型 |
+| Hutool | 5.8.22 | Java 工具集 |
+| Apache POI | 5.2.5 | Excel 处理 |
+| JJWT | 0.9.1 | JWT 认证 |
 
-### AI 集成
-- **Spring AI Alibaba**: 1.1.0.0-RC2
-- **DashScope**: 阿里云通义千问 (qwen-max)
-- **ReactAgent**: 支持工具调用的 AI 代理
+### 前端技术
 
-### 工具库
-- **Hutool**: 5.8.22 (Java 工具集)
-- **Apache POI**: 5.2.5 (Excel 处理)
-- **MP4Parser**: 1.9.41 (视频时长解析)
-- **JJWT**: 0.9.1 (JWT 认证)
+| 技术 | 版本 | 说明 |
+|------|------|------|
+| Vue.js | 3.5.18 | 渐进式 JavaScript 框架 |
+| Vite | 7.1.5 | 前端构建工具 |
+| Element Plus | 2.11.2 | UI 组件库 |
+| Vue Router | 4.5.1 | 路由管理 |
+| Pinia | 3.0.3 | 状态管理 |
+| ECharts | 6.0.0 | 数据可视化 |
+| Chart.js | 4.5.0 | 图表库 |
+| Axios | 1.11.0 | HTTP 客户端 |
 
-### 构建工具
-- **Maven**: 3.x
+---
 
-## 核心功能
-
-### 1. 用户管理
-- 学生/教师注册登录
-- JWT 认证机制
-- 角色权限管理
-
-### 2. 课程管理
-- 课程创建与发布
-- 课程视频管理
-- 课程文档管理
-- 学生选课功能
-
-### 3. 学习进度追踪
-- 视频观看进度
-- 文档阅读进度
-- 学习时长统计
-- 完成度计算
-
-### 4. 学生分组
-- 小组创建与管理
-- 成员审核机制
-- 组长分配
-- 小组状态管理
-
-### 5. 作业系统
-- 教师发布作业
-- 小组作业提交
-- 教师评分与反馈
-- 学生个人成绩记录
-
-### 6. AI 智能助教
-- **AI 试卷生成**: 基于课程内容自动生成测试题
-- **AI 聊天助手**: 智能对话"学小微"，支持：
-  - 多轮对话上下文记忆
-  - 联网搜索实时信息
-  - 会话管理与持久化
-  - 流式响应支持
-
-### 7. 文件管理
-- 文件上传（支持大文件分片上传）
-- 视频处理
-- 文档管理
-
-## 项目架构
+## 项目结构
 
 ```
-backend/
-├── src/main/java/com/ccut/
-│   ├── controller/          # 控制器层（API 接口）
-│   │   ├── AuthController.java           # 认证接口
-│   │   ├── UserController.java           # 用户管理
-│   │   ├── CourseController.java         # 课程管理
-│   │   ├── StudentController.java        # 学生管理
-│   │   ├── TeacherController.java        # 教师管理
-│   │   ├── StudentGroupController.java   # 学生分组
-│   │   ├── SubmissionController.java     # 作业提交
-│   │   ├── AiController.java             # AI 试卷生成
-│   │   ├── ConversationController.java   # AI 会话管理
-│   │   ├── ChatController.java           # AI 聊天接口
-│   │   └── ...                           # 其他控制器
-│   ├── service/            # 服务层（业务逻辑）
-│   │   ├── ConversationService.java      # 会话服务
-│   │   ├── MessageService.java           # 消息服务
-│   │   ├── ChatService.java              # 聊天服务
-│   │   └── impl/                         # 服务实现
-│   ├── mapper/             # 数据访问层
-│   │   ├── ConversationMapper.java       # 会话 Mapper
-│   │   ├── MessageMapper.java            # 消息 Mapper
-│   │   └── ...                           # 其他 Mapper
-│   ├── entity/             # 实体类
-│   │   ├── Conversation.java             # 会话实体
-│   │   ├── Message.java                  # 消息实体
-│   │   └── ...                           # 其他实体
-│   ├── dto/                # 数据传输对象
-│   │   ├── ChatRequest.java              # 聊天请求
-│   │   ├── ChatResponse.java             # 聊天响应
-│   │   └── Result.java                   # 统一响应格式
-│   ├── config/             # 配置类
-│   │   ├── RedisConfig.java              # Redis 配置
-│   │   ├── AsyncConfig.java              # 异步线程池配置
-│   │   └── JwtInterceptor.java           # JWT 拦截器
-│   └── tools/              # AI 工具
-│       └── SearchTool.java               # 联网搜索工具
-├── src/main/resources/
-│   ├── application.yml     # 主配置文件
-│   ├── SQL.sql             # 数据库初始化脚本
-│   └── mapper/             # MyBatis XML 映射
-│       ├── MessageMapper.xml
-│       ├── ConversationMapper.xml
-│       └── ...
-└── pom.xml                # Maven 依赖配置
+CCUT/
+├── backend/                      # 后端项目根目录
+│   ├── server/                   # Spring Boot 后端
+│   │   ├── src/main/java/com/ccut/
+│   │   │   ├── ServiceApplication.java  # 应用启动类
+│   │   │   ├── controller/      # REST API 控制器层
+│   │   │   ├── service/         # 业务逻辑层
+│   │   │   ├── mapper/          # MyBatis 数据访问层
+│   │   │   ├── entity/          # 数据库实体类
+│   │   │   ├── dto/             # 数据传输对象
+│   │   │   ├── config/          # 配置类
+│   │   │   ├── exception/       # 异常处理
+│   │   │   └── tools/           # 工具类
+│   │   ├── src/main/resources/
+│   │   │   ├── application.yml  # 主配置文件
+│   │   │   ├── SQL.sql          # 数据库初始化脚本
+│   │   │   └── mapper/          # MyBatis XML 映射
+│   │   ├── pom.xml              # Maven 依赖配置
+│   │   └── uploads/             # 文件上传目录
+│   └── src/                     # Vue.js 前端
+│       ├── views/               # 页面组件
+│       │   ├── student/         # 学生端页面
+│       │   └── Teacher/         # 教师端页面
+│       ├── components/          # 公共组件
+│       ├── router/              # 路由配置
+│       ├── services/            # API 服务
+│       ├── stores/              # Pinia 状态管理
+│       ├── package.json         # 前端依赖配置
+│       └── vite.config.js       # Vite 配置
+└── README.md                    # 项目文档
 ```
 
-## 环境要求
+---
 
-- **JDK**: 17+
-- **Maven**: 3.x
-- **MySQL**: 8.0+
-- **Redis**: 5.0+ (用于会话缓存)
+## 功能模块
+
+### 学生端功能
+
+| 模块 | 功能 | 说明 |
+|------|------|------|
+| 首页 | 课程概览 | 展示已选课程、学习进度、最新作业 |
+| 学习数据 | 数据统计 | 学习时长、完成度、可视化图表展示 |
+| 学习小组 | 分组协作 | 创建小组、加入小组、成员管理 |
+| 作品/作业 | 作业提交 | 查看作业、小组提交、查看评分 |
+| 个人中心 | 信息管理 | 查看和编辑个人信息 |
+
+### 教师端功能
+
+| 模块 | 功能 | 说明 |
+|------|------|------|
+| 教师工作台 | 数据概览 | 课程统计、学生统计、快捷操作 |
+| 课程管理 | 课程CRUD | 创建课程、上传资源、进度管理、成绩管理 |
+| 作品检查 | 作业评分 | 下发作业、查看提交、成员评分、添加评语 |
+| 学生管理 | 学生信息 | 学生列表、分组管理、学习表现分析 |
+| 教学分析 | 数据分析 | 课程数据分析、教学效果评估 |
+| AI 助手 | 智能对话 | 学小微智能对话、流式响应、会话管理 |
+| 个人中心 | 信息管理 | 查看和编辑个人信息 |
+
+### AI 功能特性
+
+- **AI 智能对话**："学小微"智能助教，支持多轮对话和上下文记忆
+- **AI 试卷生成**：根据课程内容自动生成选择/判断题
+- **AI 智能评分**：自动批改试卷并给出得分和解析
+- **流式响应**：基于 Server-Sent Events 的实时流式输出
+
+---
 
 ## 快速开始
 
-### 1. 克隆项目
+### 环境要求
+
+- **JDK**: 17+
+- **Maven**: 3.x
+- **Node.js**: 16+
+- **MySQL**: 8.0+
+- **Redis**: 5.0+
+
+### 安装步骤
+
+#### 1. 克隆项目
 
 ```bash
 git clone https://github.com/coustea/college-course-agent.git
-cd backend
+cd CCUT/backend
 ```
 
-### 2. 安装依赖
+#### 2. 数据库初始化
+
+创建数据库并导入初始化脚本：
 
 ```bash
-mvn clean install
-```
-
-### 3. 初始化数据库
-
-创建数据库并执行初始化脚本：
-
-```sql
+mysql -u root -p
 CREATE DATABASE ccut CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
 USE ccut;
-
--- 执行 src/main/resources/SQL.sql 中的所有 SQL 语句
-SOURCE /path/to/SQL.sql;
+SOURCE server/src/main/resources/SQL.sql;
 ```
 
-### 4. 配置应用
+#### 3. 后端配置
 
-编辑 `src/main/resources/application.yml`，配置数据库、Redis 等信息（详见[配置说明](#配置说明)）。
-
-### 5. 启动 Redis
-
-```bash
-# Linux/Mac
-redis-server
-
-# Windows
-redis-server.exe
-```
-
-### 6. 运行应用
-
-```bash
-mvn spring-boot:run
-```
-
-或运行打包后的 JAR：
-
-```bash
-java -jar target/service-0.0.1-SNAPSHOT.jar
-```
-
-### 7. 访问应用
-
-应用将在 `http://localhost:9999` 启动。
-
-## 配置说明
-
-### 数据库配置
+编辑 `server/src/main/resources/application.yml`：
 
 ```yaml
 spring:
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8
+    url: jdbc:mysql://localhost:3306/ccut
     username: root
-    password: your_password  # 修改为你的 MySQL 密码
-    hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 30000
-```
+    password: your_password
 
-### Redis 配置
-
-```yaml
-spring:
   data:
     redis:
       host: localhost
       port: 6379
-      database: 0
-      timeout: 3000ms
-      lettuce:
-        pool:
-          max-active: 20
-          max-wait: -1ms
-          max-idle: 10
-          min-idle: 5
-```
 
-### AI 服务配置
-
-```yaml
-spring:
   ai:
     dashscope:
-      api-key: your-dashscope-api-key  # 替换为你的阿里云 DashScope API Key
-```
+      api-key: your_dashscope_api_key
 
-### 服务器配置
-
-```yaml
-server:
-  port: 9999  # 应用端口
-  tomcat:
-    threads:
-      max: 100
-      min-spare: 10
-```
-
-### JWT 认证配置
-
-```yaml
-jwt:
-  enabled: false  # 生产环境设为 true，开发环境可设为 false
-```
-
-### 文件上传配置
-
-```yaml
 file:
-  upload-dir: /path/to/upload/directory  # 修改为你的上传目录路径
+  upload-dir: /path/to/upload/directory
+
+jwt:
+  enabled: false  # 开发环境设为 false
 ```
 
-## API 文档
+#### 4. 启动后端服务
 
-### 统一响应格式
-
-所有 API 返回统一的 JSON 格式：
-
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": { ... }
-}
+```bash
+cd server
+mvn clean install
+mvn spring-boot:run
 ```
 
-### 认证接口
+后端服务将在 http://localhost:9999 启动
 
-#### 用户登录
+#### 5. 安装前端依赖
+
+```bash
+cd ../src
+npm install
 ```
+
+#### 6. 配置前端 API 地址
+
+编辑 `src/main.js`，确认后端 API 地址：
+
+```javascript
+app.config.globalProperties.$baseUrl = 'http://localhost:9999/api'
+```
+
+#### 7. 启动前端服务
+
+```bash
+npm run dev
+```
+
+前端应用将在 http://localhost:5173 启动
+
+#### 8. 访问应用
+
+打开浏览器访问 http://localhost:5173
+
+**测试账号**：
+- 学生：`2021001` / `123456`
+- 教师：`T001` / `123456`
+
+---
+
+## API 接口文档
+
+### 基础信息
+
+- **Base URL**: `http://localhost:9999/api`
+- **认证方式**: JWT Token（Header: `Authorization: Bearer <token>`）
+- **响应格式**: JSON
+
+### 主要接口
+
+#### 认证接口
+
+```http
+# 用户登录
 POST /api/auth/login
 Content-Type: application/json
 
@@ -292,351 +253,401 @@ Content-Type: application/json
   "username": "2021001",
   "password": "123456"
 }
+
+# 用户登出
+POST /api/auth/logout
 ```
 
-### 课程管理接口
+#### 课程管理接口
 
-#### 获取所有课程
-```
+```http
+# 获取课程列表
 GET /api/course/list
-```
 
-#### 学生选课
-```
+# 获取课程详情
+GET /api/course/{id}
+
+# 学生选课
 POST /api/course/enroll
-{
-  "studentId": 1,
-  "courseId": 1
-}
 ```
 
-### AI 会话管理接口
+#### AI 功能接口
 
-#### 创建新会话
-```
-POST /api/ai/conversation/create
-Content-Type: application/json
-
-{
-  "username": "student1",
-  "title": "关于Java的问题"
-}
-
-Response:
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "conversationId": "student1:1",
-    "title": "关于Java的问题",
-    "sequenceNum": 1,
-    "createdAt": "2025-01-26T10:00:00"
-  }
-}
-```
-
-#### 获取用户会话列表
-```
-GET /api/ai/conversation/list/{username}
-
-Response:
-{
-  "code": 200,
-  "message": "success",
-  "data": [
-    {
-      "conversationId": "student1:1",
-      "title": "关于Java的问题",
-      "username": "student1",
-      "sequenceNum": 1,
-      "createdAt": "2025-01-26T10:00:00",
-      "updatedAt": "2025-01-26T10:30:00"
-    }
-  ]
-}
-```
-
-#### 获取会话历史消息
-```
-GET /api/ai/conversation/{conversationId}/messages
-
-Response:
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "conversationId": "student1:1",
-    "title": "关于Java的问题",
-    "messages": [
-      {
-        "id": 1,
-        "role": "user",
-        "content": "什么是Java？",
-        "sequenceNum": 1,
-        "createdAt": "2025-01-26T10:00:00"
-      },
-      {
-        "id": 2,
-        "role": "assistant",
-        "content": "Java是一门...",
-        "sequenceNum": 2,
-        "createdAt": "2025-01-26T10:00:05"
-      }
-    ]
-  }
-}
-```
-
-#### 删除会话
-```
-DELETE /api/ai/conversation/{conversationId}
-```
-
-#### 更新会话标题
-```
-PUT /api/ai/conversation/{conversationId}/title
-Content-Type: application/json
-
-{
-  "title": "新标题"
-}
-```
-
-### AI 聊天接口
-
-#### 同步聊天
-```
+```http
+# 同步聊天
 POST /api/ai/chat/send
-Content-Type: application/json
 
-{
-  "conversationId": "student1:1",
-  "message": "Spring Boot怎么用？"
-}
-
-Response:
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "conversationId": "student1:1",
-    "userMessage": {
-      "id": 10,
-      "role": "user",
-      "content": "Spring Boot怎么用？",
-      "sequenceNum": 10,
-      "createdAt": "2025-01-26T11:00:00"
-    },
-    "aiMessage": {
-      "id": 11,
-      "role": "assistant",
-      "content": "Spring Boot 是...",
-      "sequenceNum": 11,
-      "createdAt": "2025-01-26T11:00:02"
-    }
-  }
-}
-```
-
-#### 流式聊天（SSE）
-```
+# 流式聊天（SSE）
 POST /api/ai/chat/stream
-Content-Type: application/json
 
-{
-  "conversationId": "student1:1",
-  "message": "解释一下多线程"
-}
+# 创建会话
+POST /api/ai/conversation/create
 
-Response (Server-Sent Events):
-data: Spring
-data:  Boot
-data:  中
-data: 的
-...
+# 获取会话列表
+GET /api/ai/conversation/list?username=user
+
+# 生成试卷
+POST /api/ai/exam/generate
+
+# 提交答卷
+POST /api/ai/exam/submit
 ```
 
-**限制说明**:
-- 单个会话最多支持 50 轮对话（100 条消息）
-- 超过限制后需要创建新会话
+#### 学习进度接口
+
+```http
+# 获取视频进度
+GET /api/progress/video?courseId=1
+
+# 获取文档进度
+GET /api/progress/document?courseId=1
+
+# 获取学习概览
+GET /api/progress/overview?courseId=1
+```
+
+#### 分组管理接口
+
+```http
+# 创建小组
+POST /api/group/create
+
+# 我的小组
+GET /api/group/my-groups
+
+# 加入小组
+POST /api/group/join
+
+# 审核成员
+PUT /api/group/approve
+```
+
+#### 文件上传接口
+
+```http
+# 上传视频
+POST /api/upload/video
+
+# 上传文档
+POST /api/upload/document
+
+# 分片上传
+POST /api/upload/chunk
+```
+
+---
 
 ## 数据库设计
 
 ### 核心表结构
 
-#### 用户相关表
-- `users`: 用户基础信息
-- `students`: 学生详细信息
-- `teachers`: 教师详细信息
+| 表名 | 说明 | 主要字段 |
+|------|------|----------|
+| users | 用户基础信息 | id, username, password, role, token |
+| students | 学生详细信息 | id, student_number, name, class_name, major, grade |
+| teachers | 教师详细信息 | id, name, department, title, position |
+| courses | 课程基本信息 | course_id, course_code, course_name, teacher_id |
+| enrollments | 选课记录 | enrollment_id, student_id, course_id, status |
+| course_videos | 课程视频 | video_id, course_id, video_url, duration |
+| course_documents | 课程文档 | document_id, course_id, document_url |
+| learning_progress | 学习进度汇总 | progress_id, student_id, course_id, completion_percentage |
+| video_progress | 视频观看进度 | id, student_id, video_id, watched_seconds |
+| document_progress | 文档阅读进度 | id, student_id, document_id, max_scroll_pct |
+| student_groups | 学生分组 | group_id, group_name, group_leader_id, status |
+| group_members | 小组成员 | id, group_id, student_id, role, join_status |
+| teacher_assignments | 教师作业 | assignment_id, course_id, assignment_name, due_date |
+| student_submissions | 学生提交 | submission_id, assignment_id, group_id, submission_files |
+| student_member_scores | 个人得分 | id, submission_id, student_id, score, feedback |
+| conversations | AI 对话会话 | id, conversation_id, username, title |
+| messages | AI 聊天消息 | id, conversation_id, role, content, sequence_num |
+| ai_exams | AI 生成试卷 | id, course_id, topic, question_count, total_score |
+| ai_exam_questions | 试卷题目 | id, exam_id, type, content, options, answer |
+| ai_exam_attempts | 试卷提交记录 | id, exam_id, student_id, score |
+| ai_exam_answers | 答题记录 | id, attempt_id, question_id, student_answer, correct |
 
-#### 课程相关表
-- `courses`: 课程信息
-- `enrollments`: 选课记录
-- `course_videos`: 课程视频
-- `course_documents`: 课程文档
+---
 
-#### 学习进度表
-- `learning_progress`: 学习进度汇总
-- `video_progress`: 视频观看进度
-- `document_progress`: 文档阅读进度
+## 配置说明
 
-#### 分组与作业表
-- `student_groups`: 学生分组
-- `group_members`: 小组成员
-- `teacher_assignments`: 教师发布作业
-- `student_submissions`: 学生作业提交
-- `student_member_scores`: 学生个人得分
+### 后端配置（application.yml）
 
-#### AI 相关表
-- `ai_exams`: AI 生成试卷
-- `ai_exam_questions`: 试卷题目
-- `ai_exam_attempts`: 试卷提交记录
-- `ai_exam_answers`: 学生答题记录
-- `conversations`: AI 对话会话表
-- `messages`: AI 聊天消息表
+```yaml
+# 服务器配置
+server:
+  port: 9999
 
-完整的数据库表结构请参考 `src/main/resources/SQL.sql`。
+# 数据库配置
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/ccut
+    username: root
+    password: 123456
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
 
-## AI 会话管理系统
+  # Redis 配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
 
-### 系统架构
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 1024MB
+      max-request-size: 1024MB
 
-AI 会话管理系统采用 **Redis 缓存 + MySQL 持久化** 双层架构：
+  # AI 服务配置
+  ai:
+    dashscope:
+      api-key: your_dashscope_api_key
 
+# JWT 认证开关
+jwt:
+  enabled: false
+
+# 文件上传目录
+file:
+  upload-dir: /path/to/upload/directory
 ```
-┌─────────────┐
-│   Client    │
-└──────┬──────┘
-       │
-┌──────▼──────────┐
-│ ChatController  │
-└──────┬──────────┘
-       │
-┌──────▼──────────┐     ┌─────────────┐
-│  ChatService    │────▶│  ReactAgent │
-│                 │     │  (DashScope)│
-└──────┬──────────┘     └─────────────┘
-       │
-┌──────▼──────────┐     ┌──────────────┐
-│ MessageService  │────▶│ Redis Cache  │
-│                 │     │ (24h TTL)    │
-└──────┬──────────┘     └──────────────┘
-       │
-┌──────▼──────────┐     ┌──────────────┐
-│ MessageMapper   │────▶│   MySQL DB   │
-└─────────────────┘     └──────────────┘
+
+### 前端配置（main.js）
+
+```javascript
+// 后端 API 地址
+app.config.globalProperties.$baseUrl = 'http://localhost:9999/api'
 ```
 
-### 核心特性
-
-#### 1. 会话隔离
-- 每个 conversation 对应用户的一个独立对话会话
-- 会话 ID 格式：`username:序号`（如 `zhangsan:1`）
-- 支持多会话并行管理
-
-#### 2. 消息持久化
-- 所有消息实时保存到 MySQL（保证数据不丢失）
-- 消息包含：role（user/assistant）、content、sequence_num、created_at
-
-#### 3. 智能缓存策略
-- **缓存格式**: Redis List，key 为 `chat:messages:{conversationId}`
-- **加载策略**: Cache Aside（懒加载）
-  - 先查 Redis，未命中则从 MySQL 加载
-  - 加载后异步回填到 Redis
-- **更新策略**: Write-Through 异步
-  - 消息保存同步写 MySQL
-  - 缓存更新异步执行（不阻塞响应）
-- **TTL**: 24 小时
-
-#### 4. 多轮对话上下文
-- 自动加载历史消息（最多 20 条）作为 AI 上下文
-- 支持 ReactAgent 工具调用（联网搜索）
-- 流式响应支持（SSE）
-
-#### 5. 异步处理
-- 消息保存：同步写 MySQL，异步更新 Redis
-- 缓存刷新：异步执行，使用独立线程池
-- 线程池隔离：
-  - `chatExecutor`: 聊天异步任务（core: 10, max: 20）
-  - `cacheExecutor`: 缓存异步任务（core: 5, max: 10）
-
-### 缓存 Key 设计
-
-| Key 格式 | 类型 | TTL | 说明 |
-|----------|------|-----|------|
-| `chat:messages:{conversationId}` | List | 24h | 会话消息列表 |
-| `chat:conversation:{conversationId}` | Hash | 24h | 会话元数据 |
-
-### 数据一致性保障
-
-1. **MySQL 为主**: 所有消息先写入 MySQL，确保持久化
-2. **Redis 为辅**: 作为缓存层，提升读取性能
-3. **异步更新**: 缓存更新失败不影响主流程
-4. **最终一致性**: 对话结束后完整刷新缓存
-
-### 性能优化
-
-- ✅ Redis 缓存热点会话，减少 MySQL 查询
-- ✅ 异步缓存刷新，不阻塞用户请求
-- ✅ 线程池隔离，避免资源竞争
-- ✅ 连接池管理（Hikari + Lettuce）
+---
 
 ## 开发指南
 
-### 添加新的 API
+### 后端开发规范
 
-1. 在 `controller` 包创建 Controller 类
-2. 在 `service` 包创建 Service 接口和实现
-3. 在 `mapper` 包创建 Mapper 接口
-4. 在 `resources/mapper` 创建 MyBatis XML 映射
-5. 在 `entity` 包创建实体类
+1. **Controller 层**：处理 HTTP 请求，参数验证，调用 Service 层
+2. **Service 层**：业务逻辑处理，事务管理
+3. **Mapper 层**：数据库操作，SQL 执行
+4. **Entity 层**：数据库实体映射
+5. **DTO 层**：数据传输对象
 
-### 代码规范
-
-- 遵循阿里巴巴 Java 开发手册
-- 使用 Lombok 简化实体类
-- 统一异常处理
-- 统一日志格式（SLF4J + Logback）
-
-## 常见问题
-
-### Q: 如何修改 JWT 认证状态？
-
-A: 在 `application.yml` 中修改 `jwt.enabled`:
-```yaml
-jwt:
-  enabled: true  # 生产环境
-  enabled: false # 开发环境
+异常处理：
+```java
+throw new BusinessException(ErrorCode.USER_NOT_FOUND);
 ```
 
-### Q: Redis 连接失败怎么办？
-
-A: 检查以下几点：
-1. Redis 服务是否启动
-2. `application.yml` 中的 Redis 配置是否正确
-3. 防火墙是否开放 6379 端口
-
-### Q: 如何更换 AI 模型？
-
-A: 在 `ChatServiceImpl.java` 中修改 `model` 参数：
+统一响应：
 ```java
-.model("qwen-max")  // 可改为 qwen-plus, qwen-turbo 等
+return Result.success(data);
+return Result.error("操作失败");
 ```
 
-### Q: 如何调整会话消息上限？
+### 前端开发规范
 
-A: 在 `ChatController.java` 中修改验证逻辑：
-```java
-if (messageCount >= 100) {  // 修改这个值
-    return Result.error(400, "当前会话已达到最大对话轮数");
+1. **组件命名**：使用 PascalCase（如 `UserProfile.vue`）
+2. **文件组织**：按功能模块组织代码
+3. **API 调用**：统一使用 `services/` 下的封装方法
+4. **状态管理**：使用 Pinia 管理全局状态
+
+使用 Composition API：
+```vue
+<script setup>
+import { ref, computed } from 'vue'
+
+const count = ref(0)
+const doubled = computed(() => count.value * 2)
+</script>
+```
+
+---
+
+## 部署指南
+
+### 后端部署
+
+```bash
+cd server
+mvn clean package
+java -jar target/service-0.0.1-SNAPSHOT.jar
+```
+
+### 前端部署
+
+```bash
+cd src
+npm run build
+```
+
+将 `dist/` 目录部署到 Nginx：
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    root /path/to/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api {
+        proxy_pass http://localhost:9999/api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
 }
 ```
 
+### Docker 部署（可选）
+
+后端 Dockerfile：
+```dockerfile
+FROM openjdk:17-jdk-slim
+WORKDIR /app
+COPY target/service-0.0.1-SNAPSHOT.jar app.jar
+EXPOSE 9999
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+
+前端 Dockerfile：
+```dockerfile
+FROM node:16-alpine as builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+---
+
+## 测试
+
+### 运行后端测试
+
+```bash
+cd server
+mvn test
+```
+
+### API 接口测试
+
+项目提供了 API 测试脚本：
+
+```bash
+# 快速测试
+./test_api.sh
+
+# 完整测试
+./test_api_full.sh
+```
+
+---
+
+## 常见问题
+
+### Q: 启动时报数据库连接错误？
+**A**: 检查 MySQL 服务是否启动，配置文件中的数据库连接信息是否正确。
+
+### Q: Redis 连接失败？
+**A**: 确保 Redis 服务正在运行，检查 Redis 配置是否正确。
+
+### Q: 文件上传失败？
+**A**: 检查文件上传目录是否存在，是否有写入权限，文件大小是否超限。
+
+### Q: AI 功能无法使用？
+**A**: 检查 DashScope API Key 是否配置正确，是否有足够的 API 调用额度。
+
+### Q: 前端路由刷新 404？
+**A**: 确保 Nginx 配置了 `try_files $uri $uri/ /index.html;` 支持 Vue Router history 模式。
+
+---
+
+## 项目截图
+
+### 学生端
+- 首页课程列表
+- 学习数据可视化
+- 小组协作管理
+- 作业提交与查看
+
+### 教师端
+- 教师工作台
+- 课程资源管理
+- 作业评分界面
+- AI 智能助手
+
+---
+
+## 贡献指南
+
+欢迎贡献代码！请遵循以下步骤：
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 提交 Pull Request
+
+### 代码规范
+
+- 后端遵循阿里巴巴 Java 开发手册
+- 前端遵循 Vue 风格指南
+- 提交前确保代码通过 ESLint 检查
+
+---
+
+## 版本历史
+
+- **v1.0.0** (2024-01)
+  - 初始版本发布
+  - 完成学生端和教师端核心功能
+  - 集成 AI 智能助教功能
+  - 实现试卷生成和自动评分
+
+---
+
 ## 许可证
 
-[待添加]
+本项目采用 [MIT License](LICENSE) 开源协议。
+
+---
+
+## 致谢
+
+感谢以下开源项目：
+
+- [Spring Boot](https://spring.io/projects/spring-boot)
+- [Vue.js](https://vuejs.org/)
+- [Element Plus](https://element-plus.org/)
+- [MyBatis](https://mybatis.org/)
+- [ECharts](https://echarts.apache.org/)
+
+---
 
 ## 联系方式
 
-- 项目地址: [GitHub](https://github.com/coustea/college-course-agent)
-- 问题反馈: [Issues](https://github.com/coustea/college-course-agent/issues)
+- 项目地址：[GitHub Repository]
+- 问题反馈：[Issues]
+- 邮箱：[maintainer@example.com]
+
+---
+
+<div align="center">
+
+**如果这个项目对你有帮助，请给一个 ⭐️ Star 支持一下！**
+
+Made with ❤️ by CCUT Team
+
+</div>
