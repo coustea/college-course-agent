@@ -112,15 +112,15 @@ public class AiExamServiceImpl implements AiExamService {
             for (Question q : ai.getQuestions()) {
                 AiExamQuestion dbq = new AiExamQuestion();
                 dbq.setExamId(exam.getId());
-                dbq.setType(q.getType() == null ? null : q.getType().name());
-                dbq.setContent(q.getQuestion());
+                dbq.setType(q.type() == null ? null : q.type().name());
+                dbq.setContent(q.question());
                 try {
-                    dbq.setOptions(q.getOptions() == null ? null : mapper.writeValueAsString(q.getOptions()));
+                    dbq.setOptions(q.options() == null ? null : mapper.writeValueAsString(q.options()));
                 } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
                     throw new RuntimeException("选项序列化失败", e);
                 }
-                dbq.setAnswer(q.getAnswer());
-                dbq.setAnalysis(q.getAnalysis());
+                dbq.setAnswer(q.answer());
+                dbq.setAnalysis(q.analysis());
                 questionMapper.insert(dbq);
             }
         }

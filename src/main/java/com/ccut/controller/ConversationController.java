@@ -33,8 +33,8 @@ public class ConversationController {
     @PostMapping("/create")
     public Result<Map<String, Object>> createConversation(@RequestBody CreateConversationRequest request) {
         Conversation conversation = conversationService.createConversation(
-                request.getUsername(),
-                request.getTitle()
+                request.username(),
+                request.title()
         );
 
         Map<String, Object> data = new HashMap<>();

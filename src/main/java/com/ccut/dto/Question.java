@@ -1,16 +1,14 @@
 package com.ccut.dto;
 
-import lombok.Data;
 import java.util.List;
 
-@Data
-public class Question {
+public record Question(
+    Long id,
+    String question,
+    Type type,
+    List<String> options,
+    String answer,
+    String analysis
+) {
     public enum Type { CHOICE, JUDGE }
-
-    private Long id;
-    private String question;
-    private Type type;
-    private List<String> options;
-    private String answer;
-    private String analysis;
 }

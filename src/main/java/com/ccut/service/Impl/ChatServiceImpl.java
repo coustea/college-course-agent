@@ -82,8 +82,8 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public ChatResponse chat(ChatRequest request) {
-        String conversationId = request.getConversationId();
-        String userMessageContent = request.getMessage();
+        String conversationId = request.conversationId();
+        String userMessageContent = request.message();
 
         logger.info("Processing chat request: conversationId={}", conversationId);
 
@@ -142,8 +142,8 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public Flux<String> chatStream(ChatRequest request) throws GraphRunnerException {
-        String conversationId = request.getConversationId();
-        String userMessageContent = request.getMessage();
+        String conversationId = request.conversationId();
+        String userMessageContent = request.message();
 
         logger.info("Processing stream chat request: conversationId={}", conversationId);
 

@@ -35,23 +35,23 @@ public class ChatController {
     @PostMapping("/send")
     public Result<ChatResponse> chat(@RequestBody ChatRequest request) {
         // 参数验证：conversationId不能为空
-        if (request.getConversationId() == null || request.getConversationId().trim().isEmpty()) {
+        if (request.conversationId() == null || request.conversationId().trim().isEmpty()) {
             return Result.error(400, "conversationId 不能为空");
         }
 
         // 参数验证：消息内容不能为空
-        if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+        if (request.message() == null || request.message().trim().isEmpty()) {
             return Result.error(400, "消息内容不能为空");
         }
 
         // 业务验证：会话必须存在
-        Conversation conversation = conversationService.getConversation(request.getConversationId());
+        Conversation conversation = conversationService.getConversation(request.conversationId());
         if (conversation == null) {
             return Result.error(404, "会话不存在");
         }
 
         // 业务验证：限制对话轮数（最多50轮=100条消息，防止token滥用）
-        int messageCount = messageService.getMessageCount(request.getConversationId());
+        int messageCount = messageService.getMessageCount(request.conversationId());
         if (messageCount >= 100) {
             return Result.error(400, "当前会话已达到最大对话轮数（50轮），请创建新会话");
         }
@@ -72,23 +72,23 @@ public class ChatController {
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> chatStream(@RequestBody ChatRequest request) {
         // 参数验证：conversationId不能为空
-        if (request.getConversationId() == null || request.getConversationId().trim().isEmpty()) {
+        if (request.conversationId() == null || request.conversationId().trim().isEmpty()) {
             return Flux.just("data: {\"code\": 400, \"message\": \"conversationId 不能为空\"}\n\n");
         }
 
         // 参数验证：消息内容不能为空
-        if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+        if (request.message() == null || request.message().trim().isEmpty()) {
             return Flux.just("data: {\"code\": 400, \"message\": \"消息内容不能为空\"}\n\n");
         }
 
         // 业务验证：会话必须存在
-        Conversation conversation = conversationService.getConversation(request.getConversationId());
+        Conversation conversation = conversationService.getConversation(request.conversationId());
         if (conversation == null) {
             return Flux.just("data: {\"code\": 404, \"message\": \"会话不存在\"}\n\n");
         }
 
         // 业务验证：限制对话轮数
-        int messageCount = messageService.getMessageCount(request.getConversationId());
+        int messageCount = messageService.getMessageCount(request.conversationId());
         if (messageCount >= 100) {
             return Flux.just("data: {\"code\": 400, \"message\": \"当前会话已达到最大对话轮数（50轮），请创建新会话\", \"messageCount\": " + messageCount + ", \"maxRounds\": 50}\n\n");
         }
