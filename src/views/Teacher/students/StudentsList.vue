@@ -15,7 +15,7 @@
             <el-icon><Plus /></el-icon>
             添加学生
           </el-button>
-          <el-button @click="showImportDialog = true" size="large">
+          <el-button @click="openImportDialog" size="large">
             <el-icon><Upload /></el-icon>
             批量导入
           </el-button>
@@ -258,10 +258,11 @@
         >
           <template #default>
             <ul style="margin: 8px 0; padding-left: 20px; line-height: 1.8;">
-              <li>支持上传 <strong>.xlsx</strong> 或 <strong>.xls</strong> 格式的 Excel 文件</li>
+              <li>支持上传多个 <strong>.xlsx</strong> 或 <strong>.xls</strong> 格式的 Excel 文件</li>
               <li>文件需包含学号、姓名、班级等必要信息</li>
               <li>学号不能重复，重复的学号将被跳过</li>
               <li>单个文件大小不超过 <strong>10MB</strong></li>
+              <li>可同时选择多个文件进行批量导入</li>
             </ul>
           </template>
         </el-alert>
@@ -269,16 +270,13 @@
         <el-upload
           class="upload-demo"
           drag
-          :http-request="uploadStudentFile"
-          :before-upload="beforeUpload"
-          :on-success="handleUploadSuccess"
-          :on-error="handleUploadError"
-          :file-list="fileList"
-          :headers="uploadHeaders"
-          accept=".xlsx,.xls"
+          multiple
           :auto-upload="false"
+          :on-change="handleFileChange"
+          :on-remove="handleFileRemove"
+          :file-list="fileList"
+          accept=".xlsx,.xls"
           ref="uploadRef"
-          :limit="1"
           :on-exceed="handleExceed"
         >
           <el-icon class="el-icon--upload" style="font-size: 67px; color: #409eff;"><UploadFilled /></el-icon>
@@ -287,17 +285,32 @@
           </div>
           <template #tip>
             <div class="el-upload__tip">
-              只能上传 .xlsx 或 .xls 文件，且不超过 10MB
+              支持多文件上传，只能上传 .xlsx 或 .xls 文件，且不超过 10MB
             </div>
           </template>
         </el-upload>
       </div>
       <template #footer>
-        <el-button @click="showImportDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitUpload" :loading="uploading" :disabled="fileList.length === 0">
-          <el-icon v-if="!uploading"><Upload /></el-icon>
-          {{ uploading ? '导入中...' : '开始导入' }}
-        </el-button>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="color: #909399; font-size: 13px;">
+            已选择 <strong>{{ fileList.length }}</strong> 个文件
+            <span v-if="fileList.length > 0" style="margin-left: 8px; font-size: 12px; color: #67c23a;">
+              ✓ 可以开始导入
+            </span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <el-button @click="showImportDialog = false">取消</el-button>
+            <el-button
+              type="primary"
+              @click="submitUpload"
+              :loading="uploading"
+              :disabled="fileList.length === 0 || uploading"
+            >
+              <el-icon v-if="!uploading"><Upload /></el-icon>
+              {{ uploading ? `导入中 (${uploadProgress.current}/${uploadProgress.total})` : '开始导入' }}
+            </el-button>
+          </div>
+        </div>
       </template>
     </el-dialog>
 
@@ -596,7 +609,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Search,
@@ -651,6 +664,7 @@ const overallProgressPct = ref(-1)
 const examAccuracy = ref(-1)
 const videoProgressList = ref([])
 const documentProgressList = ref([])
+const uploadProgress = ref({ current: 0, total: 0, success: 0, failed: 0 })
 
 const studentForm = ref({
   id: null,
@@ -790,6 +804,17 @@ const openAddStudent = () => {
   showEditDialog.value = true
 }
 
+const openImportDialog = () => {
+  // 重置文件列表和上传状态
+  fileList.value = []
+  uploadProgress.value = { current: 0, total: 0, success: 0, failed: 0 }
+  uploading.value = false
+
+  console.log('[批量导入] 打开对话框，重置文件列表')
+
+  showImportDialog.value = true
+}
+
 const openDetailDialog = (student) => {
   selectedStudent.value = student
   showDetailDialog.value = true
@@ -900,62 +925,167 @@ const saveStudent = async () => {
 }
 
 const beforeUpload = file => {
-  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-    file.type === 'application/vnd.ms-excel'
-  if (!isExcel) {
-    ElMessage.error('只能上传 .xls 或 .xlsx 文件!')
-    return false
-  }
-  const isLt10M = file.size / 1024 / 1024 < 10
-  if (!isLt10M) {
-    ElMessage.error('文件大小不能超过 10MB!')
-    return false
-  }
+  // 注意：由于 auto-upload="false"，这个钩子不会被调用
+  // 文件验证在 handleFileChange 中进行
   return true
 }
 
-const uploadStudentFile = async (options) => {
-  const formData = new FormData()
-  formData.append('file', options.file)
+const validateFile = (file) => {
+  // 1. 检查文件扩展名（更可靠）
+  const fileName = file.name.toLowerCase()
+  const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls')
 
-  try {
-    uploading.value = true
-    const res = await axios.post(`${BASE_URL}/user/excel`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-      }
-    })
-    options.onSuccess(res.data)
-  } catch (error) {
-    options.onError(error)
-  } finally {
-    uploading.value = false
+  if (!isExcel) {
+    ElMessage.error(`文件 "${file.name}" 不是有效的 Excel 文件`)
+    return false
   }
+
+  // 2. 检查文件大小
+  const isLt10M = file.size / 1024 / 1024 < 10
+  if (!isLt10M) {
+    ElMessage.error(`文件 "${file.name}" 大小超过 10MB`)
+    return false
+  }
+
+  return true
 }
 
-const submitUpload = () => {
-  uploadRef.value?.submit()
+const handleExceed = (files, uploadFiles) => {
+  ElMessage.warning(`当前已选择 ${uploadFiles.length} 个文件，如需添加更多，请先删除部分文件`)
 }
 
-const handleExceed = () => {
-  ElMessage.warning('只能上传一个文件')
-}
+const submitUpload = async () => {
+  if (fileList.value.length === 0) {
+    ElMessage.warning('请先选择文件')
+    return
+  }
 
-const handleUploadSuccess = response => {
-  if (response && Number(response.code) === 200) {
-    ElMessage.success('学生导入成功')
+  // 过滤出有效的文件对象
+  const validFiles = fileList.value.filter(f => f && f.raw).map(f => f.raw)
+
+  if (validFiles.length === 0) {
+    ElMessage.error('没有有效的文件，请重新选择')
+    return
+  }
+
+  uploading.value = true
+  uploadProgress.value = { current: 0, total: validFiles.length, success: 0, failed: 0 }
+
+  console.log(`[批量导入] 开始上传 ${validFiles.length} 个文件`)
+
+  // 使用 Promise.allSettled 并行处理所有文件
+  const uploadPromises = validFiles.map(async (file, index) => {
+    try {
+      uploadProgress.value.current = index + 1
+
+      console.log(`[批量导入] 上传文件 ${index + 1}/${validFiles.length}: ${file.name}`)
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await axios.post(`${BASE_URL}/user/excel`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      })
+
+      console.log(`[批量导入] 文件 ${file.name} 上传成功:`, res.data)
+      uploadProgress.value.success++
+
+      return {
+        fileName: file.name,
+        success: true,
+        data: res.data
+      }
+    } catch (error) {
+      console.error(`[批量导入] 文件 ${file.name} 上传失败:`, error)
+      uploadProgress.value.failed++
+
+      return {
+        fileName: file.name,
+        success: false,
+        error: error.response?.data?.message || error.message
+      }
+    }
+  })
+
+  const results = await Promise.allSettled(uploadPromises)
+
+  uploading.value = false
+
+  // 统计结果
+  const successCount = results.filter(r => r.value?.success).length
+  const failedCount = results.filter(r => !r.value?.success).length
+
+  console.log(`[批量导入] 全部完成: 成功 ${successCount} 个，失败 ${failedCount} 个`)
+
+  // 显示详细结果
+  if (failedCount === 0) {
+    ElMessage.success(`全部导入成功！共导入 ${successCount} 个文件`)
     showImportDialog.value = false
     fileList.value = []
     fetchStudents()
+  } else if (successCount === 0) {
+    ElMessage.error(`全部导入失败，请检查文件格式`)
   } else {
-    ElMessage.error(response?.message || '学生导入失败')
+    ElMessage.warning(`部分导入成功：成功 ${successCount} 个，失败 ${failedCount} 个`)
+
+    // 显示失败文件的详细信息
+    const failedFiles = results
+      .filter(r => !r.value?.success)
+      .map(r => `• ${r.value.fileName}: ${r.value.error}`)
+      .join('\n')
+
+    console.warn('[批量导入] 失败的文件:\n' + failedFiles)
+
+    // 刷新列表并保留对话框
+    fetchStudents()
   }
 }
 
+const handleFileChange = (file, uploadFileList) => {
+  console.log('[文件选择] 新增文件:', file.name)
+  console.log('[文件选择] 当前文件列表:', uploadFileList.map(f => ({
+    name: f.name,
+    size: f.size,
+    status: f.status
+  })))
+
+  // 验证新添加的文件
+  if (!validateFile(file)) {
+    // 如果验证失败，从列表中移除该文件
+    const index = uploadFileList.findIndex(f => f.uid === file.uid)
+    if (index > -1) {
+      uploadFileList.splice(index, 1)
+    }
+    return
+  }
+
+  // 更新文件列表
+  fileList.value = [...uploadFileList]
+
+  console.log('[文件选择] 更新后的 fileList 长度:', fileList.value.length)
+  console.log('[文件选择] 文件列表:', fileList.value.map(f => f.name))
+}
+
+const handleFileRemove = (file, uploadFileList) => {
+  console.log('[文件移除] 移除文件:', file.name)
+  console.log('[文件移除] 剩余文件列表:', uploadFileList.map(f => f.name))
+
+  fileList.value = [...uploadFileList]
+
+  console.log('[文件移除] 更新后的 fileList 长度:', fileList.value.length)
+}
+
+const handleUploadSuccess = response => {
+  // 单个文件上传成功的回调（已不使用，统一在 submitUpload 中处理）
+  console.log('[批量导入] 单个文件上传成功:', response)
+}
+
 const handleUploadError = error => {
-  console.error('上传失败:', error)
-  ElMessage.error('学生导入失败')
+  // 单个文件上传失败的回调（已不使用，统一在 submitUpload 中处理）
+  console.error('[批量导入] 单个文件上传失败:', error)
 }
 
 const getProgressColor = p => {
@@ -1083,6 +1213,17 @@ const refreshCourseProgress = async () => {
     ElMessage.error('获取课程进度失败')
   }
 }
+
+// Watch dialog state changes
+watch(showImportDialog, (newVal) => {
+  if (!newVal) {
+    // 对话框关闭时重置状态
+    console.log('[批量导入] 对话框关闭，重置状态')
+    fileList.value = []
+    uploadProgress.value = { current: 0, total: 0, success: 0, failed: 0 }
+    uploading.value = false
+  }
+})
 
 // Lifecycle
 onMounted(() => {
