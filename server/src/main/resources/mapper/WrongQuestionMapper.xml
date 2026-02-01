@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ccut.mapper.WrongQuestionMapper">
+
+    <resultMap id="BaseResultMap" type="com.ccut.entity.WrongQuestion">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="question_id" property="questionId"/>
+        <result column="exam_id" property="examId"/>
+        <result column="course_id" property="courseId"/>
+        <result column="wrong_answer" property="wrongAnswer"/>
+        <result column="correct_answer" property="correctAnswer"/>
+        <result column="wrong_count" property="wrongCount"/>
+        <result column="correct_count" property="correctCount"/>
+        <result column="is_mastered" property="isMastered"/>
+        <result column="first_wrong_time" property="firstWrongTime"/>
+        <result column="last_wrong_time" property="lastWrongTime"/>
+        <result column="mastered_time" property="masteredTime"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <resultMap id="DetailResultMap" type="com.ccut.entity.WrongQuestion" extends="BaseResultMap">
+        <!-- 关联题目信息 -->
+        <association property="question" javaType="com.ccut.entity.AiExamQuestion">
+            <id column="q_id" property="id"/>
+            <result column="q_type" property="type"/>
+            <result column="q_content" property="content"/>
+            <result column="q_options" property="options"/>
+            <result column="q_answer" property="answer"/>
+            <result column="q_analysis" property="analysis"/>
+        </association>
+    </resultMap>
+
+    <!-- 插入错题记录 -->
+    <insert id="insert" parameterType="com.ccut.entity.WrongQuestion" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wrong_question (
+            student_id, question_id, exam_id, course_id,
+            wrong_answer, correct_answer, wrong_count, correct_count, is_mastered,
+            first_wrong_time, last_wrong_time, mastered_time,
+            create_time, update_time
+        ) VALUES (
+            #{studentId}, #{questionId}, #{examId}, #{courseId},
+            #{wrongAnswer}, #{correctAnswer}, #{wrongCount}, #{correctCount}, #{isMastered},
+            #{firstWrongTime}, #{lastWrongTime}, #{masteredTime},
+            #{createTime}, #{updateTime}
+        )
+    </insert>
+
+    <!-- 根据学生ID和题目ID查询错题记录 -->
+    <select id="selectByStudentIdAndQuestionId" resultMap="BaseResultMap">
+        SELECT * FROM wrong_question
+        WHERE student_id = #{studentId} AND question_id = #{questionId}
+    </select>
+
+    <!-- 根据学生ID查询错题列表（可按课程ID筛选） -->
+    <select id="selectByStudentId" resultMap="BaseResultMap">
+        SELECT * FROM wrong_question
+        WHERE student_id = #{studentId}
+        <if test="courseId != null">
+            AND course_id = #{courseId}
+        </if>
+        ORDER BY last_wrong_time DESC
+    </select>
+
+    <!-- 根据ID查询错题详情 -->
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT * FROM wrong_question WHERE id = #{id}
+    </select>
+
+    <!-- 更新错题次数和时间 -->
+    <update id="updateWrongCount" parameterType="long">
+        UPDATE wrong_question
+        SET wrong_count = wrong_count + 1,
+            last_wrong_time = NOW(),
+            update_time = NOW(),
+            is_mastered = 0,
+            mastered_time = NULL
+        WHERE id = #{id}
+    </update>
+
+    <!-- 复习答对：增加连续答对次数 -->
+    <update id="incrementCorrectCount" parameterType="long">
+        UPDATE wrong_question
+        SET correct_count = correct_count + 1,
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 复习答错：重置连续答对次数为0 -->
+    <update id="resetCorrectCount" parameterType="long">
+        UPDATE wrong_question
+        SET correct_count = 0,
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 标记为已掌握 -->
+    <update id="markAsMastered" parameterType="long">
+        UPDATE wrong_question
+        SET is_mastered = 1,
+            mastered_time = NOW(),
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 取消掌握标记 -->
+    <update id="cancelMastered" parameterType="long">
+        UPDATE wrong_question
+        SET is_mastered = 0,
+            mastered_time = NULL,
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除错题记录 -->
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM wrong_question WHERE id = #{id}
+    </delete>
+
+    <!-- 统计学生的错题总数 -->
+    <select id="countByStudentId" resultType="int">
+        SELECT COUNT(*) FROM wrong_question
+        WHERE student_id = #{studentId}
+        <if test="courseId != null">
+            AND course_id = #{courseId}
+        </if>
+    </select>
+
+    <!-- 统计学生已掌握的错题数 -->
+    <select id="countMasteredByStudentId" resultType="int">
+        SELECT COUNT(*) FROM wrong_question
+        WHERE student_id = #{studentId}
+        AND is_mastered = 1
+        <if test="courseId != null">
+            AND course_id = #{courseId}
+        </if>
+    </select>
+
+    <!-- 批量查询错题详情（包含题目内容） -->
+    <select id="selectDetailByStudentId" resultMap="DetailResultMap">
+        SELECT
+            wq.*,
+            q.id as q_id,
+            q.type as q_type,
+            q.content as q_content,
+            q.options as q_options,
+            q.answer as q_answer,
+            q.analysis as q_analysis
+        FROM wrong_question wq
+        LEFT JOIN ai_exam_question q ON wq.question_id = q.id
+        WHERE wq.student_id = #{studentId}
+        <if test="courseId != null">
+            AND wq.course_id = #{courseId}
+        </if>
+        ORDER BY wq.last_wrong_time DESC
+    </select>
+
+</mapper>
