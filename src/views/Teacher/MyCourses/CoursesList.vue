@@ -179,7 +179,7 @@ export default {
     const progressColor = (p) => { if (p >= 80) return '#67c23a'; if (p >= 60) return '#e6a23c'; if (p >= 40) return '#f56c6c'; return '#909399' }
 
     const navigateToCreate = () => { router.push('/teacher/courses/create') }
-    const editCourse = (course) => { router.push(`/teacher/courses/edit/${course.id}`) }
+    const editCourse = (course) => { router.push(`/teacher/courses/${course.id}/materials`) }
     const manageMaterials = (course) => { router.push(`/teacher/courses/${course.id}/materials`) }
 
     const publishCourse = async (course) => {

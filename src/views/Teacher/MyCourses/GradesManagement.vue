@@ -1,113 +1,174 @@
 <template>
   <div class="grades-page">
-    <div class="header">
-      <el-page-header @back="goBack" title="成绩管理" />
+    <!-- 顶部导航 -->
+    <div class="page-header-container">
+      <el-page-header @back="goBack" title="返回课程列表">
+        <template #content>
+          <span class="header-title">成绩管理</span>
+        </template>
+        <template #extra>
+          <el-button
+            type="primary"
+            :icon="Refresh"
+            circle
+            @click="refreshData"
+            :loading="loading"
+            title="刷新数据"
+          />
+        </template>
+      </el-page-header>
     </div>
 
-    <el-card class="table-card">
-      <template #header>
-        <div class="card-header">
-          <span>学生成绩列表</span>
-          <div style="display: flex; gap: 12px;">
-            <el-select
-              v-model="courseId"
-              placeholder="选择课程"
-              @change="onCourseChange"
-              filterable
-              style="width: 300px;"
-              :loading="courseList.length === 0"
-            >
-              <el-option
-                v-for="course in courseList"
-                :key="course.courseId || course.id"
-                :label="course.courseName || course.title || '未命名课程'"
-                :value="course.courseId || course.id"
-              />
-            </el-select>
-            <el-select
-              v-model="selectedClass"
-              placeholder="选择班级"
-              clearable
-              style="width: 200px;"
-            >
-              <el-option label="全部班级" value="" />
-              <el-option
-                v-for="cls in classList"
-                :key="cls"
-                :label="cls"
-                :value="cls"
-              />
-            </el-select>
-            <el-input
-              v-model="searchText"
-              placeholder="搜索学生姓名或学号"
-              style="width: 250px;"
-              clearable
-            >
-              <template #prefix>
-                <i class="fas fa-search"></i>
-              </template>
-            </el-input>
+    <!-- 统计卡片区 -->
+    <el-row :gutter="20" class="stats-container">
+      <el-col :xs="24" :sm="8">
+        <el-card shadow="hover" class="stat-card blue-theme">
+          <div class="stat-body">
+            <div class="stat-info">
+              <div class="stat-value">{{ totalGrades }}</div>
+              <div class="stat-label">总学生数</div>
+            </div>
+            <el-icon class="stat-icon"><User /></el-icon>
           </div>
-        </div>
-      </template>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="8">
+        <el-card shadow="hover" class="stat-card orange-theme">
+          <div class="stat-body">
+            <div class="stat-info">
+              <div class="stat-value">{{ classAverageScore }}</div>
+              <div class="stat-label">班级平均分</div>
+            </div>
+            <el-icon class="stat-icon"><Trophy /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="8">
+        <el-card shadow="hover" class="stat-card green-theme">
+          <div class="stat-body">
+            <div class="stat-info">
+              <div class="stat-value">{{ passRate }}%</div>
+              <div class="stat-label">及格率</div>
+            </div>
+            <el-icon class="stat-icon"><PieChart /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
 
+    <!-- 主内容卡片 -->
+    <el-card class="main-card" shadow="never">
+      <!-- 筛选工具栏 -->
+      <div class="filter-toolbar">
+        <div class="left-filters">
+          <span class="filter-label">当前课程：</span>
+          <el-select
+            v-model="courseId"
+            placeholder="选择课程"
+            @change="onCourseChange"
+            filterable
+            class="course-select"
+            :loading="loadingCourses"
+          >
+            <el-option
+              v-for="course in courseList"
+              :key="course.courseId || course.id"
+              :label="course.courseName || course.title || '未命名课程'"
+              :value="course.courseId || course.id"
+            />
+          </el-select>
+        </div>
+        <div class="right-filters">
+          <el-select
+            v-model="selectedClass"
+            placeholder="筛选班级"
+            clearable
+            class="class-select"
+          >
+            <el-option label="全部班级" value="" />
+            <el-option
+              v-for="cls in classList"
+              :key="cls"
+              :label="cls"
+              :value="cls"
+            />
+          </el-select>
+          <el-input
+            v-model="searchText"
+            placeholder="搜索姓名或学号"
+            class="search-input"
+            clearable
+            :prefix-icon="Search"
+          />
+        </div>
+      </div>
+
+      <!-- 表格内容 -->
       <el-table
         :data="filteredStudentGrades"
         v-loading="loading"
         style="width: 100%"
+        stripe
+        highlight-current-row
+        header-cell-class-name="table-header-gray"
+        :default-sort="{ prop: 'progress', order: 'descending' }"
       >
-        <el-table-column prop="studentNumber" label="学号" width="120" />
-        <el-table-column prop="name" label="姓名" width="100" />
-        <el-table-column prop="className" label="班级" width="100" />
-        <el-table-column label="总体进度" width="200">
+        <el-table-column prop="studentNumber" label="学号" width="140" sortable fixed />
+        <el-table-column prop="name" label="姓名" width="120" sortable fixed />
+        <el-table-column prop="className" label="班级" width="140" sortable />
+
+        <el-table-column label="总体进度" min-width="200" sortable prop="progress">
           <template #default="{ row }">
-            <el-progress
-              :percentage="row.progress"
-              :color="progressColor(row.progress)"
-              :stroke-width="18"
-            />
+            <div class="progress-cell">
+              <el-progress
+                :percentage="row.progress"
+                :color="progressColor(row.progress)"
+                :stroke-width="12"
+              />
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="完成状态" width="100" align="center">
+
+        <el-table-column label="状态" width="120" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.progress >= 100 ? 'success' : (row.progress >= 60 ? 'warning' : 'info')" size="small">
-              {{ row.progress >= 100 ? '已完成' : (row.progress >= 60 ? '进行中' : '未开始') }}
+            <el-tag :type="getStatusType(row.progress)" size="small" effect="light" round>
+              {{ getStatusText(row.progress) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="成绩" width="120" align="center">
+
+        <el-table-column label="综合成绩" width="140" align="center" sortable prop="averageScore">
           <template #default="{ row }">
             <div v-if="row.progress >= 100">
               <el-tag
                 v-if="row.averageScore !== null"
-                :type="row.averageScore >= 80 ? 'success' : (row.averageScore >= 60 ? 'warning' : 'danger')"
-                size="large"
+                :type="getScoreType(row.averageScore)"
+                effect="dark"
+                class="score-tag"
               >
                 {{ row.averageScore }}
               </el-tag>
-              <el-tag v-else type="info" size="small">暂无成绩</el-tag>
+              <span v-else class="text-gray">暂无</span>
             </div>
-            <div v-else>
-              <el-tag type="info" size="small">未完成</el-tag>
-            </div>
+            <span v-else class="text-gray">--</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+
+        <el-table-column label="操作" width="100" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button
-              type="primary"
-              size="small"
-              @click="viewDetail(row)"
-            >
-              查看详情
+            <el-button link type="primary" size="small" @click="viewDetail(row)">
+              详情
             </el-button>
           </template>
         </el-table-column>
+
+        <template #empty>
+          <el-empty description="暂无成绩数据" />
+        </template>
       </el-table>
 
       <!-- 分页组件 -->
-      <div style="margin-top: 20px; display: flex; justify-content: center;">
+      <div class="pagination-container">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
@@ -116,6 +177,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           @current-change="handlePageChange"
           @size-change="handlePageSizeChange"
+          background
         />
       </div>
     </el-card>
@@ -123,219 +185,146 @@
     <!-- 成绩详情对话框 -->
     <el-dialog
       v-model="detailVisible"
-      :title="`${currentStudent?.name || ''} 的成绩详情`"
-      width="900px"
+      :title="`${currentStudent?.name || '学生'} 的成绩详情`"
+      width="850px"
       destroy-on-close
+      class="detail-dialog"
     >
       <div v-if="currentStudent" class="detail-content" v-loading="detailLoading">
-        <!-- 学生基本信息 -->
-        <el-card class="info-card" shadow="never">
-          <el-descriptions :column="2" border size="large">
-            <el-descriptions-item label="学号" label-class-name="desc-label">
-              <el-text size="large">{{ currentStudent.studentNumber }}</el-text>
+        <!-- 学生基本信息卡片 (保留了您喜欢的渐变风格) -->
+        <el-card class="info-card" shadow="hover">
+          <el-descriptions :column="2" border size="large" class="custom-desc">
+            <el-descriptions-item label="学号">
+              <span class="info-text">{{ currentStudent.studentNumber }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="姓名" label-class-name="desc-label">
-              <el-text size="large" type="primary">{{ currentStudent.name }}</el-text>
+            <el-descriptions-item label="姓名">
+              <span class="info-text">{{ currentStudent.name }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="班级" label-class-name="desc-label">
-              <el-text size="large">{{ currentStudent.className }}</el-text>
+            <el-descriptions-item label="班级">
+              <span class="info-text">{{ currentStudent.className }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="总体进度" label-class-name="desc-label">
-              <el-progress 
-                :percentage="currentStudent.progress" 
+            <el-descriptions-item label="总体进度">
+              <el-progress
+                :percentage="currentStudent.progress"
                 :color="progressColor(currentStudent.progress)"
-                :stroke-width="20"
+                :stroke-width="14"
+                :show-text="true"
+                class="info-progress"
               />
             </el-descriptions-item>
-            <el-descriptions-item label="总体成绩" label-class-name="desc-label" :span="2">
-              <el-tag
-                v-if="currentStudent.averageScore !== null"
-                :type="currentStudent.averageScore >= 80 ? 'success' : (currentStudent.averageScore >= 60 ? 'warning' : 'danger')"
-                size="large"
-                effect="dark"
-                style="font-size: 18px; padding: 8px 16px;"
-              >
-                {{ currentStudent.averageScore }} 分
-              </el-tag>
-              <el-tag v-else type="info" size="large">暂无成绩</el-tag>
+            <el-descriptions-item label="综合成绩" :span="2">
+              <div class="info-score-wrapper">
+                <el-tag
+                  v-if="currentStudent.averageScore !== null"
+                  :type="getScoreType(currentStudent.averageScore)"
+                  size="large"
+                  effect="light"
+                  class="large-score-tag"
+                >
+                  {{ currentStudent.averageScore }} 分
+                </el-tag>
+                <el-tag v-else type="info" size="large">暂无成绩</el-tag>
+              </div>
             </el-descriptions-item>
           </el-descriptions>
         </el-card>
 
-        <!-- 视频成绩 -->
-        <div class="score-section" v-if="videoScores.length > 0">
-          <div class="section-header">
-            <i class="fas fa-video section-icon"></i>
-            <span class="section-title">视频学习成绩</span>
-            <el-tag size="small" type="primary">共 {{ videoScores.length }} 个视频</el-tag>
-          </div>
-          <el-table 
-            :data="videoScores" 
-            style="width: 100%" 
-            :show-header="true"
-            stripe
-            class="score-table"
-          >
-            <el-table-column prop="videoId" label="视频ID" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag type="info" size="small">视频 #{{ row.videoId }}</el-tag>
+        <!-- 成绩详情标签页 -->
+        <el-tabs type="border-card" class="detail-tabs">
+          <!-- 视频成绩 Tab -->
+          <el-tab-pane>
+            <template #label>
+              <span class="custom-tabs-label">
+                <el-icon><VideoPlay /></el-icon> <span>视频成绩 ({{ videoScores.length }})</span>
+              </span>
+            </template>
+            <el-table :data="videoScores" stripe height="350" style="width: 100%">
+              <el-table-column label="视频信息" min-width="120">
+                 <template #default="{ row }">
+                   <el-tag type="info" size="small">ID: {{ row.videoId }}</el-tag>
+                 </template>
+              </el-table-column>
+              <el-table-column label="平均成绩" width="140" align="center">
+                <template #default="{ row }">
+                  <span :class="getScoreTextClass(row.averageScore)">{{ row.averageScore }} 分</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="attemptCount" label="答题次数" width="100" align="center" />
+              <el-table-column label="分析" width="180">
+                <template #default="{ row }">
+                  <el-progress :percentage="row.averageScore" :color="getScoreColor(row.averageScore)" />
+                </template>
+              </el-table-column>
+              <template #empty>
+                <el-empty description="暂无视频成绩" :image-size="80" />
               </template>
-            </el-table-column>
-            <el-table-column label="平均成绩" width="150" align="center">
-              <template #default="{ row }">
-                <el-tag
-                  :type="row.averageScore >= 80 ? 'success' : (row.averageScore >= 60 ? 'warning' : 'danger')"
-                  size="large"
-                  effect="dark"
-                >
-                  {{ row.averageScore }} 分
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="答题次数" width="120" align="center">
-              <template #default="{ row }">
-                <el-tag type="primary" size="small">{{ row.attemptCount }} 次</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="成绩分析" align="center">
-              <template #default="{ row }">
-                <div class="score-analysis">
-                  <el-progress 
-                    :percentage="row.averageScore" 
-                    :color="row.averageScore >= 80 ? '#67c23a' : (row.averageScore >= 60 ? '#e6a23c' : '#f56c6c')"
-                    :stroke-width="18"
-                  >
-                    <span style="font-size: 12px; font-weight: bold;">{{ row.averageScore }}%</span>
-                  </el-progress>
-                </div>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+            </el-table>
+          </el-tab-pane>
 
-        <!-- 文档成绩 -->
-        <div class="score-section" v-if="documentScores.length > 0">
-          <div class="section-header">
-            <i class="fas fa-file-alt section-icon"></i>
-            <span class="section-title">文档学习成绩</span>
-            <el-tag size="small" type="success">共 {{ documentScores.length }} 个文档</el-tag>
-          </div>
-          <el-table 
-            :data="documentScores" 
-            style="width: 100%" 
-            :show-header="true"
-            stripe
-            class="score-table"
-          >
-            <el-table-column prop="documentId" label="文档ID" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag type="info" size="small">文档 #{{ row.documentId }}</el-tag>
+          <!-- 文档成绩 Tab -->
+          <el-tab-pane>
+            <template #label>
+              <span class="custom-tabs-label">
+                <el-icon><Document /></el-icon> <span>文档成绩 ({{ documentScores.length }})</span>
+              </span>
+            </template>
+            <el-table :data="documentScores" stripe height="350" style="width: 100%">
+              <el-table-column label="文档信息" min-width="120">
+                 <template #default="{ row }">
+                   <el-tag type="info" size="small">ID: {{ row.documentId }}</el-tag>
+                 </template>
+              </el-table-column>
+              <el-table-column label="平均成绩" width="140" align="center">
+                <template #default="{ row }">
+                  <span :class="getScoreTextClass(row.averageScore)">{{ row.averageScore }} 分</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="attemptCount" label="答题次数" width="100" align="center" />
+              <el-table-column label="分析" width="180">
+                <template #default="{ row }">
+                  <el-progress :percentage="row.averageScore" :color="getScoreColor(row.averageScore)" />
+                </template>
+              </el-table-column>
+              <template #empty>
+                <el-empty description="暂无文档成绩" :image-size="80" />
               </template>
-            </el-table-column>
-            <el-table-column label="平均成绩" width="150" align="center">
-              <template #default="{ row }">
-                <el-tag
-                  :type="row.averageScore >= 80 ? 'success' : (row.averageScore >= 60 ? 'warning' : 'danger')"
-                  size="large"
-                  effect="dark"
-                >
-                  {{ row.averageScore }} 分
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="答题次数" width="120" align="center">
-              <template #default="{ row }">
-                <el-tag type="success" size="small">{{ row.attemptCount }} 次</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="成绩分析" align="center">
-              <template #default="{ row }">
-                <div class="score-analysis">
-                  <el-progress 
-                    :percentage="row.averageScore" 
-                    :color="row.averageScore >= 80 ? '#67c23a' : (row.averageScore >= 60 ? '#e6a23c' : '#f56c6c')"
-                    :stroke-width="18"
-                  >
-                    <span style="font-size: 12px; font-weight: bold;">{{ row.averageScore }}%</span>
-                  </el-progress>
-                </div>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+            </el-table>
+          </el-tab-pane>
 
-        <!-- 所有成绩（兜底显示） -->
-        <div class="score-section" v-if="!detailLoading && videoScores.length === 0 && documentScores.length === 0 && allScores.length > 0">
-          <div class="section-header">
-            <i class="fas fa-list-alt section-icon"></i>
-            <span class="section-title">所有提交的成绩</span>
-            <el-tag size="small" type="warning">共 {{ allScores.length }} 次答题</el-tag>
-          </div>
-          <el-alert 
-            title="提示" 
-            type="warning" 
-            description="这些题目生成时未关联具体视频或文档，显示所有已提交的成绩。" 
-            show-icon 
-            :closable="false"
-            style="margin-bottom: 16px;"
-          />
-          <el-table 
-            :data="allScores" 
-            style="width: 100%" 
-            :show-header="true"
-            stripe
-            class="score-table"
-          >
-            <el-table-column prop="id" label="试卷ID" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag type="info" size="small">#{{ row.id }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="topic" label="主题" min-width="150" />
-            <el-table-column label="题目数" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag size="small">{{ row.questionCount }} 题</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="成绩" width="150" align="center">
-              <template #default="{ row }">
-                <el-tag
-                  :type="row.totalScore >= 80 ? 'success' : (row.totalScore >= 60 ? 'warning' : 'danger')"
-                  size="large"
-                  effect="dark"
-                >
-                  {{ row.totalScore }} 分
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="提交时间" width="180" align="center">
-              <template #default="{ row }">
-                {{ formatDateTime(row.createdAt) }}
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+          <!-- 兜底显示 Tab -->
+          <el-tab-pane v-if="allScores.length > 0">
+             <template #label>
+              <span class="custom-tabs-label">
+                <el-icon><Tickets /></el-icon> <span>所有记录 ({{ allScores.length }})</span>
+              </span>
+            </template>
+            <el-alert title="提示：此处显示所有已提交的答题记录" type="warning" :closable="false" show-icon style="margin-bottom: 10px;" />
+            <el-table :data="allScores" stripe height="310" style="width: 100%">
+               <el-table-column prop="topic" label="主题" min-width="150" show-overflow-tooltip />
+               <el-table-column label="成绩" width="120" align="center">
+                  <template #default="{ row }">
+                     <el-tag :type="getScoreType(row.totalScore)">{{ row.totalScore }} 分</el-tag>
+                  </template>
+               </el-table-column>
+               <el-table-column label="时间" width="160" align="center">
+                  <template #default="{ row }">
+                     <span class="text-small">{{ formatDateTime(row.createdAt) }}</span>
+                  </template>
+               </el-table-column>
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
 
-        <!-- 无成绩提示 -->
-        <el-empty 
-          v-if="!detailLoading && videoScores.length === 0 && documentScores.length === 0 && allScores.length === 0"
-          description="暂无成绩数据"
-          :image-size="120"
-        >
-          <el-alert 
-            title="提示" 
-            type="info" 
-            description="该学生尚未完成任何答题，或成绩尚未生成。" 
-            show-icon 
-            :closable="false"
-          />
-        </el-empty>
+        <el-empty
+          v-if="videoScores.length === 0 && documentScores.length === 0 && allScores.length === 0"
+          description="暂无任何成绩记录"
+          class="dialog-empty"
+        />
       </div>
-
       <template #footer>
-        <el-button type="primary" @click="detailVisible = false" size="large">
-          <i class="fas fa-check"></i> 关闭
-        </el-button>
+        <div class="dialog-footer">
+          <el-button @click="detailVisible = false">关闭</el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -344,11 +333,24 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import axios from 'axios'
+import {
+  User,
+  Trophy,
+  PieChart,
+  Search,
+  Refresh,
+  VideoPlay,
+  Document,
+  Tickets,
+  Check
+} from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 
+// API 配置
 const API_BASE = import.meta?.env?.VITE_API_BASE_URL || '/api'
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
@@ -357,22 +359,28 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// 状态变量
 const courseId = ref(null)
 const courseList = ref([])
 const loading = ref(false)
+const loadingCourses = ref(false)
 const studentGradesList = ref([])
+
+// 筛选与分页
 const searchText = ref('')
 const selectedClass = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+// 详情弹窗
 const detailVisible = ref(false)
 const currentStudent = ref(null)
 const detailLoading = ref(false)
 const videoScores = ref([])
 const documentScores = ref([])
-const allScores = ref([]) // 所有成绩（兜底显示）
+const allScores = ref([])
 
-// 分页相关
-const currentPage = ref(1)
-const pageSize = ref(10)
+// --- 计算属性 ---
 
 // 当前课程名称
 const courseName = computed(() => {
@@ -380,7 +388,7 @@ const courseName = computed(() => {
   return course ? (course.courseName || course.title || '课程') : '课程'
 })
 
-// 提取所有班级列表
+// 提取班级列表
 const classList = computed(() => {
   const classes = new Set()
   studentGradesList.value.forEach(s => {
@@ -389,16 +397,12 @@ const classList = computed(() => {
   return Array.from(classes).sort()
 })
 
-// 筛选后的完整数据（用于统计和分页）
+// 筛选后的所有数据（用于统计）
 const filteredAllGrades = computed(() => {
   let result = studentGradesList.value
-
-  // 按班级筛选
   if (selectedClass.value) {
     result = result.filter(s => s.className === selectedClass.value)
   }
-
-  // 按姓名/学号搜索
   const q = searchText.value.toLowerCase().trim()
   if (q) {
     result = result.filter(s => {
@@ -407,143 +411,177 @@ const filteredAllGrades = computed(() => {
       return name.includes(q) || no.includes(q)
     })
   }
-
   return result
 })
 
+// --- 统计指标 ---
 const totalGrades = computed(() => filteredAllGrades.value.length)
 
-// 当前页显示的数据（分页后）
+const classAverageScore = computed(() => {
+  const studentsWithScore = filteredAllGrades.value.filter(s => s.averageScore !== null)
+  if (studentsWithScore.length === 0) return '0.0'
+  const sum = studentsWithScore.reduce((acc, s) => acc + s.averageScore, 0)
+  return (sum / studentsWithScore.length).toFixed(1)
+})
+
+const passRate = computed(() => {
+  const studentsWithScore = filteredAllGrades.value.filter(s => s.averageScore !== null)
+  if (studentsWithScore.length === 0) return '0.0'
+  const passed = studentsWithScore.filter(s => s.averageScore >= 60).length
+  return ((passed / studentsWithScore.length) * 100).toFixed(1)
+})
+
+// 分页后的数据
 const filteredStudentGrades = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   const end = start + pageSize.value
   return filteredAllGrades.value.slice(start, end)
 })
 
-// 分页事件处理
+// --- 辅助函数 ---
+
+const goBack = () => router.back()
+
 const handlePageChange = (page) => {
   currentPage.value = page
 }
 
 const handlePageSizeChange = (size) => {
   pageSize.value = size
-  currentPage.value = 1 // 重置到第一页
+  currentPage.value = 1
 }
 
 const progressColor = (pct) => {
-  if (pct >= 80) return '#67c23a'
+  if (pct >= 100) return '#67c23a'
+  if (pct >= 80) return '#409eff'
   if (pct >= 60) return '#e6a23c'
-  if (pct >= 30) return '#409eff'
-  return '#909399'
+  return '#f56c6c'
+}
+
+const getScoreType = (score) => {
+  if (score >= 80) return 'success'
+  if (score >= 60) return 'warning'
+  return 'danger'
+}
+
+const getScoreColor = (score) => {
+  if (score >= 80) return '#67c23a'
+  if (score >= 60) return '#e6a23c'
+  return '#f56c6c'
+}
+
+const getScoreTextClass = (score) => {
+  if (score >= 80) return 'text-success'
+  if (score >= 60) return 'text-warning'
+  return 'text-danger'
+}
+
+const getStatusType = (progress) => {
+  if (progress >= 100) return 'success'
+  if (progress > 0) return 'primary'
+  return 'info'
+}
+
+const getStatusText = (progress) => {
+  if (progress >= 100) return '已完成'
+  if (progress > 0) return '进行中'
+  return '未开始'
 }
 
 const formatDateTime = (dt) => {
-  if (!dt) return '-'
+  if (!dt) return '--'
   try {
     const d = new Date(dt)
-    if (isNaN(d.getTime())) return '-'
-    return d.toLocaleString('zh-CN', { 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit', 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    if (isNaN(d.getTime())) return '--'
+    return d.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
     })
   } catch {
-    return '-'
+    return '--'
   }
 }
 
-const goBack = () => {
-  router.back()
+// --- 业务逻辑 ---
+
+const refreshData = () => {
+  if (courseId.value) {
+    loadCourseGrades()
+    ElMessage.success('数据已刷新')
+  }
 }
 
-// 加载教师的所有课程
 const loadCourseList = async () => {
+  loadingCourses.value = true
   try {
-    console.log('开始加载课程列表...')
     const res = await api.get('/course/list')
-    console.log('课程列表接口响应:', res)
     const body = res?.data
     if (body && Number(body.code) === 200 && Array.isArray(body.data)) {
       courseList.value = body.data
-      console.log('课程列表加载成功，共', courseList.value.length, '个课程:', courseList.value)
     } else {
-      console.warn('课程列表数据格式不正确:', body)
       courseList.value = []
     }
   } catch (err) {
     console.error('加载课程列表失败:', err)
+    ElMessage.error('课程列表加载失败')
     courseList.value = []
+  } finally {
+    loadingCourses.value = false
   }
 }
 
-// 课程切换事件
 const onCourseChange = () => {
-  console.log('课程切换到:', courseId.value)
-  // 更新URL（不刷新页面）
   router.replace(`/teacher/courses/${courseId.value}/grades`)
-  // 重新加载成绩数据
+  currentPage.value = 1
+  selectedClass.value = ''
+  searchText.value = ''
   loadCourseGrades()
 }
 
-// 加载课程下所有学生的成绩
 const loadCourseGrades = async () => {
   if (!courseId.value) return
 
   loading.value = true
-  try {
-    console.log('开始加载课程成绩，课程ID:', courseId.value)
+  studentGradesList.value = []
 
-    // 1. 获取选课学生列表
-    const enrollUrl = `/teacher/enrollments/students?courseId=${courseId.value}`
-    console.log('请求选课学生列表:', enrollUrl)
+  try {
+    // 1. 获取选课学生
     const enrollRes = await api.get(`/teacher/enrollments/students`, { params: { courseId: courseId.value } })
-    console.log('选课学生响应:', enrollRes)
     const enrollBody = enrollRes?.data
     const students = (enrollBody && Number(enrollBody.code) === 200 && Array.isArray(enrollBody.data)) ? enrollBody.data : []
-    console.log('选课学生数量:', students.length, '学生列表:', students)
 
     if (students.length === 0) {
-      console.warn('该课程没有选课学生')
-      studentGradesList.value = []
+      loading.value = false
       return
     }
 
-    // 2. 并发查询每个学生的进度和成绩
-    console.log('开始查询每个学生的进度和成绩...')
+    // 2. 并发查询进度和成绩
+    // 优化：使用 Promise.all 并行处理请求
     const gradesPromises = students.map(async (student) => {
       try {
-        // 并发查询进度和成绩
+        // 并发查询
         const [progRes, scoreRes] = await Promise.all([
-          api.get(`/progress/course`, { params: { studentId: student.id, courseId: courseId.value } }),
-          // 只有当进度达到100%时才查询成绩
-          api.get(`/aiexam/average-score`, { params: { studentId: student.id, courseId: courseId.value } }).catch(err => {
-            // 忽略成绩查询错误，因为可能还未生成成绩
-            return null
-          })
+          api.get(`/progress/course`, { params: { studentId: student.id, courseId: courseId.value } }).catch(() => null),
+          api.get(`/aiexam/average-score`, { params: { studentId: student.id, courseId: courseId.value } }).catch(() => null)
         ])
 
-        // 处理进度数据
-        const progBody = progRes?.data
+        // 处理进度
         let progress = 0
         let lastStudyTime = null
-        if (progBody && Number(progBody.code) === 200 && progBody.data) {
-          const d = progBody.data
-          progress = Number(d.completionPercentage || d.completion_percentage || d.coursePercent || 0)
+        if (progRes?.data?.code === 200 && progRes.data.data) {
+          const d = progRes.data.data
+          progress = Number(d.completionPercentage || d.coursePercent || 0)
           if (progress >= 0 && progress <= 1) progress *= 100
-          if (!Number.isFinite(progress)) progress = 0
           progress = Math.max(0, Math.min(100, progress))
-          lastStudyTime = d.updatedAt || d.lastUpdated || null
+          lastStudyTime = d.updatedAt || d.lastUpdated
         }
 
-        // 处理成绩数据（只有进度达到100%时才有成绩）
+        // 处理成绩
         let averageScore = null
-        if (progress >= 100 && scoreRes?.data) {
-          const scoreBody = scoreRes.data
-          if (scoreBody && Number(scoreBody.code) === 200 && scoreBody.data) {
-            averageScore = Number(scoreBody.data.averageScore) || null
-          }
+        if (progress >= 100 && scoreRes?.data?.code === 200 && scoreRes.data.data) {
+           averageScore = Number(scoreRes.data.data.averageScore) || null
         }
 
         return {
@@ -556,11 +594,11 @@ const loadCourseGrades = async () => {
           lastStudyTime
         }
       } catch (err) {
-        console.error(`获取学生 ${student.name} 数据失败:`, err)
+        console.warn(`Error fetching data for student ${student.id}`, err)
         return {
           id: student.id,
-          studentNumber: student.studentNumber || student.studentId || '-',
-          name: student.name || '-',
+          studentNumber: student.studentNumber || '-',
+          name: student.name || '未知',
           className: student.className || '-',
           progress: 0,
           averageScore: null,
@@ -570,16 +608,14 @@ const loadCourseGrades = async () => {
     })
 
     studentGradesList.value = await Promise.all(gradesPromises)
-    console.log('最终学生成绩列表:', studentGradesList.value)
   } catch (err) {
-    console.error('加载课程成绩失败:', err)
-    studentGradesList.value = []
+    console.error('加载成绩失败:', err)
+    ElMessage.error('获取成绩数据失败')
   } finally {
     loading.value = false
   }
 }
 
-// 查看学生成绩详情
 const viewDetail = async (student) => {
   currentStudent.value = student
   detailVisible.value = true
@@ -589,81 +625,55 @@ const viewDetail = async (student) => {
   detailLoading.value = true
 
   try {
-    // 调用详细成绩接口
     const res = await api.get('/aiexam/detailed-scores', {
-      params: {
-        studentId: student.id,
-        courseId: courseId.value
-      }
+      params: { studentId: student.id, courseId: courseId.value }
     })
-    
-    console.log('详细成绩响应:', res.data)
-    
-    if (res.data && res.data.code === 200 && res.data.data) {
+
+    if (res?.data?.code === 200 && res.data.data) {
       const data = res.data.data
       videoScores.value = Array.isArray(data.videoScores) ? data.videoScores : []
       documentScores.value = Array.isArray(data.documentScores) ? data.documentScores : []
-      
-      console.log('视频成绩:', videoScores.value)
-      console.log('文档成绩:', documentScores.value)
-      
-      // 如果没有视频和文档成绩，尝试获取所有已提交的成绩（兜底方案）
+
+      // 兜底逻辑：如果无分类成绩，尝试获取所有列表
       if (videoScores.value.length === 0 && documentScores.value.length === 0) {
-        console.log('没有找到视频和文档成绩，尝试获取所有成绩...')
-        try {
-          const allRes = await api.get('/aiexam/list', {
-            params: {
-              studentId: student.id,
-              courseId: courseId.value
-            }
-          })
-          if (allRes.data && allRes.data.code === 200 && Array.isArray(allRes.data.data)) {
-            allScores.value = allRes.data.data
-              .filter(exam => exam.status === 'submitted' && exam.totalScore != null)
-              .map(exam => ({
-                id: exam.id,
-                topic: exam.topic || exam.courseName || '题目',
-                totalScore: exam.totalScore,  // 统一使用totalScore
-                questionCount: exam.questionCount || 0,
-                createdAt: exam.createdAt
-              }))
-            console.log('找到所有成绩:', allScores.value)
-          }
-        } catch (e) {
-          console.error('获取所有成绩失败:', e)
-        }
+         try {
+           const allRes = await api.get('/aiexam/list', {
+             params: { studentId: student.id, courseId: courseId.value }
+           })
+           if (allRes?.data?.code === 200 && Array.isArray(allRes.data.data)) {
+             allScores.value = allRes.data.data
+               .filter(exam => exam.status === 'submitted' && exam.totalScore != null)
+               .map(exam => ({
+                 id: exam.id,
+                 topic: exam.topic || exam.courseName || '未命名测试',
+                 totalScore: exam.totalScore,
+                 questionCount: exam.questionCount || 0,
+                 createdAt: exam.createdAt
+               }))
+           }
+         } catch(e) { console.warn(e) }
       }
     }
   } catch (err) {
-    console.error('获取详细成绩失败:', err)
+    console.error('详细成绩加载失败:', err)
+    ElMessage.error('无法加载详细成绩')
   } finally {
     detailLoading.value = false
   }
 }
 
 onMounted(async () => {
-  // 先加载课程列表
   await loadCourseList()
-
-  // 设置当前课程ID
   const routeCourseId = Number(route.params.id || route.params.courseId)
-  console.log('GradesPage mounted, routeCourseId:', routeCourseId, 'route.params:', route.params)
-
   if (routeCourseId) {
     courseId.value = routeCourseId
   } else if (courseList.value.length > 0) {
-    // 如果没有指定课程ID，默认选择第一个课程
     courseId.value = courseList.value[0].courseId || courseList.value[0].id
-  } else {
-    console.error('没有可用的课程')
-    return
   }
 
-  // 加载成绩数据
-  loadCourseGrades()
+  if (courseId.value) loadCourseGrades()
 })
 
-// 当搜索条件或筛选条件改变时，重置到第一页
 watch([searchText, selectedClass], () => {
   currentPage.value = 1
 })
@@ -671,157 +681,232 @@ watch([searchText, selectedClass], () => {
 
 <style scoped>
 .grades-page {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px;
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100vh;
 }
 
-.header {
-  margin-bottom: 24px;
-}
-
-.table-card {
+/* 顶部 Header */
+.page-header-container {
+  background: #fff;
+  padding: 16px 24px;
   border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
 }
 
-.card-header {
+.header-title {
+  font-weight: 600;
+  font-size: 18px;
+  color: #303133;
+}
+
+/* 统计卡片 */
+.stats-container {
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  border: none;
+  border-radius: 8px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 100%;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.stat-body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-/* 详情对话框样式 */
-.detail-content {
   padding: 10px;
 }
 
-.info-card {
-  margin-bottom: 24px;
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #909399;
+  margin-top: 6px;
+}
+
+.stat-icon {
+  font-size: 40px;
+  padding: 10px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  opacity: 0.8;
 }
 
-.info-card :deep(.el-descriptions__label) {
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.1) !important;
+/* 统计卡片主题色 */
+.blue-theme .stat-icon {
+  background-color: #ecf5ff;
+  color: #409eff;
+}
+.orange-theme .stat-icon {
+  background-color: #fdf6ec;
+  color: #e6a23c;
+}
+.green-theme .stat-icon {
+  background-color: #f0f9eb;
+  color: #67c23a;
 }
 
-.info-card :deep(.el-descriptions__content) {
-  color: white;
-  background: rgba(255, 255, 255, 0.05) !important;
+/* 主内容卡片 */
+.main-card {
+  border-radius: 8px;
 }
 
-.info-card :deep(.el-progress__text) {
-  color: white !important;
+/* 筛选工具栏 */
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 16px;
 }
 
-/* 成绩区块 */
-.score-section {
-  margin-top: 24px;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
-}
-
-.score-section:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-}
-
-.section-header {
+.left-filters {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #e0e0e0;
+  gap: 10px;
 }
 
-.section-icon {
-  font-size: 24px;
-  color: #409eff;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.section-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #2c3e50;
-  flex: 1;
-}
-
-/* 成绩表格美化 */
-.score-table {
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.score-table :deep(.el-table__header) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.score-table :deep(.el-table__header th) {
-  background: transparent !important;
-  color: white !important;
-  font-weight: 600;
+.filter-label {
   font-size: 14px;
+  color: #606266;
+  font-weight: 500;
 }
 
-.score-table :deep(.el-table__row) {
-  transition: all 0.2s ease;
+.right-filters {
+  display: flex;
+  gap: 12px;
 }
 
-.score-table :deep(.el-table__row:hover) {
-  background: #e3f2fd !important;
+.course-select {
+  width: 260px;
+}
+.class-select {
+  width: 160px;
+}
+.search-input {
+  width: 220px;
 }
 
-.score-analysis {
-  padding: 0 12px;
+/* 表格样式 */
+.progress-cell {
+  padding-right: 20px;
 }
 
-/* 空状态样式 */
-.detail-content :deep(.el-empty) {
-  padding: 40px 20px;
+.text-gray {
+  color: #909399;
+  font-size: 12px;
+}
+.text-small {
+  font-size: 12px;
+  color: #606266;
 }
 
-/* 描述列表标签 */
-:deep(.desc-label) {
-  font-weight: 600 !important;
-  font-size: 14px !important;
+.text-success { color: #67c23a; font-weight: bold; }
+.text-warning { color: #e6a23c; font-weight: bold; }
+.text-danger { color: #f56c6c; font-weight: bold; }
+
+.score-tag {
+  min-width: 40px;
+  text-align: center;
 }
 
-/* 对话框底部按钮 */
-.el-dialog__footer .el-button {
-  min-width: 120px;
-  border-radius: 8px;
+:deep(.table-header-gray) {
+  background-color: #f5f7fa !important;
+  color: #606266;
   font-weight: 600;
-  transition: all 0.3s ease;
 }
 
-.el-dialog__footer .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+/* 分页 */
+.pagination-container {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
 }
 
-/* 响应式布局 */
+/* 详情弹窗 */
+.detail-content {
+  padding: 0 10px;
+}
+
+/* 学生信息卡片 (保持渐变风格但优化) */
+.info-card {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+  border: none;
+}
+
+.info-text {
+  font-weight: 500;
+  color: #303133;
+}
+
+.info-progress {
+  width: 200px;
+}
+
+.info-score-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.large-score-tag {
+  font-size: 16px;
+  padding: 8px 20px;
+  height: auto;
+}
+
+/* 详情 Tab */
+.detail-tabs {
+  min-height: 400px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+}
+
+.custom-tabs-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dialog-empty {
+  padding: 40px 0;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 响应式 */
 @media (max-width: 768px) {
-  .score-section {
-    padding: 12px;
+  .filter-toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
-  
-  .section-header {
-    flex-wrap: wrap;
+  .right-filters {
+    flex-direction: column;
   }
-  
-  .section-title {
-    font-size: 16px;
+  .course-select, .class-select, .search-input {
+    width: 100%;
   }
 }
 </style>
