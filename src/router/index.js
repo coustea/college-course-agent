@@ -42,6 +42,12 @@ const studentRoutes = [
         component: () => import('../views/student/Profile.vue'),
         meta: {title: '个人中心'}
     },
+    {
+        path: '/student/mistake-book',
+        name: 'MistakeBook',
+        component: () => import('../views/student/MistakeBook.vue'),
+        meta: {title: '错题本'}
+    },
 ]
 
 // 教师端路由
@@ -52,7 +58,6 @@ const teacherRoutes = [
       { path: '', redirect: 'list' },
       { path: 'list', name: 'TeacherCoursesList', component: () => import('@/views/Teacher/MyCourses/TeacherCoursesList.vue'), meta: { title: '课程列表' } },
       { path: 'create', name: 'TeacherCoursesCreate', component: () => import('@/views/Teacher/MyCourses/CoursesCreate.vue'), meta: { title: '创建课程' } },
-      { path: 'edit/:id', name: 'TeacherCourseEdit', component: () => import('../views/Teacher/MyCourses/CourseEdit.vue'), meta: { title: '编辑课程' } },
       { path: ':id/materials', name: 'TeacherCourseMaterials', component: () => import('@/views/Teacher/MyCourses/CourseMaterials.vue'), meta: { title: '课程内容管理' } },
       { path: ':id/progress', name: 'TeacherCourseProgress', component: () => import('@/views/Teacher/MyCourses/CourseProgress.vue'), meta: { title: '课程进度管理' } },
       { path: ':id/grades', name: 'TeacherCourseGrades', component: () => import('@/views/Teacher/MyCourses/GradesManagement.vue'), meta: { title: '成绩管理' } },
