@@ -1,7 +1,23 @@
 <template>
   <div class="group-mine-container">
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-wrapper">
+      <el-icon class="is-loading" :size="40"><Loading /></el-icon>
+      <p>正在加载小组信息...</p>
+    </div>
+
+    <!-- 错误提示 -->
+    <el-alert
+      v-if="errorMessage && !loading"
+      type="error"
+      :title="errorMessage"
+      :closable="true"
+      @close="errorMessage = ''"
+      style="margin-bottom: 16px;"
+    />
+
     <!-- 空状态：未加入小组 -->
-    <div v-if="groupStatus === 'none'" class="empty-state-wrapper">
+    <div v-if="!loading && groupStatus === 'none'" class="empty-state-wrapper">
       <el-empty description="你还没有加入任何学习小组" :image-size="200">
         <template #description>
           <p class="empty-text">加入小组可以与同学协作完成任务，快去组建或加入吧！</p>
@@ -34,15 +50,24 @@
           </div>
         </div>
         <div class="header-right">
+          <!-- 刷新按钮 -->
+          <el-button
+            :loading="loading"
+            @click="refreshMyGroup"
+            icon="Refresh"
+            circle
+            size="small"
+            title="刷新小组信息"
+          />
           <div class="status-badge" :class="statusClass">
             <span class="dot"></span>
             {{ statusText }}
           </div>
-          <el-button 
-            v-if="groupStatus === 'rejected'" 
-            type="warning" 
-            plain 
-            icon="Edit" 
+          <el-button
+            v-if="groupStatus === 'rejected'"
+            type="warning"
+            plain
+            icon="Edit"
             @click="toggleEditPanel"
           >
             修改小组信息
@@ -158,8 +183,8 @@
 import { ref, onMounted, getCurrentInstance, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { 
-  Collection, User, List, UserFilled, EditPen, Close, Plus 
+import {
+  Collection, User, List, UserFilled, EditPen, Close, Plus, Loading, Refresh
 } from '@element-plus/icons-vue'
 
 const { proxy } = getCurrentInstance()
@@ -169,6 +194,8 @@ const router = useRouter()
 const groupStatus = ref('none')
 const createdGroup = ref(null)
 const currentGroupId = ref(null)
+const loading = ref(false)
+const errorMessage = ref('')
 
 const openEditPanel = ref(false)
 const editGroupName = ref('')
@@ -205,55 +232,107 @@ function formatDate(date) {
 
 
 async function refreshMyGroup() {
+  loading.value = true
+  errorMessage.value = ''
+
   try {
+    console.log('[我的小组] 开始加载小组数据...')
+
     const userId = localStorage.getItem('userId')
     if (!userId) {
+      console.warn('[我的小组] 未找到userId，显示空状态')
+      errorMessage.value = '未登录，请先登录'
       setNone()
       return
     }
+
+    console.log('[我的小组] 当前用户ID:', userId)
+
     const token = localStorage.getItem('token')
-    const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data'}
-    
+    if (!token) {
+      console.warn('[我的小组] 未找到token')
+      errorMessage.value = '登录已过期，请重新登录'
+      setNone()
+      return
+    }
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'multipart/form-data'
+    }
+
     // 1. 获取用户所属小组ID
+    console.log('[我的小组] 步骤1: 调用 /groupMember/getById')
     const fd1 = new FormData()
     fd1.append('studentId', userId)
-    const res = await axios.post(`${BASE_URL}/groupMember/getById`, fd1, {headers})
-    
-    if (!(res?.data?.code === 200) || !res?.data?.data?.groupId) {
+
+    const res = await axios.post(`${BASE_URL}/groupMember/getById`, fd1, { headers })
+    console.log('[我的小组] /groupMember/getById 响应:', res.data)
+
+    if (!(res?.data?.code === 200)) {
+      console.warn('[我的小组] 获取小组成员失败，响应码:', res?.data?.code)
+      errorMessage.value = res?.data?.message || '获取小组信息失败'
+      setNone()
+      return
+    }
+
+    if (!res?.data?.data?.groupId) {
+      console.log('[我的小组] 用户未加入任何小组')
       setNone()
       return
     }
 
     const groupId = res.data.data.groupId
     currentGroupId.value = groupId
+    console.log('[我的小组] 找到小组ID:', groupId)
 
     // 2. 获取小组详细信息
-    const fd2 = new FormData();
+    console.log('[我的小组] 步骤2: 调用 /student-group/getByGroupId')
+    const fd2 = new FormData()
     fd2.append('groupId', groupId)
-    const response = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd2, {headers})
-    
+
+    const response = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd2, { headers })
+    console.log('[我的小组] /student-group/getByGroupId 响应:', response.data)
+
     if (response?.data?.code === 200 && response?.data?.data) {
       const group = response.data.data
+      console.log('[我的小组] 小组详情:', group)
+
+      // 处理审批状态
       const st = String(group?.approvalStatus || '').toLowerCase()
-      groupStatus.value = st === 'approval' ? 'approved' : (st === 'pending' ? 'pending' : (st === 'rejected' ? 'rejected' : 'none'))
-      
+      groupStatus.value = st === 'approval' ? 'approved' :
+                        (st === 'pending' ? 'pending' :
+                        (st === 'rejected' ? 'rejected' : 'none'))
+
+      console.log('[我的小组] 小组状态:', groupStatus.value)
+
       // 处理成员数据
       const membersRaw = Array.isArray(group.groupMemberList) ? group.groupMemberList : []
-      const leaderId = group.groupLeaderId || membersRaw.find(m => m.role === 'leader' || m.memberRole === 'leader')?.studentId
-      
+      console.log('[我的小组] 原始成员列表:', membersRaw)
+
+      const leaderId = group.groupLeaderId || membersRaw.find(m =>
+        m.role === 'leader' || m.memberRole === 'leader'
+      )?.studentId
+
       const allMembersFormatted = membersRaw.map(m => {
-        const isLeader = String(m.studentId) === String(leaderId) || m.role === 'leader' || m.isLeader === true
+        const isLeader = String(m.studentId) === String(leaderId) ||
+                        m.role === 'leader' ||
+                        m.isLeader === true
         return {
+          id: m.id,
           name: m.studentName,
           sid: m.studentNumber,
-          studentNumber: m.studentNumber, // 添加 studentNumber 字段
+          studentNumber: m.studentNumber,
           studentId: m.studentId || m.id,
           isLeader: isLeader,
           role: isLeader ? 'leader' : 'member'
         }
-      }).sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0)) 
+      }).sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0))
+
+      console.log('[我的小组] 格式化后的成员列表:', allMembersFormatted)
 
       createdGroup.value = {
+        groupId: group.groupId,
         groupName: group.groupName,
         taskDescription: group.groupDescription,
         allMembers: allMembersFormatted,
@@ -261,18 +340,18 @@ async function refreshMyGroup() {
         memberNames: allMembersFormatted.filter(m => !m.isLeader).map(m => m.name)
       }
 
-
+      console.log('[我的小组] 最终小组数据:', createdGroup.value)
 
       // 初始化编辑数据
       const draftName = localStorage.getItem('edit_group_name_draft')
       const draftTask = localStorage.getItem('edit_group_task_draft')
       editGroupName.value = (draftName !== null ? draftName : createdGroup.value.groupName)
       editTaskDesc.value = (draftTask !== null ? draftTask : createdGroup.value.taskDescription)
-      
-      editableMembers.value = allMembersFormatted.filter(m => !m.isLeader).map(m => ({ 
-        groupId, 
-        name: m.name, 
-        studentId: m.studentId 
+
+      editableMembers.value = allMembersFormatted.filter(m => !m.isLeader).map(m => ({
+        groupId,
+        name: m.name,
+        studentId: m.studentId
       }))
       originalMemberIds.value = editableMembers.value.map(m => m.studentId)
 
@@ -281,26 +360,41 @@ async function refreshMyGroup() {
         const added = JSON.parse(localStorage.getItem('added_member_infos') || '[]')
         if (Array.isArray(added) && added.length) {
           const existSet = new Set(editableMembers.value.map(x => String(x.studentId)))
-          const toAdd = added.filter(a => !existSet.has(String(a.studentId))).map(a => ({ 
-            groupId, 
-            name: a.name, 
-            studentId: a.studentId 
+          const toAdd = added.filter(a => !existSet.has(String(a.studentId))).map(a => ({
+            groupId,
+            name: a.name,
+            studentId: a.studentId
           }))
           editableMembers.value = [...editableMembers.value, ...toAdd]
           localStorage.removeItem('added_member_infos')
         }
-      } catch {}
+      } catch (e) {
+        console.warn('[我的小组] 解析added_member_infos失败:', e)
+      }
 
       if (localStorage.getItem('group_edit_auto_open') === '1') {
         openEditPanel.value = true
         localStorage.removeItem('group_edit_auto_open')
       }
-      
+
+      console.log('[我的小组] 数据加载成功！')
+
     } else {
+      console.warn('[我的小组] 获取小组详情失败，响应:', response?.data)
+      errorMessage.value = response?.data?.message || '获取小组详情失败'
       setNone()
     }
-  } catch {
+  } catch (error) {
+    console.error('[我的小组] 加载小组数据异常:', error)
+    console.error('[我的小组] 错误详情:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    })
+    errorMessage.value = error.response?.data?.message || error.message || '加载失败，请重试'
     setNone()
+  } finally {
+    loading.value = false
   }
 }
 
@@ -400,6 +494,25 @@ async function resubmitNow() {
   min-height: calc(100vh - 60px);
   display: flex;
   flex-direction: column;
+}
+
+/* Loading State */
+.loading-wrapper {
+  background: white;
+  border-radius: 12px;
+  padding: 60px 0;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  color: #409eff;
+  font-size: 16px;
+}
+.loading-wrapper p {
+  margin-top: 16px;
+  color: #606266;
 }
 
 /* Empty State */
