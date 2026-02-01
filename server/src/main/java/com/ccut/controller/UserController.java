@@ -52,13 +52,17 @@ public class UserController {
 
     @PostMapping("/excel")
     public Result<String> insertByExcel(@RequestParam("file") MultipartFile file) throws Exception {
+        log.info("[批量导入] 接收到导入请求，文件名: {}, 文件大小: {} bytes",
+                 file.getOriginalFilename(), file.getSize());
+
         if (file.isEmpty()) {
-            log.error("文件为空");
+            log.error("[批量导入] 文件为空");
             return Result.error(400, "文件为空");
         }
 
         List<Student> students = new ArrayList<>();
         String filename = file.getOriginalFilename().toLowerCase();
+        log.info("[批量导入] 文件名: {}", filename);
 
 
         if (!filename.endsWith(".xls") && !filename.endsWith(".xlsx")) {
@@ -116,13 +120,16 @@ public class UserController {
         }
 
         if (students.isEmpty()) {
+            log.warn("[批量导入] Excel中没有有效的学生数据");
             return Result.error(400, "Excel中没有有效的学生数据");
         }
 
+        log.info("[批量导入] 解析完成，共获取 {} 条有效数据", students.size());
         int successCount = 0;
 
         try {
             for (Student student : students) {
+                log.debug("[批量导入] 处理学生: {}", student.getStudentNumber());
                 User exist = userService.getByUsername(student.getUsername());
                 if (exist != null){
                     student.setId(exist.getId());
@@ -149,10 +156,11 @@ public class UserController {
                 }
                 successCount++;
             }
+            log.info("[批量导入] 导入完成，成功导入 {} 条数据", successCount);
             return Result.success("成功导入 " + successCount + " 条数据");
 
         } catch (Exception e) {
-            log.error("导入异常", e);
+            log.error("[批量导入] 导入异常", e);
             return Result.error(500, e.getMessage());
         }
     }

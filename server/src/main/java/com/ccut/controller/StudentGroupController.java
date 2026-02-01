@@ -113,6 +113,7 @@ public class StudentGroupController {
                     groupId,
                     groupLeaderId,
                     leader.getName(),
+                    leader.getStudentNumber(),
                     leader.getClassName(),
                     GroupMember.GroupMemberRole.leader,
                     GroupMember.Status.approval
@@ -150,6 +151,7 @@ public class StudentGroupController {
                         groupId,
                         memberId,
                         member.getName(),
+                        member.getStudentNumber(),
                         member.getClassName(),
                         GroupMember.GroupMemberRole.member,
                         GroupMember.Status.approval
@@ -255,6 +257,7 @@ public class StudentGroupController {
                             groupId,
                             sid,
                             member.getName(),
+                            member.getStudentNumber(),
                             member.getClassName(),
                             GroupMember.GroupMemberRole.member,
                             GroupMember.Status.approval

@@ -1,14 +1,18 @@
 package com.ccut.controller;
 
+import com.ccut.dto.CourseStatistics;
 import com.ccut.dto.Result;
 import com.ccut.entity.Course;
 import com.ccut.service.CourseService;
+import com.ccut.service.ProgressService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 /**
  * 课程控制器
@@ -20,6 +24,9 @@ public class CourseController {
 
     @Autowired
     private CourseService courseService;
+
+    @Autowired
+    private ProgressService progressService;
 
     /**
      * 插入课程（带图片上传）
@@ -155,6 +162,99 @@ public class CourseController {
         try {
             return Result.success(courseService.search(name, description));
         } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    /**
+     * 获取指定教师的所有已发布课程的统计数据（包含完成率）
+     * 用于教师端Home页面展示课程统计信息
+     * 只统计选课了该课程的学生数据
+     * 直接调用SQL查询，高效聚合数据
+     */
+    @GetMapping("/stats/all")
+    public Result<List<CourseStatistics>> getAllCourseStatistics(@RequestParam("teacherId") Long teacherId) {
+        try {
+            List<CourseStatistics> statistics = progressService.getAllCourseStatistics(teacherId);
+            return Result.success(statistics);
+        } catch (Exception e) {
+            log.error("获取课程统计数据失败", e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    /**
+     * 发布课程
+     */
+    @PostMapping("/{courseId}/publish")
+    public Result<String> publishCourse(
+            @PathVariable("courseId") Long courseId,
+            @RequestParam("teacherId") Long teacherId) {
+        try {
+            boolean success = courseService.publishCourse(courseId, teacherId);
+            if (success) {
+                return Result.success("课程发布成功");
+            }
+            return Result.error(500, "课程发布失败");
+        } catch (IllegalArgumentException e) {
+            log.warn("发布课程参数错误: {}", e.getMessage());
+            return Result.error(400, e.getMessage());
+        } catch (RuntimeException e) {
+            log.warn("发布课程业务异常: {}", e.getMessage());
+            return Result.error(404, e.getMessage());
+        } catch (Exception e) {
+            log.error("课程发布失败: {}", e.getMessage(), e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    /**
+     * 取消发布课程
+     */
+    @PostMapping("/{courseId}/unpublish")
+    public Result<String> unpublishCourse(
+            @PathVariable("courseId") Long courseId,
+            @RequestParam("teacherId") Long teacherId) {
+        try {
+            boolean success = courseService.unpublishCourse(courseId, teacherId);
+            if (success) {
+                return Result.success("课程已取消发布");
+            }
+            return Result.error(500, "取消发布失败");
+        } catch (IllegalArgumentException e) {
+            log.warn("取消发布课程参数错误: {}", e.getMessage());
+            return Result.error(400, e.getMessage());
+        } catch (RuntimeException e) {
+            log.warn("取消发布课程业务异常: {}", e.getMessage());
+            return Result.error(404, e.getMessage());
+        } catch (Exception e) {
+            log.error("取消发布课程失败: {}", e.getMessage(), e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    /**
+     * 查询教师的所有课程（包含草稿和已发布）
+     */
+    @GetMapping("/teacher/{teacherId}/all")
+    public Result<List<Course>> getCoursesByTeacherId(@PathVariable("teacherId") Long teacherId) {
+        try {
+            return Result.success(courseService.getCoursesByTeacherId(teacherId));
+        } catch (Exception e) {
+            log.error("获取教师课程列表失败: {}", e.getMessage(), e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    /**
+     * 查询所有已发布的课程列表（学生端使用）
+     */
+    @GetMapping("/published")
+    public Result<List<Course>> getPublishedCourses() {
+        try {
+            return Result.success(courseService.getPublishedCourses());
+        } catch (Exception e) {
+            log.error("获取已发布课程列表失败: {}", e.getMessage(), e);
             return Result.error(500, e.getMessage());
         }
     }

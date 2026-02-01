@@ -1,4 +1,47 @@
 # ================================================
+# 数据库清理脚本
+# ================================================
+# 使用说明：
+# 1. 此脚本会删除 ccut 数据库中的所有表
+# 2. 然后重新创建所有表结构
+# 3. 警告：会丢失所有数据，请谨慎使用！
+# ================================================
+
+-- 禁用外键检查
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- 删除所有表（按依赖关系逆序）
+DROP TABLE IF EXISTS wrong_question;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS student_member_scores;
+DROP TABLE IF EXISTS student_submissions;
+DROP TABLE IF EXISTS teacher_assignments;
+DROP TABLE IF EXISTS group_members;
+DROP TABLE IF EXISTS student_groups;
+DROP TABLE IF EXISTS video_progress;
+DROP TABLE IF EXISTS document_progress;
+DROP TABLE IF EXISTS learning_progress;
+DROP TABLE IF EXISTS enrollments;
+DROP TABLE IF EXISTS course_videos;
+DROP TABLE IF EXISTS course_documents;
+DROP TABLE IF EXISTS ai_exam_answers;
+DROP TABLE IF EXISTS ai_exam_attempts;
+DROP TABLE IF EXISTS ai_exam_questions;
+DROP TABLE IF EXISTS ai_exams;
+DROP TABLE IF EXISTS courses;
+DROP TABLE IF EXISTS teachers;
+DROP TABLE IF EXISTS students;
+DROP TABLE IF EXISTS users;
+
+-- 重新启用外键检查
+SET FOREIGN_KEY_CHECKS = 1;
+
+# ================================================
+# 以下为数据库表创建语句
+# ================================================
+
+# ================================================
 # 用户表
 # ================================================
 CREATE TABLE users (
@@ -58,6 +101,8 @@ semester VARCHAR(20) COMMENT '学期',
 max_students INT DEFAULT 100 COMMENT '最大选课人数',
 resource_url VARCHAR(500) COMMENT '教学资源URL',
 vindex INT DEFAULT 1 COMMENT '排序索引',
+publish_status VARCHAR(20) DEFAULT 'draft' COMMENT '发布状态(draft/published)',
+published_at DATETIME COMMENT '发布时间',
 FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程信息表';
 
@@ -178,13 +223,15 @@ id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '成员记录ID',
 group_id BIGINT NOT NULL COMMENT '小组ID',
 student_id BIGINT NOT NULL COMMENT '学生ID',
 student_name VARCHAR(100) COMMENT '学生姓名',
+student_number VARCHAR(20) COMMENT '学号',
 class_name VARCHAR(100) COMMENT '班级名称',
 join_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
 role VARCHAR(20) DEFAULT 'member' COMMENT '角色(leader/member)',
 join_status VARCHAR(20) DEFAULT 'pending' COMMENT '入组状态(pending, approval, rejected)',
 FOREIGN KEY (group_id) REFERENCES student_groups(group_id) ON DELETE CASCADE,
 FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-UNIQUE KEY uniq_group_student (group_id, student_id)
+UNIQUE KEY uniq_group_student (group_id, student_id),
+INDEX idx_student_number (student_number)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='小组成员表';
 
 -- ================================================
@@ -257,9 +304,15 @@ question_count INT DEFAULT 0 COMMENT '题目数量',
 total_score INT DEFAULT 0 COMMENT '最近一次提交的得分',
 status VARCHAR(32) DEFAULT 'generated' COMMENT '状态 generated/submitted',
 created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+video_id BIGINT NULL COMMENT '关联的视频ID（可为空）',
+document_id BIGINT NULL COMMENT '关联的文档ID（可为空）',
 FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
 INDEX idx_course (course_id),
-INDEX idx_student (student_id)
+INDEX idx_student (student_id),
+INDEX idx_video (video_id),
+INDEX idx_document (document_id),
+CONSTRAINT fk_aiexam_video FOREIGN KEY (video_id) REFERENCES course_videos(video_id) ON DELETE SET NULL,
+CONSTRAINT fk_aiexam_document FOREIGN KEY (document_id) REFERENCES course_documents(document_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 生成试卷';
 
 CREATE TABLE ai_exam_questions (
@@ -302,18 +355,6 @@ INDEX idx_question (question_id)
 --  后续表结构调整（ALTER TABLE）
 -- ================================================
 
--- 为 ai_exams 表添加视频ID字段（可为空）
-ALTER TABLE ai_exams
-ADD COLUMN video_id BIGINT NULL COMMENT '关联的视频ID（可为空）',
-ADD INDEX idx_video (video_id),
-ADD CONSTRAINT fk_aiexam_video FOREIGN KEY (video_id) REFERENCES course_videos(video_id) ON DELETE SET NULL;
-
--- 为 ai_exams 表添加文档ID字段（可为空）
-ALTER TABLE ai_exams
-ADD COLUMN document_id BIGINT NULL COMMENT '关联的文档ID（可为空）',
-ADD INDEX idx_document (document_id),
-ADD CONSTRAINT fk_aiexam_document FOREIGN KEY (document_id) REFERENCES course_documents(document_id) ON DELETE SET NULL;
-
 -- 为 student_submissions 表添加小组评语字段
 ALTER TABLE student_submissions
 ADD COLUMN group_comment VARCHAR(500) COMMENT '教师对整个小组作业的评语（最多500字）';
@@ -336,6 +377,12 @@ INSERT INTO users (username, password, role) VALUES ('T001', '123456', 'teacher'
 INSERT INTO teachers (id, name, email, phone, department, title, position, bio)
 VALUES (LAST_INSERT_ID(), '李老师', 'liteacher@example.com', '13900139000', '计算机学院', '副教授', '系主任', '从事计算机教育多年，研究方向为人工智能与教育。');
 
+-- 插入管理员账号（密码: 123456）
+INSERT INTO users (username, password, role) VALUES ('admin', '123456', 'teacher');
+
+-- 插入管理员信息（id必须与users表的id对应）
+INSERT INTO teachers (id, name, email, phone, department, title, position, bio)
+VALUES (LAST_INSERT_ID(), '系统管理员', 'admin@ccut.com', '13800138888', '信息中心', '管理员', '系统管理员', '系统管理员账号，拥有最高权限。');
 
 
 -- ================================================
@@ -368,3 +415,37 @@ CREATE TABLE IF NOT EXISTS messages (
     INDEX idx_conversation_id (conversation_id),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI聊天消息表';
+
+-- ================================================
+-- 错题本表
+-- ================================================
+CREATE TABLE IF NOT EXISTS wrong_question (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    student_id BIGINT NOT NULL COMMENT '学生ID',
+    question_id BIGINT NOT NULL COMMENT '题目ID（关联 ai_exam_question）',
+    exam_id BIGINT NOT NULL COMMENT '考试ID（关联 ai_exam）',
+    course_id BIGINT NOT NULL COMMENT '课程ID（冗余字段，方便查询）',
+    wrong_answer VARCHAR(500) NULL COMMENT '学生的错误答案',
+    correct_answer VARCHAR(500) NULL COMMENT '正确答案（冗余字段，方便查看）',
+    wrong_count INT NOT NULL DEFAULT 1 COMMENT '错误次数（每次答错累加）',
+    correct_count INT NOT NULL DEFAULT 0 COMMENT '连续答对次数（复习功能，答对累加，答错重置为0）',
+    is_mastered TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已掌握（0-未掌握，1-已掌握）',
+    first_wrong_time DATETIME NOT NULL COMMENT '首次答错时间',
+    last_wrong_time DATETIME NOT NULL COMMENT '最后答错时间',
+    mastered_time DATETIME NULL COMMENT '掌握时间',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (id),
+    KEY idx_student_id (student_id),
+    KEY idx_question_id (question_id),
+    KEY idx_exam_id (exam_id),
+    KEY idx_course_id (course_id),
+    KEY idx_correct_count (correct_count),
+    KEY idx_student_course (student_id, course_id),
+    UNIQUE KEY uk_student_question (student_id, question_id),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES ai_exam_questions(id) ON DELETE CASCADE,
+    FOREIGN KEY (exam_id) REFERENCES ai_exams(id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='错题本表';
+

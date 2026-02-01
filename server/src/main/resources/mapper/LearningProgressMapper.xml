@@ -135,6 +135,107 @@
         ) > 0 THEN TRUE ELSE FALSE END
     </select>
 
+    <!-- 获取所有课程的统计数据 -->
+    <resultMap id="CourseStatisticsRM" type="com.ccut.dto.CourseStatistics">
+        <result property="courseId" column="course_id"/>
+        <result property="courseName" column="course_name"/>
+        <result property="totalStudents" column="total_students"/>
+        <result property="completedStudents" column="completed_students"/>
+        <result property="averageCompletion" column="average_completion"/>
+    </resultMap>
+
+    <select id="getAllCourseStatistics" resultMap="CourseStatisticsRM">
+        SELECT
+            c.course_id,
+            c.course_name,
+            COALESCE(COUNT(DISTINCT e.student_id), 0) AS total_students,
+            COALESCE(SUM(CASE WHEN lp.completed = TRUE THEN 1 ELSE 0 END), 0) AS completed_students,
+            COALESCE(
+                CASE
+                    WHEN COUNT(DISTINCT e.student_id) = 0 THEN 0
+                    ELSE ROUND(AVG(lp.completion_percentage), 2)
+                END,
+            0.0) AS average_completion
+        FROM courses c
+        INNER JOIN enrollments e ON e.course_id = c.course_id AND e.status = 'active'
+        LEFT JOIN learning_progress lp ON lp.student_id = e.student_id AND lp.course_id = c.course_id
+        WHERE c.teacher_id = #{teacherId}
+          AND c.publish_status = 'published'
+        GROUP BY c.course_id, c.course_name
+        ORDER BY c.course_id
+    </select>
+
+    <!-- 获取学生本周学习时长（秒） -->
+    <select id="getWeeklyStudyTime" resultType="int">
+        SELECT COALESCE(SUM(time_spent), 0) AS total_seconds
+        FROM (
+            SELECT COALESCE(vp.watched_seconds, 0) AS time_spent
+            FROM video_progress vp
+            WHERE vp.student_id = #{studentId}
+              AND vp.updated_at >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+              AND vp.updated_at &lt; DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)
+
+            UNION ALL
+
+            SELECT COALESCE(dp.time_spent, 0) AS time_spent
+            FROM document_progress dp
+            WHERE dp.student_id = #{studentId}
+              AND dp.updated_at >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+              AND dp.updated_at &lt; DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)
+        ) AS progress
+    </select>
+
+    <!-- 获取学生连续打卡天数 -->
+    <select id="getConsecutiveDays" resultType="int">
+        WITH RECURSIVE date_series AS (
+            SELECT 0 AS day_offset
+            UNION ALL
+            SELECT day_offset + 1 FROM date_series WHERE day_offset &lt; 365
+        ),
+        has_study AS (
+            SELECT DISTINCT DATE(lp.last_study_time) AS study_date
+            FROM learning_progress lp
+            WHERE lp.student_id = #{studentId}
+              AND lp.last_study_time >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+              AND lp.time_spent > 0
+            UNION
+            SELECT DISTINCT DATE(vp.updated_at) AS study_date
+            FROM video_progress vp
+            WHERE vp.student_id = #{studentId}
+              AND vp.updated_at >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+              AND vp.watched_seconds > 0
+            UNION
+            SELECT DISTINCT DATE(dp.updated_at) AS study_date
+            FROM document_progress dp
+            WHERE dp.student_id = #{studentId}
+              AND dp.updated_at >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+              AND dp.time_spent > 0
+        ),
+        consecutive_check AS (
+            SELECT
+                ds.day_offset,
+                DATE_SUB(CURDATE(), INTERVAL ds.day_offset DAY) AS check_date,
+                EXISTS(SELECT 1 FROM has_study hs WHERE hs.study_date = DATE_SUB(CURDATE(), INTERVAL ds.day_offset DAY)) AS has_activity
+            FROM date_series ds
+        )
+        SELECT COUNT(*) AS consecutive_days
+        FROM consecutive_check
+        WHERE has_activity = TRUE
+          AND check_date >= (
+              SELECT MAX(check_date)
+              FROM consecutive_check
+              WHERE has_activity = FALSE
+          )
+    </select>
+
+    <!-- 获取学生正在修读的课程数量 -->
+    <select id="getEnrolledCourseCount" resultType="int">
+        SELECT COUNT(DISTINCT e.course_id)
+        FROM enrollments e
+        WHERE e.student_id = #{studentId}
+          AND e.status = 'active'
+    </select>
+
 </mapper>
 
 

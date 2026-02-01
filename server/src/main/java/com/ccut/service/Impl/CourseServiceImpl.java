@@ -158,4 +158,64 @@ public class CourseServiceImpl implements CourseService {
         }
         return courses;
     }
+
+    @Override
+    @Transactional
+    public boolean publishCourse(Long courseId, Long teacherId) {
+        // 验证课程是否属于该教师
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) {
+            throw new RuntimeException("课程不存在");
+        }
+        if (!course.getTeacherId().equals(teacherId)) {
+            throw new IllegalArgumentException("无权发布此课程");
+        }
+
+        // 更新发布状态
+        return courseMapper.updatePublishStatus(courseId, "published") > 0;
+    }
+
+    @Override
+    @Transactional
+    public boolean unpublishCourse(Long courseId, Long teacherId) {
+        // 验证课程是否属于该教师
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) {
+            throw new RuntimeException("课程不存在");
+        }
+        if (!course.getTeacherId().equals(teacherId)) {
+            throw new IllegalArgumentException("无权取消发布此课程");
+        }
+
+        // 更新发布状态
+        return courseMapper.updatePublishStatus(courseId, "draft") > 0;
+    }
+
+    @Override
+    public List<Course> getCoursesByTeacherId(Long teacherId) {
+        List<Course> courses = courseMapper.selectByTeacherId(teacherId);
+        if (courses != null) {
+            for (Course c : courses) {
+                if (c != null && c.getCourseId() != null) {
+                    c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+                    c.setDocuments(courseDocumentMapper.findByCourseId(c.getCourseId()));
+                }
+            }
+        }
+        return courses;
+    }
+
+    @Override
+    public List<Course> getPublishedCourses() {
+        List<Course> courses = courseMapper.selectByPublishStatus("published");
+        if (courses != null) {
+            for (Course c : courses) {
+                if (c != null && c.getCourseId() != null) {
+                    c.setVideos(courseVideoMapper.findByCourseId(c.getCourseId()));
+                    c.setDocuments(courseDocumentMapper.findByCourseId(c.getCourseId()));
+                }
+            }
+        }
+        return courses;
+    }
 }

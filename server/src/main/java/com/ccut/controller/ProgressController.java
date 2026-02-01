@@ -132,4 +132,17 @@ public class ProgressController {
         }
     }
 
+    /**
+     * 获取学生统计数据
+     */
+    @GetMapping("/student/statistics")
+    public Result<com.ccut.dto.StudentStatistics> getStudentStatistics(@RequestParam("studentId") Long studentId) {
+        try {
+            return Result.success(progressService.getStudentStatistics(studentId));
+        } catch (Exception e) {
+            log.error("查询学生统计数据异常", e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
 }

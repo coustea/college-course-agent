@@ -25,6 +25,7 @@ public class GroupMember {
     private Long studentId;     // 学生ID
     private String className;   // 班级名称
     private String studentName; // 学生姓名
+    private String studentNumber; // 学号
     private Date joinTime;      // 加入时间
     private GroupMemberRole role;        // 角色 leader/member
     private Status joinStatus;
@@ -37,6 +38,15 @@ public class GroupMember {
         this.joinStatus = joinStatus;
     }
 
+    public GroupMember(Long groupId,Long studentId, String studentName, String studentNumber, String className, GroupMemberRole role, Status joinStatus) {
+        this.groupId = groupId;
+        this.studentId = studentId;
+        this.studentName = studentName;
+        this.studentNumber = studentNumber;
+        this.className = className;
+        this.role = role;
+        this.joinStatus = joinStatus;
+    }
 
     public GroupMember(Long groupId,Long studentId, String studentName,String className, GroupMemberRole role, Status joinStatus) {
         this.groupId = groupId;

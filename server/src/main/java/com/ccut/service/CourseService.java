@@ -75,6 +75,35 @@ public interface CourseService {
      */
     List<Course> search(String name, String description);
 
+    /**
+     * 发布课程
+     * @param courseId 课程ID
+     * @param teacherId 教师ID（用于权限验证）
+     * @return 是否成功
+     */
+    boolean publishCourse(Long courseId, Long teacherId);
+
+    /**
+     * 取消发布课程
+     * @param courseId 课程ID
+     * @param teacherId 教师ID（用于权限验证）
+     * @return 是否成功
+     */
+    boolean unpublishCourse(Long courseId, Long teacherId);
+
+    /**
+     * 查询教师的所有课程（包含草稿和已发布）
+     * @param teacherId 教师ID
+     * @return 课程列表
+     */
+    List<Course> getCoursesByTeacherId(Long teacherId);
+
+    /**
+     * 查询所有已发布的课程（学生端用）
+     * @return 课程列表
+     */
+    List<Course> getPublishedCourses();
+
 }
 
 

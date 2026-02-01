@@ -1,5 +1,7 @@
 package com.ccut.service.Impl;
 
+import com.ccut.dto.CourseStatistics;
+import com.ccut.dto.StudentStatistics;
 import com.ccut.entity.CourseDocument;
 import com.ccut.entity.CourseVideo;
 import com.ccut.entity.DocumentProgress;
@@ -173,4 +175,26 @@ public class ProgressServiceImpl implements ProgressService {
         return resp;
     }
 
+    @Override
+    public List<CourseStatistics> getAllCourseStatistics(Long teacherId) {
+        return learningProgressMapper.getAllCourseStatistics(teacherId);
+    }
+
+    @Override
+    public StudentStatistics getStudentStatistics(Long studentId) {
+        // 获取在修课程数量
+        Integer courseCount = learningProgressMapper.getEnrolledCourseCount(studentId);
+        if (courseCount == null) courseCount = 0;
+
+        // 获取本周学习时长（秒），转换为小时
+        Integer weeklySeconds = learningProgressMapper.getWeeklyStudyTime(studentId);
+        if (weeklySeconds == null) weeklySeconds = 0;
+        Double weeklyHours = weeklySeconds / 3600.0;
+
+        // 获取连续打卡天数
+        Integer consecutiveDays = learningProgressMapper.getConsecutiveDays(studentId);
+        if (consecutiveDays == null) consecutiveDays = 0;
+
+        return new StudentStatistics(courseCount, weeklyHours, consecutiveDays);
+    }
 }

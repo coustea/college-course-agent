@@ -7,11 +7,15 @@
             keyProperty="id"
             keyColumn="id">
         INSERT INTO group_members
-        (group_id, student_id, student_name,
-         class_name, join_time, role, join_status)
+        (group_id, student_id, student_name, student_number, class_name, join_time, role, join_status)
         VALUES
-            (#{groupId}, #{studentId}, #{studentName},
-             #{className}, CURRENT_TIMESTAMP, #{role}, #{joinStatus})
+            (#{groupId}, #{studentId}, #{studentName}, #{studentNumber}, #{className}, CURRENT_TIMESTAMP, #{role}, #{joinStatus})
+        ON DUPLICATE KEY UPDATE
+            student_name = VALUES(student_name),
+            student_number = COALESCE(VALUES(student_number), group_members.student_number),
+            class_name = VALUES(class_name),
+            role = VALUES(role),
+            join_status = VALUES(join_status)
     </insert>
 
     <delete id="deleteMember">

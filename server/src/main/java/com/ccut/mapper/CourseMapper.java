@@ -20,5 +20,28 @@ public interface CourseMapper {
 
     // 新增：按教师ID返回课程卡片字段
     List<TeacherCourseCard> listCourseCardsByTeacher(@org.apache.ibatis.annotations.Param("teacherId") Long teacherId);
+
+    /**
+     * 更新课程发布状态
+     * @param courseId 课程ID
+     * @param publishStatus 发布状态 (draft/published)
+     * @return 更新行数
+     */
+    int updatePublishStatus(@org.apache.ibatis.annotations.Param("courseId") Long courseId,
+                           @org.apache.ibatis.annotations.Param("publishStatus") String publishStatus);
+
+    /**
+     * 根据教师ID查询课程
+     * @param teacherId 教师ID
+     * @return 课程列表
+     */
+    List<Course> selectByTeacherId(@org.apache.ibatis.annotations.Param("teacherId") Long teacherId);
+
+    /**
+     * 根据发布状态查询课程
+     * @param publishStatus 发布状态 (draft/published)
+     * @return 课程列表
+     */
+    List<Course> selectByPublishStatus(@org.apache.ibatis.annotations.Param("publishStatus") String publishStatus);
 }
 

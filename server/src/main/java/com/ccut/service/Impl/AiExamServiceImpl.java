@@ -17,6 +17,7 @@ import com.ccut.mapper.AiExamMapper;
 import com.ccut.mapper.AiExamQuestionMapper;
 import com.ccut.mapper.CourseMapper;
 import com.ccut.service.AiExamService;
+import com.ccut.service.WrongQuestionService;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
@@ -41,6 +42,7 @@ public class AiExamServiceImpl implements AiExamService {
     private final AiExamQuestionMapper questionMapper;
     private final AiExamAttemptMapper attemptMapper;
     private final AiExamAnswerMapper answerMapper;
+    private final WrongQuestionService wrongQuestionService;
 
     private static final String PROMPT_TEMPLATE = """
             你是一位经验丰富的出题专家。
@@ -59,7 +61,8 @@ public class AiExamServiceImpl implements AiExamService {
                             AiExamMapper aiExamMapper,
                             AiExamQuestionMapper questionMapper,
                             AiExamAttemptMapper attemptMapper,
-                            AiExamAnswerMapper answerMapper) {
+                            AiExamAnswerMapper answerMapper,
+                            WrongQuestionService wrongQuestionService) {
         this.converter = new BeanOutputConverter<>(new ParameterizedTypeReference<Exam>() {});
         this.format = converter.getFormat();
         this.chatClient = builder.build();
@@ -68,6 +71,7 @@ public class AiExamServiceImpl implements AiExamService {
         this.questionMapper = questionMapper;
         this.attemptMapper = attemptMapper;
         this.answerMapper = answerMapper;
+        this.wrongQuestionService = wrongQuestionService;
     }
 
     @Override
@@ -138,6 +142,13 @@ public class AiExamServiceImpl implements AiExamService {
             throw new IllegalArgumentException("参数不完整");
         }
 
+        // 查询考试信息以获取课程ID
+        AiExam exam = aiExamMapper.selectById(req.examId());
+        if (exam == null) {
+            throw new IllegalArgumentException("考试不存在");
+        }
+        Long courseId = exam.getCourseId();
+
         List<AiExamQuestion> qs = questionMapper.listByExamId(req.examId());
         Map<Long, AiExamQuestion> id2q = new HashMap<>();
         for (AiExamQuestion q : qs) {
@@ -155,6 +166,22 @@ public class AiExamServiceImpl implements AiExamService {
                 boolean correct = q != null && q.getAnswer() != null && q.getAnswer().trim().equalsIgnoreCase(String.valueOf(a.answer()).trim());
                 if (correct) {
                     score += per;
+                } else {
+                    // 答错了，自动添加到错题本
+                    try {
+                        wrongQuestionService.addToWrongBook(
+                            req.studentId(),
+                            a.questionId(),
+                            req.examId(),
+                            courseId,
+                            String.valueOf(a.answer()),
+                            q != null ? q.getAnswer() : null
+                        );
+                    } catch (Exception e) {
+                        // 错题本添加失败不影响答题流程
+                        // 记录日志即可
+                        System.err.println("添加错题失败: " + e.getMessage());
+                    }
                 }
                 answerMapper.insert(new AiExamAnswer(null, attempt.getId(), a.questionId(), a.answer(), correct));
             }

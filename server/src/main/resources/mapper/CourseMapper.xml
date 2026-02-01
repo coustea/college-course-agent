@@ -15,6 +15,8 @@
         <result property="maxStudents" column="max_students"/>
         <result property="resourceUrl" column="resource_url"/>
         <result property="vindex" column="vindex"/>
+        <result property="publishStatus" column="publish_status"/>
+        <result property="publishedAt" column="published_at"/>
         <association property="teacher" javaType="com.ccut.entity.Teacher">
             <id property="id" column="t_id"/>
             <result property="name" column="t_name"/>
@@ -41,6 +43,8 @@
                 <!-- 始终写入 vindex，若未提供则使用 1 作为默认值 -->
                 <if test="vindex != null">vindex,</if>
                 <if test="vindex == null">vindex,</if>
+                <if test="publishStatus != null">publish_status,</if>
+                <if test="publishedAt != null">published_at,</if>
             </trim>
         ) VALUES (
             <trim suffixOverrides=",">
@@ -57,6 +61,8 @@
                 <!-- vindex 未提供则用 1 -->
                 <if test="vindex != null">#{vindex},</if>
                 <if test="vindex == null">1,</if>
+                <if test="publishStatus != null">#{publishStatus},</if>
+                <if test="publishedAt != null">#{publishedAt},</if>
             </trim>
         )
     </insert>
@@ -74,6 +80,8 @@
             <if test="maxStudents != null">max_students = #{maxStudents},</if>
             <if test="resourceUrl != null">resource_url = #{resourceUrl},</if>
             <if test="vindex != null">vindex = #{vindex},</if>
+            <if test="publishStatus != null">publish_status = #{publishStatus},</if>
+            <if test="publishedAt != null">published_at = #{publishedAt},</if>
         </set>
         WHERE course_id = #{courseId}
     </update>
@@ -85,6 +93,7 @@
     <select id="selectAll" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
                c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               c.publish_status, c.published_at,
                t.id AS t_id, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
@@ -95,6 +104,7 @@
     <select id="selectById" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
                c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               c.publish_status, c.published_at,
                t.id AS t_id, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
@@ -105,6 +115,7 @@
     <select id="search" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
                c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               c.publish_status, c.published_at,
                t.id AS t_id, t.employee_number, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
@@ -124,6 +135,7 @@
     <select id="selectByCourseCode" resultMap="CourseRM">
         SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
                c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               c.publish_status, c.published_at,
                t.id AS t_id, t.name AS t_name, t.email AS t_email,
                t.phone AS t_phone, t.department, t.title
         FROM courses c
@@ -170,6 +182,43 @@
                ), 0) AS completion_rate
         FROM courses c
         WHERE c.teacher_id = #{teacherId}
+        ORDER BY c.vindex DESC, c.course_id DESC
+    </select>
+
+    <!-- 新增：更新课程发布状态 -->
+    <update id="updatePublishStatus">
+        UPDATE courses
+        SET publish_status = #{publishStatus},
+            published_at = CASE
+                WHEN #{publishStatus} = 'published' AND published_at IS NULL THEN NOW()
+                ELSE published_at
+            END
+        WHERE course_id = #{courseId}
+    </update>
+
+    <!-- 新增：根据教师ID查询课程 -->
+    <select id="selectByTeacherId" resultMap="CourseRM">
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               c.publish_status, c.published_at,
+               t.id AS t_id, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        WHERE c.teacher_id = #{teacherId}
+        ORDER BY c.vindex DESC, c.course_id DESC
+    </select>
+
+    <!-- 新增：根据发布状态查询课程 -->
+    <select id="selectByPublishStatus" resultMap="CourseRM">
+        SELECT c.course_id, c.course_code, c.course_name, c.description, c.credits,
+               c.teacher_id, c.start_date, c.end_date, c.semester, c.max_students, c.resource_url, c.vindex,
+               c.publish_status, c.published_at,
+               t.id AS t_id, t.name AS t_name, t.email AS t_email,
+               t.phone AS t_phone, t.department, t.title
+        FROM courses c
+        LEFT JOIN teachers t ON t.id = c.teacher_id
+        WHERE c.publish_status = #{publishStatus}
         ORDER BY c.vindex DESC, c.course_id DESC
     </select>
 

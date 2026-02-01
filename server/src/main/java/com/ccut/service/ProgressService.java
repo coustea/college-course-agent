@@ -1,5 +1,6 @@
 package com.ccut.service;
 
+import com.ccut.dto.CourseStatistics;
 import com.ccut.entity.DocumentProgress;
 import com.ccut.entity.LearningProgress;
 import com.ccut.entity.VideoProgress;
@@ -74,5 +75,19 @@ public interface ProgressService {
      * @return 包含视频、文档进度和课程汇总的映射
      */
     Map<String, Object> getAllProgress(Long studentId, Long courseId);
+
+    /**
+     * 获取指定教师的所有已发布课程的统计数据（包含平均完成率）
+     * @param teacherId 教师ID
+     * @return 课程统计数据列表
+     */
+    List<CourseStatistics> getAllCourseStatistics(Long teacherId);
+
+    /**
+     * 获取学生统计数据
+     * @param studentId 学生ID
+     * @return 学生统计数据
+     */
+    com.ccut.dto.StudentStatistics getStudentStatistics(Long studentId);
 
 }

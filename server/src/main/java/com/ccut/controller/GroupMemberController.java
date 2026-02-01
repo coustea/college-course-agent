@@ -52,6 +52,7 @@ public class GroupMemberController {
             return Result.error(400, "参数错误");
         }
         groupMember.setStudentName(student.getName());
+        groupMember.setStudentNumber(student.getStudentNumber());
         int res = groupMemberService.insertMember(groupMember);
         if(res > 0){
             return Result.success(groupMember);

@@ -52,6 +52,33 @@
         ORDER BY s.id DESC
     </select>
 
+    <!-- 更新选课状态为dropped -->
+    <update id="drop">
+        UPDATE enrollments
+        SET status = 'dropped'
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+          AND status = 'active'
+    </update>
+
+    <!-- 检查学生是否已选某课程 -->
+    <select id="countByStudentAndCourse" resultType="int">
+        SELECT COUNT(*)
+        FROM enrollments
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+          AND status = 'active'
+    </select>
+
+    <!-- 批量插入选课记录 -->
+    <insert id="batchInsert">
+        INSERT IGNORE INTO enrollments(student_id, course_id, status, enrollment_date)
+        VALUES
+        <foreach collection="studentIds" item="studentId" separator=",">
+            (#{studentId}, #{courseId}, 'active', CURRENT_TIMESTAMP)
+        </foreach>
+    </insert>
+
 </mapper>
 
 
