@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.ChapterMapper">
+
+    <resultMap id="ChapterRM" type="com.ccut.entity.Chapter">
+        <id property="chapterId" column="chapter_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="title" column="title"/>
+        <result property="chapterIndex" column="chapter_index"/>
+        <result property="chapterType" column="chapter_type"/>
+        <result property="contentType" column="content_type"/>
+        <result property="sort" column="sort"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <resultMap id="ChapterTreeRM" type="com.ccut.entity.Chapter" extends="ChapterRM">
+        <collection property="children" ofType="com.ccut.entity.Chapter" column="chapter_id" select="findSectionsByParentId"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="chapterId">
+        INSERT INTO chapters (
+            course_id, parent_id, title, chapter_index, chapter_type, content_type, sort
+        ) VALUES (
+            #{courseId}, #{parentId}, #{title}, #{chapterIndex}, #{chapterType}, #{contentType}, #{sort}
+        )
+    </insert>
+
+    <update id="updateById">
+        UPDATE chapters
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="chapterIndex != null">chapter_index = #{chapterIndex},</if>
+            <if test="contentType != null">content_type = #{contentType},</if>
+            <if test="sort != null">sort = #{sort},</if>
+        </set>
+        WHERE chapter_id = #{chapterId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM chapters WHERE chapter_id = #{chapterId}
+    </delete>
+
+    <select id="findById" resultMap="ChapterRM">
+        SELECT chapter_id, course_id, parent_id, title, chapter_index, chapter_type, content_type, sort, create_time, update_time
+        FROM chapters
+        WHERE chapter_id = #{chapterId}
+    </select>
+
+    <select id="findChaptersByCourseId" resultMap="ChapterRM">
+        SELECT chapter_id, course_id, parent_id, title, chapter_index, chapter_type, content_type, sort, create_time, update_time
+        FROM chapters
+        WHERE course_id = #{courseId} AND parent_id IS NULL
+        ORDER BY sort DESC, chapter_index ASC
+    </select>
+
+    <select id="findSectionsByParentId" resultMap="ChapterRM">
+        SELECT chapter_id, course_id, parent_id, title, chapter_index, chapter_type, content_type, sort, create_time, update_time
+        FROM chapters
+        WHERE parent_id = #{parentId}
+        ORDER BY sort DESC, chapter_index ASC
+    </select>
+
+    <select id="findChapterTreeByCourseId" resultMap="ChapterTreeRM">
+        SELECT chapter_id, course_id, parent_id, title, chapter_index, chapter_type, content_type, sort, create_time, update_time
+        FROM chapters
+        WHERE course_id = #{courseId} AND parent_id IS NULL
+        ORDER BY sort DESC, chapter_index ASC
+    </select>
+
+    <select id="findMaxChapterIndex" resultType="java.lang.Integer">
+        SELECT COALESCE(MAX(chapter_index), 0) FROM chapters WHERE course_id = #{courseId} AND parent_id IS NULL
+    </select>
+
+    <select id="findMaxSectionIndex" resultType="java.lang.Integer">
+        SELECT COALESCE(MAX(chapter_index), 0) FROM chapters WHERE parent_id = #{parentId}
+    </select>
+
+    <update id="updateChapterIndex">
+        UPDATE chapters SET chapter_index = #{chapterIndex} WHERE chapter_id = #{chapterId}
+    </update>
+
+    <update id="batchUpdateChapterIndex">
+        <foreach collection="chapters" item="chapter" separator=";">
+            UPDATE chapters SET chapter_index = #{chapter.chapterIndex} WHERE chapter_id = #{chapter.chapterId}
+        </foreach>
+    </update>
+
+</mapper>
