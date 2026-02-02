@@ -23,6 +23,7 @@ DROP TABLE IF EXISTS video_progress;
 DROP TABLE IF EXISTS document_progress;
 DROP TABLE IF EXISTS learning_progress;
 DROP TABLE IF EXISTS enrollments;
+DROP TABLE IF EXISTS chapters;
 DROP TABLE IF EXISTS course_videos;
 DROP TABLE IF EXISTS course_documents;
 DROP TABLE IF EXISTS ai_exam_answers;
@@ -137,18 +138,42 @@ UNIQUE KEY uniq_student_course (student_id, course_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学习进度汇总表';
 
 -- ================================================
+--  章节表（支持树形结构：章 -> 节）
+-- ================================================
+CREATE TABLE chapters (
+    chapter_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '章节ID',
+    course_id BIGINT NOT NULL COMMENT '所属课程ID',
+    parent_id BIGINT DEFAULT NULL COMMENT '父章节ID（NULL表示一级章，非NULL表示小节）',
+    title VARCHAR(255) NOT NULL COMMENT '章节标题',
+    chapter_index INT DEFAULT 0 COMMENT '章节序号（同级排序）',
+    chapter_type VARCHAR(20) DEFAULT 'chapter' COMMENT '类型：chapter(章) / section(节)',
+    content_type TINYINT DEFAULT 0 COMMENT '内容类型：0(无内容) 1(视频) 2(文档)',
+    sort INT DEFAULT 0 COMMENT '排序权重（数字越大越靠前）',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_course_id (course_id),
+    INDEX idx_parent_id (parent_id),
+    INDEX idx_course_parent (course_id, parent_id),
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES chapters(chapter_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程章节表';
+
+-- ================================================
 --  课程视频表
 -- ================================================
 CREATE TABLE course_videos (
 video_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '视频ID',
 course_id BIGINT NOT NULL COMMENT '课程ID',
+chapter_id BIGINT DEFAULT NULL COMMENT '所属章节ID（小节ID）',
 video_index INT NOT NULL COMMENT '视频集数（顺序编号）',
 video_title VARCHAR(255) COMMENT '视频标题',
 video_url VARCHAR(500) COMMENT '视频URL地址',
 duration INT DEFAULT 0 COMMENT '视频时长（秒）',
 upload_date DATETIME COMMENT '上传日期',
 FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
-UNIQUE KEY unique_video (course_id, video_index)
+FOREIGN KEY (chapter_id) REFERENCES chapters(chapter_id) ON DELETE SET NULL,
+UNIQUE KEY unique_video (course_id, video_index),
+INDEX idx_chapter_id (chapter_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程视频资源表';
 
 -- ================================================
@@ -157,12 +182,15 @@ UNIQUE KEY unique_video (course_id, video_index)
 CREATE TABLE course_documents (
 document_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '文档ID',
 course_id BIGINT NOT NULL COMMENT '课程ID',
+chapter_id BIGINT DEFAULT NULL COMMENT '所属章节ID（小节ID）',
 document_index INT NOT NULL COMMENT '文档序号',
 document_title VARCHAR(255) COMMENT '文档标题',
 document_url VARCHAR(500) COMMENT '文档URL地址',
 upload_date DATETIME COMMENT '上传日期',
 FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
-UNIQUE KEY unique_document (course_id, document_index)
+FOREIGN KEY (chapter_id) REFERENCES chapters(chapter_id) ON DELETE SET NULL,
+UNIQUE KEY unique_document (course_id, document_index),
+INDEX idx_chapter_id (chapter_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程文档资源表';
 
 -- ================================================
