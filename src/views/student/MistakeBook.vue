@@ -346,17 +346,31 @@ const fetchMistakes = async () => {
   isLoading.value = true;
   try {
     const response = await getWrongQuestionsByStudentId(studentId);
-    mistakeList.value = response.data.map(item => ({
+    // response.data 是 Result 对象，真正的数据在 response.data.data 中
+    const data = response.data.data || [];
+    mistakeList.value = data.map(item => ({
       ...item,
-      id: item.questionId, // 映射后端返回的 questionId 到 id
+      id: item.id, // 使用错题记录的ID，而不是questionId
+      question: item.question?.content || '',
+      type: item.question?.type || '',
+      questionType: item.question?.type || '', // 添加 questionType 字段
+      options: (item.question?.type === 'CHOICE' && item.question?.options)
+        ? item.question.options.split(';')
+        : [],
+      correctIndex: (item.question?.type === 'CHOICE' && item.question?.answer)
+        ? ['A', 'B', 'C', 'D'].indexOf(item.question.answer)
+        : -1,
+      correctAnswer: item.question?.answer || item.correctAnswer || '',
+      explanation: item.question?.analysis || '',
+      userAnswer: item.wrongAnswer || '',
+      courseName: item.courseName || '课程' + item.courseId, // TODO: 需要后端返回课程名称
+      chapter: item.chapter || '', // TODO: 需要后端返回章节信息
+      mastered: item.isMastered || false,
       createTime: new Date(item.createTime),
-      mastered: item.mastered || false, // 确保 mastered 有默认值
-      options: (item.questionType === 'choice' && item.options) ? item.options.split(';') : [], // TODO: 确认选项格式
-      correctIndex: (item.questionType === 'choice' && item.correctAnswer) ? ['A', 'B', 'C', 'D'].indexOf(item.correctAnswer) : -1, // TODO: 确认正确答案格式
     }));
   } catch (error) {
-    ElMessage.error('错题列表加载失败');
-    console.error(error);
+    ElMessage.error('错题列表加载失败: ' + (error.response?.data?.message || error.message));
+    console.error('加载错题列表失败:', error);
   } finally {
     isLoading.value = false;
   }

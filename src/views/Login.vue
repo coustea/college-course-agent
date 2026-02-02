@@ -54,29 +54,22 @@
           </el-form-item>
 
           <el-form-item prop="role" class="role-form-item">
-            <div class="role-selector-compact">
+            <div class="role-buttons">
               <div
-                class="role-option-compact"
+                class="role-btn"
                 :class="{ active: loginForm.role === 'student' }"
                 @click="loginForm.role = 'student'"
               >
-                <div class="icon-wrapper">
-                  <el-icon><School /></el-icon>
-                </div>
-                <span>我是学生</span>
-                <div class="active-dot" v-show="loginForm.role === 'student'"></div>
+                <el-icon><School /></el-icon>
+                <span>学生</span>
               </div>
-
               <div
-                class="role-option-compact"
+                class="role-btn"
                 :class="{ active: loginForm.role === 'teacher' }"
                 @click="loginForm.role = 'teacher'"
               >
-                <div class="icon-wrapper teacher-icon">
-                  <el-icon><Monitor /></el-icon>
-                </div>
-                <span>我是教师</span>
-                <div class="active-dot" v-show="loginForm.role === 'teacher'"></div>
+                <el-icon><Monitor /></el-icon>
+                <span>教师</span>
               </div>
             </div>
           </el-form-item>
@@ -343,65 +336,49 @@ const handleLogin = async () => {
   font-size: 14px;
 }
 
-/* 紧凑型角色选择器 */
+/* 角色选择按钮 */
 .role-form-item {
   margin-bottom: 24px;
 }
 
-.role-selector-compact {
+.role-buttons {
   display: flex;
-  gap: 12px;
+  gap: 15px;
   width: 100%;
 }
 
-.role-option-compact {
+.role-btn {
   flex: 1;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #dcdfe6;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  background-color: #fff;
-  color: #64748b;
-  font-weight: 500;
+  transition: all 0.2s;
   font-size: 14px;
-  height: 48px; /* 固定高度，与输入框一致 */
+  color: #606266;
+  background-color: #fff;
 }
 
-.role-option-compact:hover {
-  border-color: #b3d8ff;
-  background-color: #f9fcff;
+.role-btn:hover {
   color: #409eff;
+  border-color: #c6e2ff;
+  background-color: #ecf5ff;
 }
 
-.role-option-compact.active {
+.role-btn.active {
+  color: #409eff;
   border-color: #409eff;
   background-color: #ecf5ff;
-  color: #409eff;
   font-weight: 600;
-  box-shadow: 0 2px 6px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 0 0 1px #409eff inset;
 }
 
-.icon-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-}
-
-.active-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 6px;
-  height: 6px;
-  background-color: #409eff;
-  border-radius: 50%;
+.role-btn .el-icon {
+  font-size: 16px;
 }
 
 /* 按钮样式 */

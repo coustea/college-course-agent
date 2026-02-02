@@ -1,158 +1,164 @@
 <template>
-  <div v-if="visible" class="modal" @click.self="close" @wheel="forwardBackgroundScroll">
-    <div class="modal-content">
-      <div class="modal-header">
-        <div class="modal-title">{{ title }}</div>
-        <button class="modal-close"
-                @click="close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body">
-        <aside class="course-sidebar">
-          <div class="sidebar-title">
-            课程目录
-            <span class="overall-badge" :title="'本课程整体学习进度，原始值: ' + overallProgress">
-              {{ Math.round(overallProgress * 100) }}%
-            </span>
+  <transition name="fade">
+    <div v-if="visible" class="course-player-fullscreen" @mousemove="onMouseMove" @mouseleave="onMouseLeave">
+      <!-- 顶部导航栏 (鼠标悬停或暂停时显示) -->
+      <transition name="slide-down">
+        <div v-show="controlsVisible || !isPlaying" class="cp-header">
+          <div class="cp-back" @click="close" title="退出播放">
+            <i class="fas fa-arrow-left"></i>
+            <span class="cp-title">{{ title }}</span>
           </div>
-          <div class="directory-summary">
-            <span v-if="episodeCount > 0">共 {{ episodeCount }} 节</span>
-            <span v-else>暂无目录 · 单视频课程</span>
+          <div class="cp-header-actions">
+            <!-- 可以在这里添加更多顶部操作 -->
           </div>
-          <div v-if="episodeCount > 0" class="directory-container">
-            <div
-                v-for="n in episodeCount"
-                :key="n"
-                class="directory-item"
+        </div>
+      </transition>
+
+      <div class="cp-body">
+        <!-- 视频主区域 -->
+        <div class="cp-main" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
+          <div class="video-wrapper" ref="videoContainer" @click="togglePlay" @dblclick="toggleTheatre">
+            <video
+              ref="player"
+              class="video-element"
+              playsinline
+              preload="metadata"
+              :src="currentSrc"
+              @timeupdate="onTimeUpdate(); syncPlayState()"
+              @loadedmetadata="onLoaded"
+              @play="syncPlayState"
+              @pause="syncPlayState"
+              @ended="onEnded"
+              @seeked="onSeeked"
+              @error="onVideoError"
+              @waiting="isBuffering = true"
+              @canplay="isBuffering = false"
             >
-              <div
-                  class="item-content"
-                  :class="{ 'active': (n - 1) === currentIndex }"
-                  :style="{ paddingLeft: '12px' }"
-                  @click="selectEpisode(n - 1)"
-              >
-                <div class="item-inner">
-                  <i class="fas fa-play-circle video-icon"></i>
-                  <span class="item-title">第{{ n }}节</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </aside>
-        <section class="course-main">
-          <div class="video-container" ref="videoContainer" :class="{ theatre: isTheatre }">
-            <video ref="player" class="video-player" playsinline preload="metadata" :src="currentSrc"
-                   @click="togglePlay" @timeupdate="onTimeUpdate(); syncPlayState()"
-                   @loadedmetadata="onLoaded" @play="syncPlayState" @pause="syncPlayState" @ended="onEnded" @seeked="onSeeked"
-                   @error="onVideoError">
               您的浏览器不支持HTML5视频播放
             </video>
-            <div class="time-hud">{{ hudCurrentLabel }} / {{ hudDurationLabel }}</div>
-            <div class="mini-progress">
-              <div class="mini-progress-fill" :style="{ width: Math.round(currentProgress * 100) + '%' }"></div>
-            </div>
-            <div v-show="enterTipVisible" class="enter-tip">{{ enterTipText }}</div>
-            <div v-show="isTheatre && overlayVisible" class="overlay-controls">
-              <div class="left-actions">
-                <button class="icon-btn" :disabled="currentIndex === 0"
-                        :title="'上一节'" @click="prev" aria-label="prev">
-                  <i class="fas fa-chevron-left"></i>
-                </button>
-                <button class="icon-btn" :title="isPlaying ? '暂停' : '播放'"
-                        @click="togglePlay" aria-label="play-pause">
-                  <i class="fas" :class="isPlaying ? 'fa-pause' : 'fa-play'"></i>
-                </button>
-                <button class="icon-btn" :disabled="currentIndex >= totalCount - 1"
-                        :title="'下一节'" @click="next" aria-label="next">
-                  <i class="fas fa-chevron-right"></i>
-                </button>
-              </div>
-              <div class="overlay-progress" aria-label="progress">
-                <div class="overlay-progress-track" ref="overlayTrack"
-                     @mousedown="onTrackDown($event, 'overlay')" @click="onTrackClick($event, 'overlay')">
-                  <div class="overlay-progress-fill"
-                       :style="{ width: Math.round(currentProgress * 100) + '%' }"></div>
-                  <div class="overlay-track-dot"
-                       :style="[progressDotStyle, { left: bubbleLeft + '%' }]"
-                       :title="Math.round(currentProgress * 100) + '%'
-                       " @mousedown.stop="onTrackDown($event, 'overlay')"></div>
-                </div>
-              </div>
-              <div class="right-actions">
-                <div class="volume">
-                  <i class="fas fa-volume-up" title="音量"></i>
-                  <input type="range" min="0" max="100" step="1" v-model.number="volumePercent" @input="applyVolume" />
-                </div>
-                <button class="icon-btn" :title="'退出全屏(Esc)'"
-                        @click="toggleTheatre" aria-label="immersive-exit">
-                  <i class="fas fa-compress"></i>
-                </button>
-              </div>
-            </div>
-            <button class="corner-exit left" v-show="isTheatre && overlayVisible"
-                    :title="'退出全屏(Esc)'"
-                    @click="toggleTheatre" aria-label="corner-exit-left">
-              <i class="fas fa-arrow-left"></i></button>
-            <button class="corner-exit top-right"
-                    v-show="isTheatre && overlayVisible"
-                    :title="'退出全屏(Esc)'"
-                    @click="toggleTheatre" aria-label="corner-exit-right">
-              <i class="fas fa-times"></i></button>
 
-          </div>
-          <div class="controls" v-if="!isTheatre">
-            <div class="left-actions">
-              <button class="icon-btn" :disabled="currentIndex === 0"
-                      :title="'上一节'" @click="prev" aria-label="prev">
-                <i class="fas fa-chevron-left"></i>
-              </button>
-              <button class="icon-btn" :title="isPlaying ? '暂停' : '播放'"
-                      @click="togglePlay" aria-label="play-pause">
-                <i class="fas" :class="isPlaying ? 'fa-pause' : 'fa-play'"></i>
-              </button>
-              <button class="icon-btn" :disabled="currentIndex >= totalCount - 1"
-                      :title="'下一节'" @click="next" aria-label="next">
-                <i class="fas fa-chevron-right"></i>
-              </button>
+            <!-- 加载中提示 -->
+            <div v-if="isBuffering" class="cp-loading">
+              <i class="fas fa-spinner fa-spin"></i>
             </div>
-            <div class="controls-progress" aria-label="progress">
-              <div
-                  class="controls-progress-track"
+
+            <!-- 播放/暂停 大图标覆盖 -->
+            <div v-if="!isPlaying && !isBuffering" class="cp-play-overlay">
+              <div class="play-btn-big"><i class="fas fa-play"></i></div>
+            </div>
+            
+            <!-- 提示信息 -->
+            <transition name="fade">
+              <div v-show="enterTipVisible" class="cp-toast">{{ enterTipText }}</div>
+            </transition>
+
+            <!-- 底部控制栏 -->
+            <transition name="slide-up">
+              <div v-show="controlsVisible || !isPlaying" class="cp-controls" @click.stop>
+                <!-- 进度条 -->
+                <div 
+                  class="cp-progress-container"
                   ref="progressTrack"
                   @mousemove="onTrackMove"
-                  @mouseenter="onTrackEnter"
-                  @mouseleave="onTrackLeave"
                   @mousedown="onTrackDown($event, 'controls')"
                   @click="onTrackClick($event, 'controls')"
-              >
-                <div class="controls-progress-fill"
-                     :style="{ width: Math.round(currentProgress * 100) + '%' }">
+                >
+                  <div class="cp-progress-rail"></div>
+                  <div class="cp-progress-loaded" :style="{ width: (bufferedRatio * 100) + '%' }"></div>
+                  <div class="cp-progress-fill" :style="{ width: (currentProgress * 100) + '%' }"></div>
+                  <div class="cp-progress-handle" :style="{ left: (currentProgress * 100) + '%' }"></div>
+                  <!-- 悬浮时间提示 -->
+                  <div v-show="hoverTimeVisible" class="cp-hover-time" :style="{ left: hoverLeft + '%' }">
+                    {{ hoverTimeLabel }}
+                  </div>
                 </div>
-                <div class="controls-track-dot"
-                     :style="{ left: bubbleLeft + '%' }"
-                     @mousedown.stop="onTrackDown($event, 'controls')"></div>
-                <div class="controls-progress-time"
-                     :style="{ left: bubbleLeft + '%' }">{{ currentTimeLabel }} / {{ durationLabel }}
+
+                <div class="cp-controls-row">
+                  <div class="cp-controls-left">
+                    <button class="cp-btn" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'">
+                      <i class="fas" :class="isPlaying ? 'fa-pause' : 'fa-play'"></i>
+                    </button>
+                    <button class="cp-btn" @click="next" :disabled="currentIndex >= totalCount - 1" title="下一集">
+                      <i class="fas fa-step-forward"></i>
+                    </button>
+                    <div class="cp-time">
+                      {{ currentTimeLabel }} / {{ durationLabel }}
+                    </div>
+                  </div>
+
+                  <div class="cp-controls-right">
+                    <!-- 下一步/完成 -->
+                    <button
+                      v-if="currentIndex === totalCount - 1 && currentProgress > 0.9"
+                      class="cp-btn cp-btn-primary"
+                      @click="close"
+                    >
+                      完成学习
+                    </button>
+
+                    <!-- 音量 -->
+                    <div class="cp-volume-wrap">
+                      <button class="cp-btn" @click="toggleMute">
+                        <i class="fas" :class="volumeIcon"></i>
+                      </button>
+                      <div class="cp-volume-slider">
+                        <input type="range" min="0" max="100" v-model.number="volumePercent" @input="applyVolume" />
+                      </div>
+                    </div>
+
+                    <!-- 侧边栏开关 -->
+                    <button class="cp-btn" @click="toggleSidebar" :title="isSidebarCollapsed ? '展开目录' : '收起目录'" :class="{ active: !isSidebarCollapsed }">
+                      <i class="fas fa-list-ul"></i>
+                    </button>
+                  </div>
                 </div>
-                <div v-show="hoverTimeVisible" class="hover-time"
-                     :style="{ left: hoverLeft + '%' }">{{ hoverTimeLabel }}
+              </div>
+            </transition>
+          </div>
+        </div>
+
+        <!-- 右侧侧边栏 (目录) -->
+        <div class="cp-sidebar" :class="{ 'collapsed': isSidebarCollapsed }">
+          <div class="cp-sidebar-header">
+            <h3 class="cp-sidebar-title">课程目录</h3>
+            <span class="cp-progress-badge">{{ Math.round(overallProgress * 100) }}% 已学</span>
+          </div>
+          
+          <div class="cp-chapter-list">
+            <div
+              v-for="(item, idx) in flatChapters"
+              :key="idx"
+              class="cp-chapter-item"
+              :class="{ 'active': idx === currentIndex, 'played': isChapterPlayed(idx), 'completed': isChapterCompleted(idx) }"
+              @click="selectEpisode(idx)"
+            >
+              <div class="cp-chapter-idx">
+                <span v-if="isChapterCompleted(idx)" class="completed-badge"><i class="fas fa-check"></i></span>
+                <span v-else>{{ String(idx + 1).padStart(2, '0') }}</span>
+              </div>
+              <div class="cp-chapter-info">
+                <div class="cp-chapter-title" :title="item.title">
+                  {{ item.title || `第 ${idx + 1} 节` }}
+                  <i v-if="isChapterCompleted(idx)" class="fas fa-check-circle completed-icon" title="已完成"></i>
+                </div>
+                <div class="cp-chapter-meta">
+                  <span class="cp-chapter-duration">{{ formatTime(parseDurationSec(item)) }}</span>
+                  <i v-if="idx === currentIndex" class="fas fa-chart-bar anim-playing"></i>
+                  <span v-if="isChapterCompleted(idx)" class="completed-text">已完成</span>
                 </div>
               </div>
             </div>
-            <div class="right-actions">
-              <div class="volume">
-                <i class="fas fa-volume-up" title="音量"></i>
-                <input type="range" min="0" max="100" step="1" v-model.number="volumePercent" @input="applyVolume" />
-              </div>
-              <button class="icon-btn" :title="isTheatre ? '退出全屏(Esc)' : '全屏模式'"
-                      @click="toggleTheatre" aria-label="immersive">
-                <i class="fas" :class="isTheatre ? 'fa-compress' : 'fa-expand'"></i>
-              </button>
+
+            <div v-if="flatChapters.length === 0" class="cp-empty-chapter">
+              暂无目录
             </div>
           </div>
-        </section>
+        </div>
       </div>
     </div>
-  </div>
+  </transition>
+
+  <!-- 答题弹窗 -->
   <Question
       v-if="visible && enableQuestions"
       v-model="questionVisible"
@@ -161,12 +167,13 @@
       :options="questionOptions"
       :correct-index="questionCorrectIndex"
       :analysis="questionAnalysis"
+      :next-text="questionNextText"
       @submit="onQuestionSubmit"
   />
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
+import { ref, watch, computed, onMounted, onBeforeUnmount, getCurrentInstance, nextTick } from 'vue'
 import axios from "axios"
 import Question from '/src/components/Question.vue'
 
@@ -188,11 +195,34 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'progress'])
 
 const visible = ref(false)
+const isSidebarCollapsed = ref(false)
+const controlsVisible = ref(true)
+let controlsTimer = null
+const isBuffering = ref(false)
+
 watch(() => props.modelValue, v => { visible.value = v })
-async function close() {
-  if (isTheatre.value) {
-    isTheatre.value = false
+
+function toggleSidebar() {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value
+}
+
+function onMouseMove() {
+  controlsVisible.value = true
+  if (controlsTimer) clearTimeout(controlsTimer)
+  if (isPlaying.value) {
+    controlsTimer = setTimeout(() => {
+      controlsVisible.value = false
+    }, 3000)
   }
+}
+
+function onMouseLeave() {
+  if (isPlaying.value) {
+    controlsVisible.value = false
+  }
+}
+
+async function close() {
   stopWatchTimerAndAccumulate()
   await reportAndReset()
   lockScroll(false)
@@ -235,6 +265,8 @@ const currentSrc = computed(() => {
 const triedSources = ref(new Set())
 // 预取试题键集合，避免重复预取
 const prefetchedKeys = new Set()
+// 已完成的视频ID集合
+const completedVideos = ref(new Set())
 const UPLOADS_ORIGIN = ( 'http://localhost:9999' || import.meta?.env?.VITE_BACKEND_ORIGIN || 'http://localhost:9999')
 function buildAltSources(src) {
   const list = []
@@ -321,6 +353,31 @@ function selectEpisode(i) {
   }
 }
 
+// 检查章节是否已完成
+function isChapterCompleted(idx) {
+  const ch = flatChapters.value?.[idx]
+  if (!ch) return false
+  const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? ch?.index ?? (idx + 1)
+  return completedVideos.value.has(videoId)
+}
+
+// 检查章节是否已播放过（可能有进度但未完成）
+function isChapterPlayed(idx) {
+  const ch = flatChapters.value?.[idx]
+  if (!ch) return false
+  const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? ch?.index ?? (idx + 1)
+  // 已完成肯定是已播放
+  if (completedVideos.value.has(videoId)) return true
+  // 可以从localStorage或其他状态检查是否有观看记录（使用 videoId 作为键）
+  const key = `video_resume_${props.courseId}_${videoId}`
+  try {
+    const raw = localStorage.getItem(key)
+    return raw && JSON.parse(raw)?.p > 0.05 // 观看超过5%视为已播放
+  } catch {
+    return false
+  }
+}
+
 const currentProgress = ref(0)
 const overallProgress = ref(0)
 // 后端允许的最大可快进比例（当前视频），0~1
@@ -354,6 +411,20 @@ async function fetchOverallProgress() {
       const data = res?.data?.data
       console.log('[CoursePlayer] data内容:', data)
 
+      // 从后端数据中更新已完成视频集合
+      if (Array.isArray(data?.videos)) {
+        completedVideos.value.clear()
+        data.videos.forEach(v => {
+          if (v.completed === true || v.completed === 'true') {
+            const vid = v.videoId ?? v.id ?? v.videoIndex
+            if (vid) {
+              completedVideos.value.add(vid)
+              console.log('[CoursePlayer] 已完成的视频:', vid)
+            }
+          }
+        })
+      }
+
       // 获取当前视频的 videoId
       const ch = flatChapters.value?.[currentIndex.value]
       const currentVideoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? (currentIndex.value + 1)
@@ -381,11 +452,25 @@ async function fetchOverallProgress() {
       console.log('[CoursePlayer] 设置显示进度:', percentage + '%', '转换后:', overallProgress.value)
       // 更新当前视频允许的最大可快进比例
       backendSeekMax.value = Math.max(0, Math.min(1, percentage / 100))
-      // 将后端进度写入本地恢复键，确保每次进入课程只用后端进度
+
+      // 将后端进度写入本地恢复键（使用 videoId 而不是 currentIndex）
       try {
         const pct = Math.max(0, Math.min(100, Number(percentage || 0))) / 100
-        const key = `video_resume_${props.courseId}_${currentIndex.value}`
+        const ch = flatChapters.value?.[currentIndex.value]
+        const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? currentIndex.value
+        const key = `video_resume_${props.courseId}_${videoId}`
         localStorage.setItem(key, JSON.stringify({ p: pct, t: Date.now() }))
+        console.log('[CoursePlayer] 保存进度到 localStorage:', key, '进度:', pct)
+
+        // 如果视频已经加载，立即恢复进度
+        if (player.value?.duration && pct > 0 && pct < 1) {
+          const targetTime = pct * player.value.duration
+          // 只有当当前时间与目标时间相差较大时才跳转（避免重复跳转）
+          if (Math.abs(player.value.currentTime - targetTime) > 2) {
+            console.log('[CoursePlayer] 从后端恢复视频位置:', targetTime, '秒')
+            player.value.currentTime = targetTime
+          }
+        }
       } catch (e) { console.error(e) }
     }
   } catch (e) {
@@ -396,24 +481,37 @@ async function fetchOverallProgress() {
 // 观看时长统计与上报
 const lastPlayRealStartMs = ref(0)
 const unreportedWatchedSec = ref(0)
-async function reportCourseProgress(deltaSec) {
+async function reportCourseProgress(deltaSec, completed = false) {
   const sec = Math.max(0, Math.floor(Number(deltaSec)))
-  if (sec <= 0) return
+  if (sec <= 0 && !completed) return
+
+  // 检查用户角色，教师不上报进度
+  const userRole = localStorage.getItem('userRole')
+  if (userRole === 'teacher') {
+    console.log('[CoursePlayer] 当前用户是教师，跳过进度上报')
+    return
+  }
+
   const studentId = localStorage.getItem('userId')
   const ch = flatChapters.value?.[currentIndex.value]
   const courseId = props.courseId || ch?.courseId || flatChapters.value?.[0]?.courseId
   const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? ch?.index ?? (currentIndex.value + 1)
   if (!studentId || !courseId || !videoId) return
   try {
-    console.log('[CoursePlayer] 观看时长上报开始(展示所需参数)', studentId, courseId, videoId, sec)
+    console.log('[CoursePlayer] 观看时长上报开始(展示所需参数)', studentId, courseId, videoId, sec, 'completed:', completed)
     const token = localStorage.getItem('token')
     const res = await axios.post(`${BASE_URL}/progress/report`,null, {
-      params: { studentId, courseId, videoId, deltaSec: sec },
+      params: { studentId, courseId, videoId, deltaSec: sec, completed: completed },
       headers:  { Authorization: `Bearer ${token}` }
     })
     console.log('[CoursePlayer] 观看时长上报结果', res.data)
     if (res?.data?.code === 200) {
       console.log('观看时长上报成功')
+      // 如果标记为完成，添加到已完成集合
+      if (completed) {
+        completedVideos.value.add(videoId)
+        console.log('[CoursePlayer] 视频已完成并标记:', videoId)
+      }
       // 更新整体进度
       const percentage = res?.data?.data?.percentage ?? res?.data?.percentage
       if (typeof percentage === 'number') {
@@ -445,6 +543,9 @@ async function reportAndReset() {
     await reportCourseProgress(sec)
 }
 
+// 缓冲状态
+const bufferedRatio = ref(0)
+
 
 const isTheatre = ref(false)
 const isPlaying = ref(false)
@@ -453,10 +554,10 @@ const enterTipVisible = ref(false)
 const enterTipText = ref('')
 let enterTipTimer = null
 function showEnterTip(title) {
-  enterTipText.value = `已进入：${title}`
+  enterTipText.value = `正在播放：${title}`
   enterTipVisible.value = true
   if (enterTipTimer) clearTimeout(enterTipTimer)
-  enterTipTimer = setTimeout(() => { enterTipVisible.value = false }, 1500)
+  enterTipTimer = setTimeout(() => { enterTipVisible.value = false }, 2000)
 }
 
 let wheelHandler = null
@@ -632,6 +733,27 @@ const hoverTimeVisible = ref(false)
 const hoverLeft = ref(0)
 const hoverTimeLabel = ref('0:00')
 const volumePercent = ref(100)
+
+// 音量图标
+const volumeIcon = computed(() => {
+  const v = volumePercent.value
+  if (v === 0) return 'fa-volume-mute'
+  if (v < 50) return 'fa-volume-down'
+  return 'fa-volume-up'
+})
+
+// 切换静音
+let lastVolume = 100
+function toggleMute() {
+  if (volumePercent.value > 0) {
+    lastVolume = volumePercent.value
+    volumePercent.value = 0
+  } else {
+    volumePercent.value = lastVolume || 100
+  }
+  applyVolume()
+}
+
 const isDragging = ref(false)
 const draggingWhich = ref('')
 function onDragMove(e) {
@@ -730,13 +852,17 @@ async function next() {
 function nextTickSeekSaved() {
   requestAnimationFrame(() => {
     try {
-      const key = `video_resume_${props.courseId}_${currentIndex.value}`
+      // 使用 videoId 而不是 currentIndex 作为键
+      const ch = flatChapters.value?.[currentIndex.value]
+      const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? currentIndex.value
+      const key = `video_resume_${props.courseId}_${videoId}`
       const raw = localStorage.getItem(key)
       if (raw && player.value?.duration) {
         const saved = JSON.parse(raw)
         const pct = Number(saved?.p)
         if (Number.isFinite(pct) && pct > 0 && pct < 1) {
           player.value.currentTime = pct * player.value.duration
+          console.log('[CoursePlayer] 从 localStorage 恢复视频位置:', videoId, '进度:', pct)
         }
       }
     } catch (e) { console.error(e) }
@@ -759,8 +885,10 @@ watch(currentIndex, (v) => {
     showEnterTip(t)
     // 切换视频时重新获取进度
     fetchOverallProgress()
+    // 预取新视频的题目（内部会尝试恢复状态，如果无状态则会重置）
+    prefetchQuestions()
   }
-}, { immediate: true })
+})
 
 watch(visible, (v) => {
   if (!v) {
@@ -822,15 +950,9 @@ function syncPlayState() {
 
 function onLoaded() {
   try {
-    const key = `video_resume_${props.courseId}_${currentIndex.value}`
-    const raw = localStorage.getItem(key)
-    if (raw) {
-      const saved = JSON.parse(raw)
-      const pct = Number(saved?.p)
-      if (Number.isFinite(pct) && pct > 0 && pct < 1 && player.value?.duration) {
-        player.value.currentTime = pct * player.value.duration
-      }
-    }
+    // Don't restore progress here - let fetchOverallProgress handle it
+    // This prevents race conditions where localStorage might have stale data
+    console.log('[CoursePlayer] Video loaded, waiting for backend progress data')
   } catch (e) { console.error(e) }
   try {
     if (!hudTicker) {
@@ -843,7 +965,14 @@ function onEnded() {
   isPlaying.value = false
   stopTickerAndFlush()
   stopWatchTimerAndAccumulate()
+  // 视频播放完成，上报完成状态
   reportAndReset()
+  // 标记当前视频为已完成
+  const ch = flatChapters.value?.[currentIndex.value]
+  const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? ch?.index ?? (currentIndex.value + 1)
+  console.log('[CoursePlayer] 视频播放完成，标记为已完成:', videoId)
+  // 上报完成状态
+  reportCourseProgress(0, true)
 }
 
 function onSeeked() {
@@ -854,12 +983,27 @@ function onSeeked() {
 
 function onTimeUpdate() {
   if (!player.value?.duration) return
-  const progress = player.value.currentTime / player.value.duration
+  const cur = player.value.currentTime
+  const dur = player.value.duration
+  const progress = cur / dur
   currentProgress.value = progress
+
+  // 更新缓冲进度
+  if (player.value.buffered.length > 0) {
+    for (let i = 0; i < player.value.buffered.length; i++) {
+      if (player.value.buffered.start(i) <= cur && player.value.buffered.end(i) >= cur) {
+        bufferedRatio.value = player.value.buffered.end(i) / dur
+        break
+      }
+    }
+  }
   // 进度触发 40% / 80% 弹题
   maybeAskByProgress(progress)
+  // 保存进度到 localStorage（使用 videoId 而不是 currentIndex）
   try {
-    const key = `video_resume_${props.courseId}_${currentIndex.value}`
+    const ch = flatChapters.value?.[currentIndex.value]
+    const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? currentIndex.value
+    const key = `video_resume_${props.courseId}_${videoId}`
     localStorage.setItem(key, JSON.stringify({ p: progress, t: Date.now() }))
   } catch (e) { console.error(e) }
   try { emit('progress', overallProgress.value) } catch {}
@@ -884,37 +1028,128 @@ const questionStem = ref('以下哪个选项是正确的？')
 const questionOptions = ref(['选项A', '选项B', '选项C', '选项D'])
 const questionCorrectIndex = ref(0)
 const questionAnalysis = ref('')
+const questionNextText = ref('继续学习')
 const examId = ref(null)
 const currentQuestionId = ref(null)
 const answersSoFar = ref([])
-const asked40 = ref(false)
-const asked80 = ref(false)
+// 每个视频需要回答的题目总数
+const REQUIRED_QUESTIONS_PER_VIDEO = 3
+// 当前视频已回答的题目数量
+const answeredCount = ref(0)
+// 当前视频已弹出的题目索引集合
+const askedQuestionIndexes = ref(new Set())
+// 随机触发的时间点（进度百分比 0-1）
+const randomTriggerPoints = ref([])
 const prefetchedExam = ref(null)
 const prefetchedDict = ref({})
 const prefetchingKeys = new Set()
+// 当前显示的题目索引
+const currentQuestionIndex = ref(0)
+
+function openQuestions() {
+  // 打开试题列表或当前试题
+  startQuiz()
+}
+
+// 开始答题（获取题目）
+async function startQuiz() {
+  try {
+    const courseId = props.courseId || flatChapters.value?.[0]?.courseId
+    const videoId = flatChapters.value?.[currentIndex.value]?.videoId ?? (currentIndex.value + 1)
+    
+    // 如果已经预取了，直接显示
+    const key = `${props.courseId}-${currentIndex.value}`
+    if (prefetchedExam.value) {
+       showQuestionFromPool(0)
+       questionVisible.value = true
+       return
+    }
+    
+    // 否则尝试获取
+    await prefetchQuestions()
+    if (prefetchedExam.value) {
+       showQuestionFromPool(0)
+    }
+    questionVisible.value = true
+  } catch (e) {
+    console.error('开始答题失败:', e)
+    questionVisible.value = true
+  }
+}
 
 function maybeAskByProgress(p) {
   if (!props.enableQuestions) return
   try {
     const pct = Number(p)
-    if (!Number.isFinite(pct) || pct <= 0) return
-    if (!prefetchedExam.value) prefetchQuestions()
-    if (pct >= 0.4 && !asked40.value) {
-      asked40.value = true
-      if (!prefetchedExam.value) {
-        prefetchQuestions().finally(() => { showQuestionFromPool(0)})
-      } else {
-        showQuestionFromPool(0)
-      }
-    } else if (pct >= 0.8 && !asked80.value) {
-      asked80.value = true
-      if (!prefetchedExam.value) {
-        prefetchQuestions().finally(() => {showQuestionFromPool(1) })
-      } else {
-        showQuestionFromPool(1)
+    if (!Number.isFinite(pct) || pct <= 0 || pct >= 0.95) return
+
+    // 初始化随机触发点（只执行一次）
+    if (randomTriggerPoints.value.length === 0) {
+      generateRandomTriggerPoints()
+    }
+
+    // 检查是否到达触发点
+    for (let i = 0; i < randomTriggerPoints.value.length; i++) {
+      const triggerPoint = randomTriggerPoints.value[i]
+      if (pct >= triggerPoint && !askedQuestionIndexes.value.has(i)) {
+        askedQuestionIndexes.value.add(i)
+        if (!prefetchedExam.value) {
+          prefetchQuestions().finally(() => { showNextQuestion() })
+        } else {
+          showNextQuestion()
+        }
+        break
       }
     }
   } catch (e) { console.error(e) }
+}
+
+// 生成随机触发点（在15%-75%之间随机分布3个点）
+function generateRandomTriggerPoints() {
+  const points = []
+  // 在 15%, 40%, 65% 附近随机生成
+  const basePoints = [0.15, 0.40, 0.65]
+  for (const base of basePoints) {
+    // 在基准点附近 ±5% 的范围内随机
+    const offset = (Math.random() - 0.5) * 0.10
+    const point = Math.max(0.10, Math.min(0.80, base + offset))
+    points.push(point)
+  }
+  // 排序确保按顺序触发
+  points.sort((a, b) => a - b)
+  randomTriggerPoints.value = points
+  console.log('[CoursePlayer] 生成随机题目触发点:', points.map(p => Math.round(p * 100) + '%'))
+}
+
+// 显示下一道题目
+function showNextQuestion() {
+  const list = Array.isArray(prefetchedExam.value?.questions)
+      ? prefetchedExam.value.questions
+      : (Array.isArray(prefetchedExam.value?.choices) ? prefetchedExam.value.choices : [])
+
+  if (!list || list.length === 0) {
+    console.warn('[CoursePlayer] 没有可用的题目')
+    return
+  }
+
+  // 找到还没显示的题目
+  let nextIdx = -1
+  for (let i = 0; i < Math.min(REQUIRED_QUESTIONS_PER_VIDEO, list.length); i++) {
+    if (!askedQuestionIndexes.value.has(`q_${i}`)) {
+      nextIdx = i
+      break
+    }
+  }
+
+  // 如果所有题目都已显示，使用第一题
+  if (nextIdx === -1 && askedQuestionIndexes.value.size < REQUIRED_QUESTIONS_PER_VIDEO) {
+    nextIdx = askedQuestionIndexes.value.size % list.length
+  }
+
+  if (nextIdx >= 0) {
+    currentQuestionIndex.value = nextIdx
+    showQuestionFromPool(nextIdx)
+  }
 }
 
 async function prefetchQuestions() {
@@ -929,7 +1164,39 @@ async function prefetchQuestions() {
     // 获取当前视频的 videoId
     const ch = props.chapters[currentIndex.value]
     const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? null
-    const body = { courseId, studentId, choiceCount: 2, judgeCount: 0, videoId, documentId: null }
+
+    // 尝试恢复答题状态（如果存在且未过期）
+    let hasRestoredState = false
+    if (prefetchedExam.value) {
+      hasRestoredState = restoreQuestionState()
+      if (hasRestoredState) {
+        console.log('[CoursePlayer] 已恢复答题状态，无需重新生成题目')
+        return
+      }
+    }
+
+    // 如果没有恢复到状态，重置为初始状态
+    if (!hasRestoredState) {
+      resetQuestionState()
+    }
+
+    // 随机选择题目方案
+    const questionSchemes = [
+      { choiceCount: 3, judgeCount: 0, description: '3道选择题' },
+      { choiceCount: 2, judgeCount: 1, description: '2道选择题+1道判断题' }
+    ]
+    const selectedScheme = questionSchemes[Math.floor(Math.random() * questionSchemes.length)]
+    console.log('[CoursePlayer] 本次题目方案:', selectedScheme.description)
+
+    const body = {
+      courseId,
+      studentId,
+      choiceCount: selectedScheme.choiceCount,
+      judgeCount: selectedScheme.judgeCount,
+      videoId,
+      documentId: null
+    }
+
     const res = await axios.post(`${BASE_URL}/aiexam/generate`, body, {
       headers: {
         Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'
@@ -944,6 +1211,9 @@ async function prefetchQuestions() {
       const curKey = `${props.courseId}-${currentIndex.value}`
       if (key === curKey)
         prefetchedExam.value = data
+
+      // 生成题目后，再次尝试恢复状态（防止题目重新生成时丢失状态）
+      restoreQuestionState()
     }
   } catch (e) {
     console.error('获取题目失败', e)
@@ -962,29 +1232,50 @@ function showQuestionFromPool(idx) {
     const opts = normalizeOptions(q)
     const correct = (typeof q.correctIndex === 'number') ? q.correctIndex : (['A', 'B', 'C', 'D'].indexOf(String(q.answer || '').toUpperCase()))
     const qid = q.id || q.questionId || null
-    showQuestion('选择题', stem, opts, Number.isFinite(correct) ? correct : 0, q.analysis || '', qid)
-  } else {
 
+    // 计算答题进度
+    const totalRequired = Math.min(REQUIRED_QUESTIONS_PER_VIDEO, list.length)
+    const answered = askedQuestionIndexes.value.size
+    const title = `选择题 (${answered}/${totalRequired})`
+
+    // 检查是否已完成所有题目
+    const isAllCompleted = answered >= totalRequired
+    const nextText = isAllCompleted ? '继续学习' : '下一题'
+
+    showQuestion(title, stem, opts, Number.isFinite(correct) ? correct : 0, q.analysis || '', qid, nextText)
+  } else {
+    console.warn('[CoursePlayer] 未找到题目，索引:', idx)
   }
 }
 
-function showQuestion(title, stem, options, correctIndex, analysis, qid) {
+function showQuestion(title, stem, options, correctIndex, analysis, qid, nextText = '继续学习') {
   try {
-    questionTitle.value = title
-    questionStem.value = stem
-    questionOptions.value = (Array.isArray(options) && options.length === 4) ? options : ['选项A', '选项B', '选项C', '选项D']
-    questionCorrectIndex.value = Number.isFinite(correctIndex) ? correctIndex : 0
-    questionAnalysis.value = String(analysis || '')
-    currentQuestionId.value = qid
-    const el = player.value
-    if (el && !el.paused) {
-      el.pause()
-      isPlaying.value = false
-      wasPlayingBeforeQuestion.value = true
-    } else {
-      wasPlayingBeforeQuestion.value = false
+    // 先关闭弹窗（如果已经打开），以便重置组件状态
+    if (questionVisible.value) {
+      questionVisible.value = false
     }
-    questionVisible.value = true
+
+    // 使用 nextTick 确保弹窗完全关闭后再显示新题目
+    nextTick(() => {
+      questionTitle.value = title
+      questionStem.value = stem
+      questionOptions.value = (Array.isArray(options) && options.length === 4) ? options : ['选项A', '选项B', '选项C', '选项D']
+      questionCorrectIndex.value = Number.isFinite(correctIndex) ? correctIndex : 0
+      questionAnalysis.value = String(analysis || '')
+      questionNextText.value = nextText
+      currentQuestionId.value = qid
+
+      const el = player.value
+      if (el && !el.paused) {
+        el.pause()
+        isPlaying.value = false
+        wasPlayingBeforeQuestion.value = true
+      } else {
+        wasPlayingBeforeQuestion.value = false
+      }
+
+      questionVisible.value = true
+    })
   } catch (e) {
     console.error(e)
   }
@@ -1022,18 +1313,193 @@ function normalizeOptions(q) {
 
 function onQuestionSubmit(payload) {
   try {
-    // 保持弹窗开启，先展示正确答案与解析；仅在用户点击“继续学习”关闭
-    // 记录答案并上报
+    // 记录答案
     const idx = Number(payload?.answerIndex)
     const letter = ['A','B','C','D'][Math.max(0, Math.min(3, Number.isFinite(idx) ? idx : 0))]
     const qid = currentQuestionId.value
+
+    // 判断是否答错
+    const isCorrect = idx === questionCorrectIndex.value
+
     if (qid) {
       const existing = (answersSoFar.value).findIndex(a => a.questionId === qid)
       if (existing >= 0) answersSoFar.value.splice(existing, 1, { questionId: qid, answer: letter })
       else answersSoFar.value.push({ questionId: qid, answer: letter })
+
+      // 标记当前题目已回答（使用触发点的索引，不是题目索引）
+      const triggerIndex = randomTriggerPoints.value.findIndex((_, i) => !askedQuestionIndexes.value.has(i))
+      if (triggerIndex >= 0) {
+        askedQuestionIndexes.value.add(triggerIndex)
+      }
+      answeredCount.value++
+
+      // 如果答错了，添加到错题本
+      if (!isCorrect) {
+        addToWrongQuestionBook(qid, letter, ['A','B','C','D'][questionCorrectIndex.value])
+      }
+
+      // 上传答案到后端
       submitAnswers()
+
+      console.log(`[CoursePlayer] 答题进度: ${answeredCount.value}/${REQUIRED_QUESTIONS_PER_VIDEO}, 答题${isCorrect ? '正确' : '错误'}`)
+
+      // 检查是否已完成所有题目
+      const allCompleted = answeredCount.value >= REQUIRED_QUESTIONS_PER_VIDEO
+      if (allCompleted) {
+        console.log('[CoursePlayer] 所有题目已完成，清除答题状态')
+        clearQuestionState()
+      } else {
+        // 保存答题状态到 localStorage
+        saveQuestionState()
+      }
+
+      // 答完当前题后，关闭弹窗继续观看视频
+      // 等待下一个随机触发点再弹出下一题
+      setTimeout(() => {
+        questionVisible.value = false
+        // 恢复视频播放（如果之前在播放）
+        if (wasPlayingBeforeQuestion.value) {
+          const el = player.value
+          if (el) {
+            el.play()
+            isPlaying.value = true
+            startWatchTimerIfNeeded()
+          }
+        }
+      }, 2000) // 2秒后关闭弹窗，让学生看完解析
     }
   } catch (e) { console.error(e) }
+}
+
+// 添加错题到错题本
+async function addToWrongQuestionBook(questionId, wrongAnswer, correctAnswer) {
+  try {
+    const studentId = localStorage.getItem('userId')
+    const courseId = props.courseId
+    const examIdValue = examId.value
+
+    if (!studentId || !courseId || !questionId || !examIdValue) {
+      console.warn('[CoursePlayer] 缺少必要参数，跳过添加错题本', { studentId, courseId, questionId, examId: examIdValue })
+      return
+    }
+
+    const token = localStorage.getItem('token')
+    console.log('[CoursePlayer] 添加错题到错题本:', { questionId, wrongAnswer, correctAnswer })
+
+    const res = await axios.post(`${BASE_URL}/wrong-question/add`, null, {
+      params: {
+        studentId,
+        questionId,
+        examId: examIdValue,
+        courseId,
+        wrongAnswer,
+        correctAnswer
+      },
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+
+    if (res.data.code === 200) {
+      console.log('[CoursePlayer] 错题添加成功')
+    } else {
+      console.warn('[CoursePlayer] 错题添加失败:', res.data.message)
+    }
+  } catch (e) {
+    console.error('[CoursePlayer] 添加错题到错题本失败:', e)
+  }
+}
+
+// 查找下一道未回答的题目
+function findNextUnansweredQuestion() {
+  const list = Array.isArray(prefetchedExam.value?.questions)
+      ? prefetchedExam.value.questions
+      : (Array.isArray(prefetchedExam.value?.choices) ? prefetchedExam.value.choices : [])
+
+  if (!list || list.length === 0) return -1
+
+  for (let i = 0; i < Math.min(REQUIRED_QUESTIONS_PER_VIDEO, list.length); i++) {
+    if (!askedQuestionIndexes.value.has(`q_${i}`)) {
+      return i
+    }
+  }
+  return -1
+}
+
+// 重置题目状态（切换视频时调用）
+function resetQuestionState() {
+  answeredCount.value = 0
+  askedQuestionIndexes.value = new Set()
+  randomTriggerPoints.value = []
+  currentQuestionIndex.value = 0
+  questionTitle.value = '选择题'
+  questionVisible.value = false
+  prefetchedExam.value = null
+  console.log('[CoursePlayer] 重置题目状态')
+}
+
+// 保存答题状态到 localStorage
+function saveQuestionState() {
+  try {
+    const ch = flatChapters.value?.[currentIndex.value]
+    const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? currentIndex.value
+    const key = `question_state_${props.courseId}_${videoId}`
+    const state = {
+      answeredCount: answeredCount.value,
+      askedQuestionIndexes: Array.from(askedQuestionIndexes.value),
+      randomTriggerPoints: randomTriggerPoints.value,
+      answersSoFar: answersSoFar.value,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(key, JSON.stringify(state))
+    console.log('[CoursePlayer] 保存答题状态:', key, state)
+  } catch (e) {
+    console.error('[CoursePlayer] 保存答题状态失败:', e)
+  }
+}
+
+// 从 localStorage 恢复答题状态
+function restoreQuestionState() {
+  try {
+    const ch = flatChapters.value?.[currentIndex.value]
+    const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? currentIndex.value
+    const key = `question_state_${props.courseId}_${videoId}`
+    const raw = localStorage.getItem(key)
+    if (raw) {
+      const state = JSON.parse(raw)
+      // 只恢复30分钟内的状态（避免太旧的数据）
+      const age = Date.now() - (state.timestamp || 0)
+      if (age < 30 * 60 * 1000) {
+        answeredCount.value = state.answeredCount || 0
+        askedQuestionIndexes.value = new Set(state.askedQuestionIndexes || [])
+        randomTriggerPoints.value = state.randomTriggerPoints || []
+        answersSoFar.value = state.answersSoFar || []
+        console.log('[CoursePlayer] 恢复答题状态:', key, state)
+        console.log('[CoursePlayer] 已回答题目数:', answeredCount.value)
+        return true
+      } else {
+        console.log('[CoursePlayer] 答题状态已过期，忽略')
+        localStorage.removeItem(key)
+      }
+    }
+    return false
+  } catch (e) {
+    console.error('[CoursePlayer] 恢复答题状态失败:', e)
+    return false
+  }
+}
+
+// 清除答题状态
+function clearQuestionState() {
+  try {
+    const ch = flatChapters.value?.[currentIndex.value]
+    const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? currentIndex.value
+    const key = `question_state_${props.courseId}_${videoId}`
+    localStorage.removeItem(key)
+    console.log('[CoursePlayer] 清除答题状态:', key)
+  } catch (e) {
+    console.error('[CoursePlayer] 清除答题状态失败:', e)
+  }
 }
 
 async function submitAnswers() {
@@ -1061,15 +1527,332 @@ async function submitAnswers() {
 </script>
 
 <style scoped>
-.modal {
+/* 全屏播放器样式 */
+.course-player-fullscreen {
   position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.slide-down-enter-active, .slide-down-leave-active { transition: transform 0.3s ease; }
+.slide-down-enter-from, .slide-down-leave-to { transform: translateY(-100%); }
+
+.slide-up-enter-active, .slide-up-leave-active { transition: transform 0.3s ease; }
+.slide-up-enter-from, .slide-up-leave-to { transform: translateY(100%); }
+
+/* 顶部导航 */
+.cp-header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 60px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  z-index: 2010;
+  pointer-events: none;
+}
+.cp-header > * { pointer-events: auto; }
+
+.cp-back {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 18px;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+.cp-back:hover { opacity: 1; }
+.cp-back i { margin-right: 12px; }
+.cp-title { font-weight: 500; font-size: 16px; }
+
+/* 主体布局 */
+.cp-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.cp-main {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-right: 320px; /* 侧边栏宽度 */
+}
+.cp-main.sidebar-collapsed { margin-right: 0; }
+
+.video-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-element {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cp-loading, .cp-play-overlay {
+  position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0,0,0,.6);
-  z-index: 1000;
+  pointer-events: none;
 }
+.cp-loading { background: rgba(0,0,0,0.5); z-index: 10; font-size: 48px; }
+.play-btn-big {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; color: #fff;
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+.cp-toast {
+  position: absolute;
+  left: 24px; top: 80px;
+  background: rgba(0,0,0,0.7);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  z-index: 20;
+}
+
+/* 底部控制栏 */
+.cp-controls {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%);
+  padding: 0 24px 24px;
+  z-index: 2010;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cp-progress-container {
+  height: 12px;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.cp-progress-rail {
+  position: absolute;
+  left: 0; right: 0; top: 5px; height: 2px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  transition: height 0.1s;
+}
+.cp-progress-container:hover .cp-progress-rail { height: 4px; top: 4px; }
+.cp-progress-loaded {
+  position: absolute;
+  left: 0; top: 5px; height: 2px;
+  background: rgba(255,255,255,0.4);
+  border-radius: 2px;
+  transition: height 0.1s;
+}
+.cp-progress-container:hover .cp-progress-loaded { height: 4px; top: 4px; }
+.cp-progress-fill {
+  position: absolute;
+  left: 0; top: 5px; height: 2px;
+  background: #10b981;
+  border-radius: 2px;
+  transition: height 0.1s;
+}
+.cp-progress-container:hover .cp-progress-fill { height: 4px; top: 4px; }
+.cp-progress-handle {
+  position: absolute;
+  width: 12px; height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.cp-progress-container:hover .cp-progress-handle { opacity: 1; }
+.cp-hover-time {
+  position: absolute;
+  bottom: 20px;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.8);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cp-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cp-controls-left, .cp-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cp-btn {
+  background: none; border: none;
+  color: #fff; font-size: 18px;
+  cursor: pointer;
+  opacity: 0.8;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+  width: 32px; height: 32px;
+  border-radius: 4px;
+}
+.cp-btn:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+.cp-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.cp-btn.active { color: #10b981; opacity: 1; }
+
+.cp-btn-text {
+  width: auto; padding: 0 12px;
+  font-size: 14px; gap: 6px;
+}
+.cp-btn-primary {
+  width: auto; padding: 0 16px;
+  background: #10b981;
+  color: #fff;
+  font-size: 14px;
+  opacity: 1;
+}
+.cp-btn-primary:hover { background: #059669; }
+
+.cp-time { font-size: 13px; font-variant-numeric: tabular-nums; opacity: 0.9; }
+
+/* 音量条 */
+.cp-volume-wrap {
+  display: flex; align-items: center;
+  position: relative;
+}
+.cp-volume-slider {
+  width: 0;
+  overflow: hidden;
+  transition: width 0.2s;
+  display: flex; align-items: center;
+}
+.cp-volume-wrap:hover .cp-volume-slider { width: 80px; }
+.cp-volume-slider input {
+  width: 70px; margin-left: 8px;
+  accent-color: #10b981;
+}
+
+/* 侧边栏 */
+.cp-sidebar {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 320px;
+  background: #1f2937;
+  border-left: 1px solid #374151;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 2005;
+}
+.cp-sidebar.collapsed { transform: translateX(100%); }
+
+.cp-sidebar-header {
+  height: 60px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #374151;
+  flex-shrink: 0;
+}
+.cp-sidebar-title { margin: 0; font-size: 16px; font-weight: 600; }
+.cp-progress-badge {
+  font-size: 12px; color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 8px; border-radius: 4px;
+}
+
+.cp-chapter-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+}
+.cp-chapter-list::-webkit-scrollbar { width: 6px; }
+.cp-chapter-list::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+
+.cp-chapter-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-left: 3px solid transparent;
+}
+.cp-chapter-item:hover { background: rgba(255,255,255,0.05); }
+.cp-chapter-item.active {
+  background: rgba(16, 185, 129, 0.1);
+  border-left-color: #10b981;
+}
+.cp-chapter-item.played { opacity: 0.7; }
+.cp-chapter-item.active { opacity: 1; }
+
+.cp-chapter-idx {
+  width: 24px;
+  font-size: 14px;
+  color: #9ca3af;
+  margin-top: 2px;
+  font-family: monospace;
+}
+.cp-chapter-info { flex: 1; min-width: 0; }
+.cp-chapter-title {
+  font-size: 14px; line-height: 1.4;
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cp-chapter-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: #6b7280;
+}
+.active .cp-chapter-title { color: #10b981; font-weight: 500; }
+.anim-playing { color: #10b981; animation: pulse 1.5s infinite; }
+
+.cp-empty-chapter {
+  text-align: center;
+  padding: 40px;
+  color: #6b7280;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+/* 旧的 modal 样式保留或注释掉 (这里我们主要覆盖为 fullscreen 样式，所以不需要旧样式) */
+/* .modal { display: none; } */
+
 
 .modal-content {
   width: 90%;
@@ -1427,6 +2210,51 @@ async function submitAnswers() {
   top: 12px;
 }
 .corner-exit { z-index: 2010; }
+
+/* 已完成章节样式 */
+.cp-chapter-item.completed {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-left: 3px solid #22c55e;
+}
+
+.cp-chapter-item.completed .cp-chapter-title {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.completed-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #22c55e;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.completed-icon {
+  margin-left: 6px;
+  color: #22c55e;
+  font-size: 16px;
+}
+
+.completed-text {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: #22c55e;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cp-chapter-item.played:not(.completed) {
+  background: #f8f9fa;
+  border-left: 3px solid #94a3b8;
+}
 
 </style>
 

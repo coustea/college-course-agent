@@ -506,6 +506,12 @@ async function close() {
 
 async function syncDocumentProgressFromCourse(resetQuizState = false) {
   try {
+    const userRole = localStorage.getItem('userRole')
+    if (userRole === 'teacher') {
+      console.log('[DocumentViewer]当前用户是教师，跳过进度同步')
+      return
+    }
+
     const studentId = localStorage.getItem('userId')
     const courseId = props.id
     if (!studentId || !courseId) return
@@ -788,6 +794,12 @@ watch(() => props.modelValue, (v) => {
 // 上报阅读进度
 async function reportReadProgress(deltaSec, forceCompleted = false) {
   try {
+    const userRole = localStorage.getItem('userRole')
+    if (userRole === 'teacher') {
+      console.log('[DocumentViewer]当前用户是教师，跳过进度上报')
+      return
+    }
+
     const studentId = localStorage.getItem('userId')
     const courseId = props.id
     if (!studentId || !courseId) return
@@ -1045,6 +1057,12 @@ watch(questionVisible, (v, ov) => {
 // 提交答案并上报文档已看完（仅当5题全部答完时调用）
 async function submitDocumentAnswersAndProgress() {
   try {
+    const userRole = localStorage.getItem('userRole')
+    if (userRole === 'teacher') {
+      console.log('[DocumentViewer]当前用户是教师，跳过答案提交和进度上报')
+      return
+    }
+
     const studentId = localStorage.getItem('userId')
     const eid = examId.value
     const token = localStorage.getItem('token')
