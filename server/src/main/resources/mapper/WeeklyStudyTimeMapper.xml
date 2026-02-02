@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.WeeklyStudyTimeMapper">
+
+    <!-- 累加学习时间 -->
+    <insert id="upsert">
+        INSERT INTO weekly_study_time(student_id, course_id, week_start_date, total_seconds, last_study_time)
+        VALUES (#{studentId}, #{courseId}, #{weekStartDate}, #{deltaSeconds}, NOW())
+        ON DUPLICATE KEY UPDATE
+            total_seconds = total_seconds + VALUES(total_seconds),
+            last_study_time = NOW(),
+            updated_at = NOW()
+    </insert>
+
+    <!-- 获取学生本周总学习时间 -->
+    <select id="getStudentWeeklyTime" resultType="int">
+        SELECT COALESCE(SUM(total_seconds), 0)
+        FROM weekly_study_time
+        WHERE student_id = #{studentId}
+          AND course_id IS NULL
+          AND week_start_date = #{weekStartDate}
+    </select>
+
+    <!-- 获取学生本周在指定课程的学习时间 -->
+    <select id="getStudentCourseWeeklyTime" resultType="int">
+        SELECT COALESCE(total_seconds, 0)
+        FROM weekly_study_time
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+          AND week_start_date = #{weekStartDate}
+        LIMIT 1
+    </select>
+
+    <!-- 获取教师在指定课程的所有学生本周学习情况 -->
+    <resultMap id="StudentWeeklyTimeRM" type="java.util.HashMap">
+        <result property="studentId" column="student_id"/>
+        <result property="studentName" column="student_name"/>
+        <result property="studentNumber" column="student_number"/>
+        <result property="totalSeconds" column="total_seconds"/>
+        <result property="totalHours" column="total_hours"/>
+        <result property="lastStudyTime" column="last_study_time"/>
+    </resultMap>
+
+    <select id="getCourseStudentsWeeklyTime" resultMap="StudentWeeklyTimeRM">
+        SELECT
+            s.id AS student_id,
+            s.name AS student_name,
+            s.student_number,
+            COALESCE(wst.total_seconds, 0) AS total_seconds,
+            ROUND(COALESCE(wst.total_seconds, 0) / 3600.0, 2) AS total_hours,
+            wst.last_study_time
+        FROM students s
+        INNER JOIN enrollments e ON e.student_id = s.id AND e.status = 'active'
+        LEFT JOIN weekly_study_time wst ON wst.student_id = s.id
+            AND wst.course_id = #{courseId}
+            AND wst.week_start_date = #{weekStartDate}
+        WHERE e.course_id = #{courseId}
+        ORDER BY total_seconds DESC, s.student_number
+    </select>
+
+    <!-- 获取教师所有课程的学生本周学习情况汇总 -->
+    <resultMap id="CourseWeeklyTimeRM" type="java.util.HashMap">
+        <result property="courseId" column="course_id"/>
+        <result property="courseName" column="course_name"/>
+        <result property="totalStudents" column="total_students"/>
+        <result property="activeStudents" column="active_students"/>
+        <result property="totalSeconds" column="total_seconds"/>
+        <result property="totalHours" column="total_hours"/>
+        <result property="avgHours" column="avg_hours"/>
+    </resultMap>
+
+    <select id="getTeacherCoursesWeeklyTime" resultMap="CourseWeeklyTimeRM">
+        SELECT
+            c.course_id,
+            c.course_name,
+            COUNT(DISTINCT e.student_id) AS total_students,
+            COUNT(DISTINCT CASE WHEN wst.total_seconds > 0 THEN e.student_id END) AS active_students,
+            COALESCE(SUM(wst.total_seconds), 0) AS total_seconds,
+            ROUND(COALESCE(SUM(wst.total_seconds), 0) / 3600.0, 2) AS total_hours,
+            ROUND(
+                CASE
+                    WHEN COUNT(DISTINCT CASE WHEN wst.total_seconds > 0 THEN e.student_id END) = 0 THEN 0
+                    ELSE (COALESCE(SUM(wst.total_seconds), 0) / 3600.0) / COUNT(DISTINCT CASE WHEN wst.total_seconds > 0 THEN e.student_id END)
+                END,
+            2) AS avg_hours
+        FROM courses c
+        INNER JOIN enrollments e ON e.course_id = c.course_id AND e.status = 'active'
+        LEFT JOIN weekly_study_time wst ON wst.course_id = c.course_id AND wst.week_start_date = #{weekStartDate}
+        WHERE c.teacher_id = #{teacherId}
+          AND c.publish_status = 'published'
+        GROUP BY c.course_id, c.course_name
+        ORDER BY c.course_id
+    </select>
+
+    <!-- 获取学生最近几周的学习时间统计 -->
+    <select id="getStudentRecentWeeksTime" resultType="java.util.HashMap">
+        SELECT
+            week_start_date AS weekStartDate,
+            total_seconds AS totalSeconds,
+            ROUND(total_seconds / 3600.0, 2) AS totalHours,
+            DATE_FORMAT(week_start_date, '%Y-%m-%d') AS weekLabel,
+            DATE_ADD(week_start_date, INTERVAL 6 DAY) AS weekEndDate
+        FROM weekly_study_time
+        WHERE student_id = #{studentId}
+          AND course_id IS NULL
+        ORDER BY week_start_date DESC
+        <if test="weeks != null">
+            LIMIT #{weeks}
+        </if>
+    </select>
+
+    <!-- 获取学生在指定课程最近几周的学习时间统计 -->
+    <select id="getStudentCourseRecentWeeksTime" resultType="java.util.HashMap">
+        SELECT
+            week_start_date AS weekStartDate,
+            total_seconds AS totalSeconds,
+            ROUND(total_seconds / 3600.0, 2) AS totalHours,
+            DATE_FORMAT(week_start_date, '%Y-%m-%d') AS weekLabel,
+            DATE_ADD(week_start_date, INTERVAL 6 DAY) AS weekEndDate
+        FROM weekly_study_time
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+        ORDER BY week_start_date DESC
+        <if test="weeks != null">
+            LIMIT #{weeks}
+        </if>
+    </select>
+
+    <!-- 清理过期记录 -->
+    <delete id="deleteBefore">
+        DELETE FROM weekly_study_time
+        WHERE week_start_date &lt; #{beforeDate}
+    </delete>
+
+</mapper>
