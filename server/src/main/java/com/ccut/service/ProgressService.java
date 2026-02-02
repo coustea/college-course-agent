@@ -15,6 +15,7 @@ public interface ProgressService {
 
     /**
      * 上报学习增量
+     * 此方法会立即返回，实际处理在异步线程中执行
      * @param studentId 学生ID
      * @param courseId 课程ID
      * @param videoId 视频ID（可选）
@@ -25,6 +26,13 @@ public interface ProgressService {
      */
     void reportProgress(Long studentId, Long courseId, Long videoId, Long documentId,
                         Integer deltaSec, Double scrollPct, Boolean completed);
+
+    /**
+     * 异步上报学习增量（内部方法）
+     * 使用专用线程池处理，避免阻塞主线程
+     */
+    void reportProgressAsync(Long studentId, Long courseId, Long videoId, Long documentId,
+                            Integer deltaSec, Double scrollPct, Boolean completed);
 
     /**
      * 查询课程汇总进度

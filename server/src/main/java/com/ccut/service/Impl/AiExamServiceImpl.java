@@ -182,19 +182,45 @@ public class AiExamServiceImpl implements AiExamService {
         if (req.answers() != null) {
             for (AiExamSubmitAnswer a : req.answers()) {
                 AiExamQuestion q = id2q.get(a.questionId());
-                boolean correct = q != null && q.getAnswer() != null && q.getAnswer().trim().equalsIgnoreCase(String.valueOf(a.answer()).trim());
+
+                // 更健壮的答案判断逻辑
+                boolean correct = false;
+                if (q != null && q.getAnswer() != null && a.answer() != null) {
+                    String correctAnswer = q.getAnswer().trim();
+                    String studentAnswer = String.valueOf(a.answer()).trim();
+
+                    // 处理判断题：统一转换为小写比较
+                    if ("JUDGE".equalsIgnoreCase(q.getType())) {
+                        // 判断题可能是 "true"/"false" 或 "True"/"False"
+                        correct = correctAnswer.equalsIgnoreCase(studentAnswer);
+                    } else {
+                        // 选择题：直接比较（已经是 A/B/C/D）
+                        correct = correctAnswer.equalsIgnoreCase(studentAnswer);
+                    }
+
+                    log.debug("答案判断: questionId={}, 类型={}, 正确答案={}, 学生答案={}, 判定结果={}",
+                            q.getId(), q.getType(), correctAnswer, studentAnswer, correct);
+                }
+
                 if (correct) {
                     score += per;
+                    log.debug("答对: questionId={}, studentId={}", a.questionId(), req.studentId());
                 } else {
                     // 答错了，自动添加到错题本
                     try {
+                        String correctAnswerStr = q != null ? q.getAnswer() : null;
+                        String wrongAnswerStr = String.valueOf(a.answer());
+
+                        log.warn("答错: studentId={}, questionId={}, examId={}, 错误答案={}, 正确答案={}",
+                                req.studentId(), a.questionId(), req.examId(), wrongAnswerStr, correctAnswerStr);
+
                         wrongQuestionService.addToWrongBook(
                             req.studentId(),
                             a.questionId(),
                             req.examId(),
                             courseId,
-                            String.valueOf(a.answer()),
-                            q != null ? q.getAnswer() : null
+                            wrongAnswerStr,
+                            correctAnswerStr
                         );
                         log.info("添加错题成功: studentId={}, questionId={}, examId={}",
                                 req.studentId(), a.questionId(), req.examId());

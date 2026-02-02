@@ -19,6 +19,7 @@ DROP TABLE IF EXISTS student_submissions;
 DROP TABLE IF EXISTS teacher_assignments;
 DROP TABLE IF EXISTS group_members;
 DROP TABLE IF EXISTS student_groups;
+DROP TABLE IF EXISTS weekly_study_time;
 DROP TABLE IF EXISTS video_progress;
 DROP TABLE IF EXISTS document_progress;
 DROP TABLE IF EXISTS learning_progress;
@@ -227,6 +228,26 @@ FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
 FOREIGN KEY (document_id) REFERENCES course_documents(document_id) ON DELETE CASCADE,
 UNIQUE KEY uniq_student_document (student_id, document_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程文档学习进度表';
+
+-- ================================================
+--  每周学习时间统计表
+-- ================================================
+CREATE TABLE IF NOT EXISTS weekly_study_time (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    student_id BIGINT NOT NULL COMMENT '学生ID',
+    course_id BIGINT DEFAULT NULL COMMENT '课程ID（为NULL表示总学习时间，不为NULL表示该课程的学习时间）',
+    week_start_date DATE NOT NULL COMMENT '本周开始日期（周一的日期）',
+    total_seconds INT DEFAULT 0 COMMENT '本周累计学习时间（秒）',
+    last_study_time DATETIME COMMENT '本周最后一次学习时间',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+    UNIQUE KEY uk_student_course_week (student_id, course_id, week_start_date),
+    INDEX idx_student_id (student_id),
+    INDEX idx_course_id (course_id),
+    INDEX idx_week_start_date (week_start_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每周学习时间统计表';
 
 -- ================================================
 --  学生分组表

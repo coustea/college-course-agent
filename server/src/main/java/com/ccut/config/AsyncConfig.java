@@ -7,6 +7,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.RejectedExecutionHandler;
 
 /**
  * 异步线程池配置
@@ -54,6 +55,44 @@ public class AsyncConfig {
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * 学习进度上报异步线程池
+     * 专门处理学习时长计算和进度上报，避免阻塞主线程
+     * 核心配置说明：
+     * - 核心线程数20：应对日常学习时长上报请求
+     * - 最大线程数50：应对高峰期（如上课时间集中学习）
+     * - 队列容量500：缓冲突发请求
+     * - 拒绝策略：记录日志并降级处理（不阻塞用户）
+     */
+    @Bean("progressExecutor")
+    public Executor progressExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        // 核心线程数：根据实际并发调整，建议20-50
+        executor.setCorePoolSize(20);
+        // 最大线程数：高峰期扩展能力
+        executor.setMaxPoolSize(50);
+        // 队列容量：缓冲积压请求
+        executor.setQueueCapacity(500);
+        // 线程名称前缀：便于日志追踪
+        executor.setThreadNamePrefix("progress-async-");
+        // 拒绝策略：队列满时记录日志并降级，不影响主业务
+        executor.setRejectedExecutionHandler(new RejectedExecutionHandler() {
+            @Override
+            public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+                // 记录告警日志
+                org.slf4j.LoggerFactory.getLogger(AsyncConfig.class)
+                    .warn("进度上报线程池队列已满，丢弃进度更新请求。活动线程: {}, 队列大小: {}",
+                        e.getActiveCount(), e.getQueue().size());
+                // 不抛异常，避免影响主线程
+            }
+        });
+        // 优雅关闭：等待任务完成
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(120);
         executor.initialize();
         return executor;
     }

@@ -25,7 +25,6 @@
     <resultMap id="DetailResultMap" type="com.ccut.entity.WrongQuestion" extends="BaseResultMap">
         <!-- 课程和考试信息 -->
         <result column="course_name" property="courseName"/>
-        <result column="chapter" property="chapter"/>
         <!-- 关联题目信息 -->
         <association property="question" javaType="com.ccut.entity.AiExamQuestion">
             <id column="q_id" property="id"/>
@@ -41,12 +40,12 @@
     <insert id="insert" parameterType="com.ccut.entity.WrongQuestion" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO wrong_question (
             student_id, question_id, exam_id, course_id,
-            wrong_answer, correct_answer, note, wrong_count, correct_count, is_mastered,
+            wrong_answer, correct_answer, wrong_count, correct_count, is_mastered,
             first_wrong_time, last_wrong_time, mastered_time,
             create_time, update_time
         ) VALUES (
             #{studentId}, #{questionId}, #{examId}, #{courseId},
-            #{wrongAnswer}, #{correctAnswer}, #{note}, #{wrongCount}, #{correctCount}, #{isMastered},
+            #{wrongAnswer}, #{correctAnswer}, #{wrongCount}, #{correctCount}, #{isMastered},
             #{firstWrongTime}, #{lastWrongTime}, #{masteredTime},
             #{createTime}, #{updateTime}
         )
@@ -152,12 +151,11 @@
             q.options as q_options,
             q.answer as q_answer,
             q.analysis as q_analysis,
-            c.course_name,
-            ae.chapter
+            c.course_name
         FROM wrong_question wq
         LEFT JOIN ai_exam_questions q ON wq.question_id = q.id
-        LEFT JOIN course c ON wq.course_id = c.id
-        LEFT JOIN ai_exam ae ON wq.exam_id = ae.id
+        LEFT JOIN courses c ON wq.course_id = c.course_id
+        LEFT JOIN ai_exams ae ON wq.exam_id = ae.id
         WHERE wq.student_id = #{studentId}
         <if test="courseId != null">
             AND wq.course_id = #{courseId}

@@ -28,6 +28,10 @@ spring:
       max-lifetime: 1800000        # 连接最大生命周期（30分钟）
       leak-detection-threshold: 60000  # 连接泄漏检测（1分钟）
 
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
   servlet:
     multipart:
       max-file-size: 1024MB
