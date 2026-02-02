@@ -215,7 +215,7 @@ public class WrongQuestionController {
      * @param ids 错题ID列表
      * @return 操作结果
      */
-    @DeleteMapping("/batch-delete")
+    @PostMapping("/batch-delete")
     public Result<String> batchDeleteWrongQuestions(@RequestBody List<Long> ids) {
         try {
             if (ids == null || ids.isEmpty()) {
@@ -228,6 +228,29 @@ public class WrongQuestionController {
         } catch (Exception e) {
             log.error("批量删除错题失败: ids={}", ids, e);
             return Result.error(500, "批量删除失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新错题笔记
+     *
+     * @param id   错题ID
+     * @param note 笔记内容
+     * @return 操作结果
+     */
+    @PostMapping("/update-note")
+    public Result<String> updateNote(
+            @RequestParam("id") Long id,
+            @RequestBody String note) {
+        try {
+            if (id == null) {
+                return Result.error(400, "id 不能为空");
+            }
+            wrongQuestionService.updateNote(id, note);
+            return Result.success("笔记更新成功");
+        } catch (Exception e) {
+            log.error("更新错题笔记失败: id={}", id, e);
+            return Result.error(500, "更新笔记失败: " + e.getMessage());
         }
     }
 }

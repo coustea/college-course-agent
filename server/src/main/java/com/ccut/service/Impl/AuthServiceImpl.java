@@ -85,26 +85,41 @@ public class AuthServiceImpl implements AuthService {
         Map<String, Object> profile = new HashMap<>();
         if ("teacher".equals(roleStr)) {
             Teacher teacher = teacherMapper.selectById(dbUser.getId());
-            if (teacher != null) {
-                data.put("teacherId", teacher.getId());
-                profile.put("name", teacher.getName());
-                profile.put("email", teacher.getEmail());
-                profile.put("phone", teacher.getPhone());
-                profile.put("department", teacher.getDepartment());
-                profile.put("title", teacher.getTitle());
+            if (teacher == null) {
+                // 如果teachers表中没有记录，自动创建
+                log.info("教师表中没有记录，自动创建: userId={}", dbUser.getId());
+                teacher = new Teacher();
+                teacher.setId(dbUser.getId());
+                teacher.setName(dbUser.getUsername()); // 使用用户名作为默认名称
+                teacherMapper.insertTeacher(teacher);
+                log.info("自动创建教师记录成功: teacherId={}", teacher.getId());
             }
+            data.put("teacherId", teacher.getId());
+            profile.put("name", teacher.getName());
+            profile.put("email", teacher.getEmail());
+            profile.put("phone", teacher.getPhone());
+            profile.put("department", teacher.getDepartment());
+            profile.put("title", teacher.getTitle());
         } else if ("student".equals(roleStr)) {
             Student student = studentMapper.selectById(dbUser.getId());
-            if (student != null) {
-                data.put("studentId", student.getId());
-                profile.put("studentNumber", student.getStudentNumber());
-                profile.put("name", student.getName());
-                profile.put("className", student.getClassName());
-                profile.put("email", student.getEmail());
-                profile.put("phone", student.getPhone());
-                profile.put("major", student.getMajor());
-                profile.put("grade", student.getGrade());
+            if (student == null) {
+                // 如果students表中没有记录，自动创建
+                log.info("学生表中没有记录，自动创建: userId={}", dbUser.getId());
+                student = new Student();
+                student.setId(dbUser.getId());
+                student.setName(dbUser.getUsername());
+                student.setStudentNumber(dbUser.getUsername()); // 使用用户名作为学号
+                studentMapper.insertStudent(student);
+                log.info("自动创建学生记录成功: studentId={}", student.getId());
             }
+            data.put("studentId", student.getId());
+            profile.put("studentNumber", student.getStudentNumber());
+            profile.put("name", student.getName());
+            profile.put("className", student.getClassName());
+            profile.put("email", student.getEmail());
+            profile.put("phone", student.getPhone());
+            profile.put("major", student.getMajor());
+            profile.put("grade", student.getGrade());
         }
         data.put("profile", profile);
 

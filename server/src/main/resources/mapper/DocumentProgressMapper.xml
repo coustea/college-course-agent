@@ -10,9 +10,9 @@
           time_spent = GREATEST(0, time_spent + COALESCE(VALUES(time_spent),0)),
           max_scroll_pct = GREATEST(max_scroll_pct, COALESCE(VALUES(max_scroll_pct),0)),
           completed = (
-            CASE 
+            CASE
               WHEN (completed OR COALESCE(VALUES(completed), FALSE)) THEN TRUE
-              ELSE (CASE WHEN GREATEST(max_scroll_pct, COALESCE(VALUES(max_scroll_pct),0)) >= 95 THEN TRUE ELSE FALSE END)
+              ELSE FALSE
             END
           ),
           updated_at = NOW()
@@ -33,7 +33,7 @@
 
     <select id="findOne" resultMap="DP_RM">
         SELECT id, student_id, course_id, document_id, time_spent, max_scroll_pct,
-               CASE WHEN COALESCE(max_scroll_pct,0) &gt;= 95 OR completed = TRUE THEN TRUE ELSE FALSE END AS completed,
+               completed,
                updated_at,
                ROUND(COALESCE(max_scroll_pct,0), 2) AS percentage
         FROM document_progress
@@ -43,7 +43,7 @@
 
     <select id="listByCourse" resultMap="DP_RM">
         SELECT id, student_id, course_id, document_id, time_spent, max_scroll_pct,
-               CASE WHEN COALESCE(max_scroll_pct,0) &gt;= 95 OR completed = TRUE THEN TRUE ELSE FALSE END AS completed,
+               completed,
                updated_at,
                ROUND(COALESCE(max_scroll_pct,0), 2) AS percentage
         FROM document_progress

@@ -81,4 +81,9 @@ public interface WrongQuestionMapper {
      */
     List<WrongQuestion> selectDetailByStudentId(@Param("studentId") Long studentId,
                                                  @Param("courseId") Long courseId);
+
+    /**
+     * 更新错题笔记
+     */
+    int updateNote(@Param("id") Long id, @Param("note") String note);
 }

@@ -11,7 +11,7 @@
         <result property="uploadDate" column="upload_date"/>
     </resultMap>
 
-    <insert id="insert">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="documentId" keyColumn="document_id">
         INSERT INTO course_documents (
             <trim suffixOverrides=",">
                 <if test="courseId != null">course_id,</if>

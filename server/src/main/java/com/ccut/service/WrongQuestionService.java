@@ -9,6 +9,7 @@ import java.util.Map;
  * 错题本服务接口
  */
 public interface WrongQuestionService {
+    void updateNote(Long id, String note);
 
     /**
      * 自动添加错题到错题本

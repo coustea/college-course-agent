@@ -12,7 +12,7 @@
         <result property="uploadDate" column="upload_date"/>
     </resultMap>
 
-    <insert id="insert">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="videoId" keyColumn="video_id">
         INSERT INTO course_videos (
             <trim suffixOverrides=",">
                 <if test="courseId != null">course_id,</if>

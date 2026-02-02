@@ -21,6 +21,7 @@ public class WrongQuestion {
     private Long courseId;         // 课程ID（冗余字段，方便查询）
     private String wrongAnswer;    // 学生的错误答案
     private String correctAnswer;  // 正确答案（冗余字段，方便查看）
+    private String note;           // 错题笔记/注释
     private Integer wrongCount;    // 错误次数（每次答错累加）
     private Integer correctCount;  // 连续答对次数（复习功能，答对累加，答错重置为0）
     private Boolean isMastered;    // 是否已掌握

@@ -11,6 +11,7 @@
         <result column="course_id" property="courseId"/>
         <result column="wrong_answer" property="wrongAnswer"/>
         <result column="correct_answer" property="correctAnswer"/>
+        <result column="note" property="note"/>
         <result column="wrong_count" property="wrongCount"/>
         <result column="correct_count" property="correctCount"/>
         <result column="is_mastered" property="isMastered"/>
@@ -37,12 +38,12 @@
     <insert id="insert" parameterType="com.ccut.entity.WrongQuestion" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO wrong_question (
             student_id, question_id, exam_id, course_id,
-            wrong_answer, correct_answer, wrong_count, correct_count, is_mastered,
+            wrong_answer, correct_answer, note, wrong_count, correct_count, is_mastered,
             first_wrong_time, last_wrong_time, mastered_time,
             create_time, update_time
         ) VALUES (
             #{studentId}, #{questionId}, #{examId}, #{courseId},
-            #{wrongAnswer}, #{correctAnswer}, #{wrongCount}, #{correctCount}, #{isMastered},
+            #{wrongAnswer}, #{correctAnswer}, #{note}, #{wrongCount}, #{correctCount}, #{isMastered},
             #{firstWrongTime}, #{lastWrongTime}, #{masteredTime},
             #{createTime}, #{updateTime}
         )
@@ -149,12 +150,20 @@
             q.answer as q_answer,
             q.analysis as q_analysis
         FROM wrong_question wq
-        LEFT JOIN ai_exam_question q ON wq.question_id = q.id
+        LEFT JOIN ai_exam_questions q ON wq.question_id = q.id
         WHERE wq.student_id = #{studentId}
         <if test="courseId != null">
             AND wq.course_id = #{courseId}
         </if>
         ORDER BY wq.last_wrong_time DESC
     </select>
+
+    <!-- 更新错题笔记 -->
+    <update id="updateNote">
+        UPDATE wrong_question
+        SET note = #{note},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
 
 </mapper>

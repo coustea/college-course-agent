@@ -22,6 +22,18 @@ public class WrongQuestionServiceImpl implements WrongQuestionService {
 
     @Override
     @Transactional
+    public void updateNote(Long id, String note) {
+        try {
+            wrongQuestionMapper.updateNote(id, note);
+            log.info("更新错题笔记成功: id={}, note={}", id, note);
+        } catch (Exception e) {
+            log.error("更新错题笔记失败: id={}", id, e);
+            throw new RuntimeException("更新笔记失败", e);
+        }
+    }
+
+    @Override
+    @Transactional
     public void addToWrongBook(Long studentId, Long questionId, Long examId, Long courseId,
                                 String wrongAnswer, String correctAnswer) {
         try {

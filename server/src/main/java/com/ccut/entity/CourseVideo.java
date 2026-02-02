@@ -12,6 +12,7 @@ import java.util.Date;
 public class CourseVideo {
     private Long videoId;         // 视频ID
     private Long courseId;        // 课程ID
+    private Long chapterId;       // 所属章节ID（小节ID）
     private Integer videoIndex;   // 视频集数（顺序编号）
     private String videoTitle;    // 视频标题
     private String videoUrl;      // 视频URL地址

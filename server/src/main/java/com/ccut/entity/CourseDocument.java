@@ -12,9 +12,10 @@ import java.util.Date;
 public class CourseDocument {
     private Long documentId;
     private Long courseId;
-    private Integer docIndex;   // 映射到列 document_index
-    private String docTitle;    // 映射到列 document_title
-    private String docUrl;      // 映射到列 document_url
+    private Long chapterId;      // 所属章节ID（小节ID）
+    private Integer docIndex;    // 映射到列 document_index
+    private String docTitle;     // 映射到列 document_title
+    private String docUrl;       // 映射到列 document_url
     private Date uploadDate;
 }
 
