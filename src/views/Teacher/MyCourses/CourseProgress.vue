@@ -609,16 +609,12 @@ onMounted(async () => {
 
   const routeCourseId = Number(route.params.id || route.params.courseId)
 
+  // 只有在路由中明确指定了课程ID时才自动加载
   if (routeCourseId) {
-    // 确保 courseList 中有这个 ID，或者直接使用
     courseId.value = routeCourseId
-  } else if (courseList.value.length > 0) {
-    courseId.value = courseList.value[0].courseId || courseList.value[0].id
-  }
-
-  if (courseId.value) {
     loadCourseProgress()
   }
+  // 否则不自动选择课程，让教师手动选择
 })
 
 watch([searchText, selectedClass], () => {

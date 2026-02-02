@@ -32,7 +32,7 @@
               @seeked="onSeeked"
               @error="onVideoError"
               @waiting="isBuffering = true"
-              @canplay="isBuffering = false"
+              @canplay="onCanPlay"
             >
               您的浏览器不支持HTML5视频播放
             </video>
@@ -429,16 +429,28 @@ async function fetchOverallProgress() {
       const ch = flatChapters.value?.[currentIndex.value]
       const currentVideoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? (currentIndex.value + 1)
       console.log('[CoursePlayer] 当前视频ID:', currentVideoId, '当前索引:', currentIndex.value)
+      console.log('[CoursePlayer] 后端返回的所有视频数据:', data?.videos)
 
       // 从 videos 数组中查找当前视频的进度
       let percentage = 0
       if (Array.isArray(data?.videos)) {
+        // 打印所有视频的 ID 用于调试
+        data.videos.forEach((v, i) => {
+          console.log(`[CoursePlayer] 后端视频[${i}]:`, {
+            videoId: v.videoId,
+            id: v.id,
+            courseId: v.courseId,
+            percentage: v.percentage
+          })
+        })
+
         const currentVideo = data.videos.find(v =>
-          v.videoId === currentVideoId ||
-          v.id === currentVideoId ||
-          v.courseId === currentVideoId
+          Number(v.videoId) === Number(currentVideoId) ||
+          Number(v.id) === Number(currentVideoId) ||
+          String(v.videoId) === String(currentVideoId) ||
+          String(v.id) === String(currentVideoId)
         )
-        console.log('[CoursePlayer] 找到的视频数据:', currentVideo)
+        console.log('[CoursePlayer] 找到的当前视频数据:', currentVideo)
 
         if (currentVideo && typeof currentVideo.percentage === 'number') {
           percentage = currentVideo.percentage
@@ -454,22 +466,19 @@ async function fetchOverallProgress() {
       backendSeekMax.value = Math.max(0, Math.min(1, percentage / 100))
 
       // 将后端进度写入本地恢复键（使用 videoId 而不是 currentIndex）
+      // 注意：后端的 percentage 是基于累计观看时长计算的，不是当前播放位置
+      // 所以这里只用于展示，不用于恢复播放位置
       try {
         const pct = Math.max(0, Math.min(100, Number(percentage || 0))) / 100
         const ch = flatChapters.value?.[currentIndex.value]
         const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? currentIndex.value
         const key = `video_resume_${props.courseId}_${videoId}`
-        localStorage.setItem(key, JSON.stringify({ p: pct, t: Date.now() }))
-        console.log('[CoursePlayer] 保存进度到 localStorage:', key, '进度:', pct)
 
-        // 如果视频已经加载，立即恢复进度
-        if (player.value?.duration && pct > 0 && pct < 1) {
-          const targetTime = pct * player.value.duration
-          // 只有当当前时间与目标时间相差较大时才跳转（避免重复跳转）
-          if (Math.abs(player.value.currentTime - targetTime) > 2) {
-            console.log('[CoursePlayer] 从后端恢复视频位置:', targetTime, '秒')
-            player.value.currentTime = targetTime
-          }
+        // 只在没有本地记录时，才用后端数据初始化（避免覆盖更精确的本地播放位置）
+        const existingRaw = localStorage.getItem(key)
+        if (!existingRaw && pct > 0) {
+          localStorage.setItem(key, JSON.stringify({ p: pct, t: Date.now() }))
+          console.log('[CoursePlayer] 初始化播放位置（使用后端进度）:', key, '进度:', pct)
         }
       } catch (e) { console.error(e) }
     }
@@ -883,6 +892,8 @@ watch(currentIndex, (v) => {
   if (v != null && totalCount.value > 0) {
     const t = hasChapters.value ? (flatChapters.value[v]?.title || `第${v + 1}集`) : `第${v + 1}集`
     showEnterTip(t)
+    // 重置位置恢复标志，允许新视频恢复位置
+    hasRestoredPosition = false
     // 切换视频时重新获取进度
     fetchOverallProgress()
     // 预取新视频的题目（内部会尝试恢复状态，如果无状态则会重置）
@@ -948,17 +959,31 @@ function syncPlayState() {
   isPlaying.value = nowPlaying
 }
 
+// 添加标志，防止重复恢复位置
+let hasRestoredPosition = false
+
 function onLoaded() {
   try {
-    // Don't restore progress here - let fetchOverallProgress handle it
-    // This prevents race conditions where localStorage might have stale data
-    console.log('[CoursePlayer] Video loaded, waiting for backend progress data')
+    console.log('[CoursePlayer] Video onLoaded 触发，视频元数据已加载')
+    console.log('[CoursePlayer] 视频时长:', player.value?.duration, '秒')
+    // 从 localStorage 恢复播放位置（只执行一次）
+    if (!hasRestoredPosition) {
+      nextTickSeekSaved()
+      hasRestoredPosition = true
+    }
   } catch (e) { console.error(e) }
   try {
     if (!hudTicker) {
       hudTicker = setInterval(() => { hudNow.value = Date.now() }, 200)
     }
   } catch (e) { console.error(e) }
+}
+
+// 视频可以播放时触发
+function onCanPlay() {
+  console.log('[CoursePlayer] Video onCanPlay 触发，视频可以播放')
+  isBuffering.value = false
+  // 不要在这里恢复位置，已经在 onLoaded 中处理了
 }
 
 function onEnded() {
@@ -1045,6 +1070,20 @@ const prefetchedDict = ref({})
 const prefetchingKeys = new Set()
 // 当前显示的题目索引
 const currentQuestionIndex = ref(0)
+
+// 监听答题弹窗的关闭，恢复视频播放
+watch(questionVisible, (newVal, oldVal) => {
+  // 只在弹窗从打开变为关闭时触发（oldVal === true, newVal === false）
+  if (oldVal === true && newVal === false && wasPlayingBeforeQuestion.value) {
+    const el = player.value
+    if (el && el.paused) {
+      console.log('[CoursePlayer] 弹窗关闭，恢复视频播放')
+      el.play()
+      isPlaying.value = true
+      startWatchTimerIfNeeded()
+    }
+  }
+})
 
 function openQuestions() {
   // 打开试题列表或当前试题
@@ -1238,11 +1277,8 @@ function showQuestionFromPool(idx) {
     const answered = askedQuestionIndexes.value.size
     const title = `选择题 (${answered}/${totalRequired})`
 
-    // 检查是否已完成所有题目
-    const isAllCompleted = answered >= totalRequired
-    const nextText = isAllCompleted ? '继续学习' : '下一题'
-
-    showQuestion(title, stem, opts, Number.isFinite(correct) ? correct : 0, q.analysis || '', qid, nextText)
+    // 统一使用"继续学习"按钮，每次只弹一题，不需要"下一题"
+    showQuestion(title, stem, opts, Number.isFinite(correct) ? correct : 0, q.analysis || '', qid, '继续学习')
   } else {
     console.warn('[CoursePlayer] 未找到题目，索引:', idx)
   }
@@ -1338,35 +1374,23 @@ function onQuestionSubmit(payload) {
         addToWrongQuestionBook(qid, letter, ['A','B','C','D'][questionCorrectIndex.value])
       }
 
-      // 上传答案到后端
-      submitAnswers()
-
       console.log(`[CoursePlayer] 答题进度: ${answeredCount.value}/${REQUIRED_QUESTIONS_PER_VIDEO}, 答题${isCorrect ? '正确' : '错误'}`)
 
       // 检查是否已完成所有题目
       const allCompleted = answeredCount.value >= REQUIRED_QUESTIONS_PER_VIDEO
       if (allCompleted) {
-        console.log('[CoursePlayer] 所有题目已完成，清除答题状态')
+        console.log('[CoursePlayer] 所有题目已完成，提交所有答案到后端')
+        // 只在所有题目都答完后才提交到后端
+        submitAnswers()
         clearQuestionState()
       } else {
         // 保存答题状态到 localStorage
         saveQuestionState()
       }
 
-      // 答完当前题后，关闭弹窗继续观看视频
-      // 等待下一个随机触发点再弹出下一题
-      setTimeout(() => {
-        questionVisible.value = false
-        // 恢复视频播放（如果之前在播放）
-        if (wasPlayingBeforeQuestion.value) {
-          const el = player.value
-          if (el) {
-            el.play()
-            isPlaying.value = true
-            startWatchTimerIfNeeded()
-          }
-        }
-      }, 2000) // 2秒后关闭弹窗，让学生看完解析
+      // 答完题后不自动关闭弹窗，让学生有充足时间看解析
+      // 学生需要手动点击"继续学习"按钮关闭弹窗
+      console.log('[CoursePlayer] 答题完成，等待学生手动关闭弹窗查看解析')
     }
   } catch (e) { console.error(e) }
 }

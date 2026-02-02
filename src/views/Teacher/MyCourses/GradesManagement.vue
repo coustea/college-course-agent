@@ -667,11 +667,8 @@ onMounted(async () => {
   const routeCourseId = Number(route.params.id || route.params.courseId)
   if (routeCourseId) {
     courseId.value = routeCourseId
-  } else if (courseList.value.length > 0) {
-    courseId.value = courseList.value[0].courseId || courseList.value[0].id
+    loadCourseGrades()
   }
-
-  if (courseId.value) loadCourseGrades()
 })
 
 watch([searchText, selectedClass], () => {
