@@ -194,9 +194,8 @@ const teacherAvatarChar = computed(() => {
 const displayTeacherName = computed(() => {
   const n = (teacherName.value || '').trim()
   if (!n || n === '老师') return '老师'
-  // 取第一个字符作为姓氏
-  const surname = n.charAt(0)
-  return `${surname}老师`
+  // 直接显示全名
+  return n
 })
 
 // 仅切换子菜单，不导航
@@ -291,10 +290,14 @@ onMounted(() => {
   try {
     const u = JSON.parse(localStorage.getItem('userInfo') || 'null')
     // 仅在拿到中文姓名时启用，避免使用 username 导致显示 a老师
-    const candidate = (u && (u.name || (u.profile && u.profile.name))) ? String(u.name || u.profile.name).trim() : ''
+    let candidate = (u && (u.name || (u.profile && u.profile.name))) ? String(u.name || u.profile.name).trim() : ''
+    // 去除可能存在的"老师"后缀
+    if (candidate && candidate !== '老师') {
+      candidate = candidate.replace(/\s*老师\s*$/, '').trim()
+    }
     if (candidate && isChinese(candidate)) { teacherName.value = candidate; return }
   } catch {}
-  // 默认只显示"老师"，待拿到中文姓名后再切换为"姓氏+老师"
+  // 默认只显示"老师"
   teacherName.value = '老师'
 })
 

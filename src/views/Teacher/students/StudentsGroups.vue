@@ -64,20 +64,6 @@
           </el-radio-group>
         </div>
         <div class="right-tools">
-          <el-select
-            v-model="courseFilter"
-            placeholder="按课程筛选"
-            clearable
-            style="width: 180px"
-            @change="filterGroups"
-          >
-            <el-option
-                v-for="course in courses"
-                :key="course.id"
-                :label="course.name"
-                :value="course.id"
-            />
-          </el-select>
           <el-button type="primary" :icon="Search" circle @click="fetchGroups" title="刷新数据" />
         </div>
       </div>
@@ -98,8 +84,6 @@
               <span class="group-name-text">{{ row.name }}</span>
             </template>
           </el-table-column>
-
-          <el-table-column prop="courseName" label="所属课程" min-width="140" show-overflow-tooltip />
 
           <el-table-column label="组长" width="130">
             <template #default="{ row }">
@@ -190,9 +174,6 @@
             </div>
             <div class="dh-info">
               <div class="dh-name">{{ currentGroupDetails.name }}</div>
-              <div class="dh-course">
-                <el-icon><Collection /></el-icon> {{ currentGroupDetails.courseName }}
-              </div>
             </div>
           </div>
           <div class="dh-right">
@@ -246,7 +227,7 @@
 <script>
 import {ref, computed, onMounted} from 'vue'
 import {ElMessage, ElMessageBox} from 'element-plus'
-import {Search, DataLine, Timer, Check, Close, Collection} from '@element-plus/icons-vue'
+import {Search, DataLine, Timer, Check, Close} from '@element-plus/icons-vue'
 import axios from 'axios'
 
 const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://192.168.52.75:9999/api' : '/api'))
@@ -262,11 +243,10 @@ api.interceptors.request.use((config) => {
 export default {
   name: 'StudentsGroups',
   components: {
-    Search, DataLine, Timer, Check, Close, Collection
+    Search, DataLine, Timer, Check, Close
   },
   setup() {
     const loading = ref(false)
-    const courseFilter = ref('')
     const applicationStatusFilter = ref('')
     const currentPage = ref(1)
     const pageSize = ref(10)
@@ -275,7 +255,6 @@ export default {
 
     // 数据
     const groups = ref([])
-    const courses = ref([])
 
     // 获取状态标签类型
     const getStatusTagType = (status) => {
@@ -326,9 +305,6 @@ export default {
     // 过滤分组
     const filteredGroups = computed(() => {
       let result = groups.value
-      if (courseFilter.value) {
-        result = result.filter(group => group.courseId == courseFilter.value)
-      }
       if (applicationStatusFilter.value) {
         result = result.filter(group => group.status === applicationStatusFilter.value)
       }
@@ -400,12 +376,6 @@ export default {
         })
 
         groups.value = groupsWithDetails
-
-        const uniqueCourses = new Map()
-        for (const g of groupsWithDetails) {
-          if (!uniqueCourses.has(g.courseId)) uniqueCourses.set(g.courseId, { id: g.courseId, name: g.courseName })
-        }
-        courses.value = Array.from(uniqueCourses.values()).filter(c => c.id != null)
 
         updatePendingCountStorage()
       } catch (error) {
@@ -507,14 +477,12 @@ export default {
 
     return {
       loading,
-      courseFilter,
       applicationStatusFilter,
       currentPage,
       pageSize,
       showDetailsDialog,
       currentGroupDetails,
       groups,
-      courses,
       filteredGroups,
       paginatedGroups,
       pendingGroupsCount,
@@ -622,8 +590,7 @@ export default {
   display: flex; align-items: center; justify-content: center;
   color: white; font-size: 24px; font-weight: bold;
 }
-.dh-info .dh-name { font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-.dh-info .dh-course { color: #64748b; font-size: 13px; display: flex; align-items: center; gap: 4px; }
+.dh-info .dh-name { font-size: 20px; font-weight: 700; color: #1e293b; }
 
 .desc-text { color: #475569; line-height: 1.6; white-space: pre-wrap; font-size: 14px; }
 .desc-leader { font-weight: 600; color: #3b82f6; }

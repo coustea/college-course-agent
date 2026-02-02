@@ -341,34 +341,34 @@ async function fetchOverallProgress() {
       console.log('[CoursePlayer] 缺少必要参数，studentId:', studentId, 'courseId:', courseId)
       return
     }
-    
+
     const token = localStorage.getItem('token')
     console.log('[CoursePlayer] 请求课程进度，studentId:', studentId, 'courseId:', courseId)
     const res = await axios.get(`${BASE_URL}/progress/course/all`, {
       params: { studentId, courseId },
       headers: { Authorization: `Bearer ${token}` }
     })
-    
+
     console.log('[CoursePlayer] 获取课程进度结果:', res.data)
     if (res?.data?.code === 200) {
       const data = res?.data?.data
       console.log('[CoursePlayer] data内容:', data)
-      
+
       // 获取当前视频的 videoId
       const ch = flatChapters.value?.[currentIndex.value]
       const currentVideoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? (currentIndex.value + 1)
       console.log('[CoursePlayer] 当前视频ID:', currentVideoId, '当前索引:', currentIndex.value)
-      
+
       // 从 videos 数组中查找当前视频的进度
       let percentage = 0
       if (Array.isArray(data?.videos)) {
-        const currentVideo = data.videos.find(v => 
-          v.videoId === currentVideoId || 
+        const currentVideo = data.videos.find(v =>
+          v.videoId === currentVideoId ||
           v.id === currentVideoId ||
           v.courseId === currentVideoId
         )
         console.log('[CoursePlayer] 找到的视频数据:', currentVideo)
-        
+
         if (currentVideo && typeof currentVideo.percentage === 'number') {
           percentage = currentVideo.percentage
           console.log('[CoursePlayer] 当前视频进度:', percentage + '%')
@@ -376,7 +376,7 @@ async function fetchOverallProgress() {
           console.log('[CoursePlayer] 未找到当前视频进度，使用默认值0')
         }
       }
-      
+
       overallProgress.value = percentage / 100
       console.log('[CoursePlayer] 设置显示进度:', percentage + '%', '转换后:', overallProgress.value)
       // 更新当前视频允许的最大可快进比例
@@ -406,7 +406,7 @@ async function reportCourseProgress(deltaSec) {
   if (!studentId || !courseId || !videoId) return
   try {
     console.log('[CoursePlayer] 观看时长上报开始(展示所需参数)', studentId, courseId, videoId, sec)
-    const token = localStorage.getItem('token') 
+    const token = localStorage.getItem('token')
     const res = await axios.post(`${BASE_URL}/progress/report`,null, {
       params: { studentId, courseId, videoId, deltaSec: sec },
       headers:  { Authorization: `Bearer ${token}` }
@@ -441,7 +441,7 @@ function stopWatchTimerAndAccumulate() {
 async function reportAndReset() {
   const sec = unreportedWatchedSec.value
   unreportedWatchedSec.value = 0
-  if (sec > 0) 
+  if (sec > 0)
     await reportCourseProgress(sec)
 }
 
@@ -625,7 +625,7 @@ const hudCurrentLabel = computed(() => {
   const s = String(cur % 60).padStart(2, '0')
   return `${m}:${s}`
 })
-  
+
   const progressTrack = ref(null)
 const overlayTrack = ref(null)
 const hoverTimeVisible = ref(false)
@@ -771,7 +771,7 @@ watch(visible, (v) => {
     // 获取课程整体进度
     fetchOverallProgress()
     // 题目生成：按课程维度只取一次
-    prefetchQuestions() 
+    prefetchQuestions()
   }
 })
 
@@ -948,7 +948,7 @@ async function prefetchQuestions() {
   } catch (e) {
     console.error('获取题目失败', e)
   } finally {
-     prefetchingKeys.delete(`${props.courseId}-${currentIndex.value}`) 
+     prefetchingKeys.delete(`${props.courseId}-${currentIndex.value}`)
   }
 }
 
@@ -1048,8 +1048,8 @@ async function submitAnswers() {
       answers: (answersSoFar.value).map(a => ({ questionId: a.questionId, answer: a.answer }))
     }
     const res = await axios.post(`${BASE_URL}/aiexam/submit`, body, {headers: {
-      Authorization: `Bearer ${token}`, 
-      'Content-Type': 'application/json' 
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
     }})
     if (res.data.code === 200) {
       console.log('提交答案成功')

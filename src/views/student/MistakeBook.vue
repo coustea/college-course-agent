@@ -285,22 +285,48 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  getWrongQuestionsByStudentId,
+  deleteWrongQuestion,
+  markAsMastered,
+  cancelMastered,
+} from '@/services/mistakeApi';
+import { jwtDecode } from "jwt-decode";
 
-const router = useRouter()
+
+const router = useRouter();
 
 // 状态管理
-const searchQuery = ref('')
-const activeFilter = ref('all')
-const sortBy = ref('newest')
-const showAnswer = ref({})
-const noteDialogVisible = ref(false)
-const currentMistake = ref(null)
-const currentNote = ref('')
-const currentPage = ref(1)
-const pageSize = 5
+const searchQuery = ref('');
+const activeFilter = ref('all');
+const sortBy = ref('newest');
+const showAnswer = ref({});
+const noteDialogVisible = ref(false);
+const currentMistake = ref(null);
+const currentNote = ref('');
+const currentPage = ref(1);
+const pageSize = 5;
+const isLoading = ref(true);
+
+// 从 Token 中获取学生 ID
+const getStudentIdFromToken = () => {
+  const token = localStorage.getItem('userToken');
+  if (token) {
+    try {
+      const decoded = jwtDecode(token);
+      return decoded.id; // 根据你的 Token 结构调整
+    } catch (error) {
+      console.error('Token 解析失败:', error);
+      return null;
+    }
+  }
+  return null;
+};
+
+const studentId = getStudentIdFromToken();
 
 // 筛选选项
 const filters = [
@@ -308,179 +334,163 @@ const filters = [
   { key: 'unmastered', label: '待掌握', icon: 'fas fa-times-circle' },
   { key: 'mastered', label: '已掌握', icon: 'fas fa-check-circle' },
   { key: 'noted', label: '带笔记', icon: 'fas fa-sticky-note' }
-]
+];
 
-// 模拟数据
-const mistakeList = ref([
-  {
-    id: 1,
-    question: '以下哪个不是 Vue 的生命周期钩子？',
-    type: 'choice',
-    options: ['mounted', 'created', 'initialized', 'beforeDestroy'],
-    correctIndex: 2,
-    userAnswer: 1,
-    errorCount: 3,
-    mastered: false,
-    courseName: 'Vue.js 基础',
-    chapter: '第三章：生命周期',
-    explanation: 'Vue 的生命周期包括：beforeCreate、created、beforeMount、mounted、beforeUpdate、updated、beforeDestroy、destroyed 等。initialized 不是 Vue 的生命周期钩子。',
-    note: '易混淆：Vue Router 有 router.onReady，但 Vue 实例没有 initialized。',
-    createTime: new Date('2024-01-15')
-  },
-  {
-    id: 2,
-    question: 'Java 中，以下哪个关键字用于实现多态？',
-    type: 'choice',
-    options: ['static', 'final', 'abstract', 'interface'],
-    correctIndex: 3,
-    userAnswer: 2,
-    errorCount: 1,
-    mastered: true,
-    courseName: 'Java 面向对象',
-    chapter: '第五章：多态',
-    explanation: '接口（interface）是实现多态的重要方式之一。通过接口可以实现不同类对同一方法的不同实现，从而实现多态行为。',
-    note: '口诀：抽象类继承，接口实现，都是多态基石。',
-    createTime: new Date('2024-01-10')
-  },
-  {
-    id: 3,
-    question: '请解释什么是闭包？',
-    type: 'text',
-    userAnswer: '函数内部的函数',
-    correctAnswer: '闭包是指有权访问另一个函数作用域中变量的函数',
-    errorCount: 5,
-    mastered: false,
-    courseName: 'JavaScript 高级',
-    chapter: '第四章：作用域与闭包',
-    explanation: '闭包是JavaScript中的重要概念。当一个函数能够记住并访问所在的词法作用域，即使函数是在当前词法作用域之外执行，就产生了闭包。',
-    note: '闭包 = 函数 + 上下文引用',
-    createTime: new Date('2024-01-20')
-  },
-  {
-    id: 4,
-    question: 'HTTP 协议中，状态码 404 表示什么？',
-    type: 'text',
-    userAnswer: '服务器错误',
-    correctAnswer: '未找到资源 (Not Found)',
-    errorCount: 2,
-    mastered: false,
-    courseName: '计算机网络',
-    chapter: '第二章：应用层',
-    explanation: '404 Not Found 表示服务器无法找到请求的资源。通常是因为 URL 拼写错误或资源已被删除。',
-    note: '',
-    createTime: new Date('2024-01-22')
+const mistakeList = ref([]);
+
+// 获取错题数据
+const fetchMistakes = async () => {
+  if (!studentId) {
+    ElMessage.error('无法获取用户信息，请重新登录');
+    isLoading.value = false;
+    return;
   }
-])
+  isLoading.value = true;
+  try {
+    const response = await getWrongQuestionsByStudentId(studentId);
+    mistakeList.value = response.data.map(item => ({
+      ...item,
+      id: item.questionId, // 映射后端返回的 questionId 到 id
+      createTime: new Date(item.createTime),
+      mastered: item.mastered || false, // 确保 mastered 有默认值
+      options: (item.questionType === 'choice' && item.options) ? item.options.split(';') : [], // TODO: 确认选项格式
+      correctIndex: (item.questionType === 'choice' && item.correctAnswer) ? ['A', 'B', 'C', 'D'].indexOf(item.correctAnswer) : -1, // TODO: 确认正确答案格式
+    }));
+  } catch (error) {
+    ElMessage.error('错题列表加载失败');
+    console.error(error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+onMounted(() => {
+  fetchMistakes();
+});
 
 // 监听筛选变化重置页码
 watch([searchQuery, activeFilter, sortBy], () => {
-  currentPage.value = 1
-})
+  currentPage.value = 1;
+});
 
 // 计算属性
-const masteredCount = computed(() => mistakeList.value.filter(m => m.mastered).length)
-const reviewCount = computed(() => mistakeList.value.filter(m => !m.mastered).length)
+const masteredCount = computed(() => mistakeList.value.filter(m => m.mastered).length);
+const reviewCount = computed(() => mistakeList.value.filter(m => !m.mastered).length);
 
 // 掌握率计算
 const masteryRate = computed(() => {
   return mistakeList.value.length
     ? Math.round((masteredCount.value / mistakeList.value.length) * 100)
-    : 0
-})
+    : 0;
+});
 
 // 圆环周长 r=34 -> 2*PI*34 ≈ 213.6
-const circumference = 2 * Math.PI * 34
+const circumference = 2 * Math.PI * 34;
 
 // 科目统计
 const subjectStats = computed(() => {
-  const stats = {}
+  const stats = {};
   mistakeList.value.forEach(item => {
-    stats[item.courseName] = (stats[item.courseName] || 0) + 1
-  })
-  return stats
-})
+    stats[item.courseName] = (stats[item.courseName] || 0) + 1;
+  });
+  return stats;
+});
 
 const filteredMistakes = computed(() => {
-  let list = [...mistakeList.value]
+  let list = [...mistakeList.value];
 
   // 筛选
   if (activeFilter.value === 'unmastered') {
-    list = list.filter(m => !m.mastered)
+    list = list.filter(m => !m.mastered);
   } else if (activeFilter.value === 'mastered') {
-    list = list.filter(m => m.mastered)
+    list = list.filter(m => m.mastered);
   } else if (activeFilter.value === 'noted') {
-    list = list.filter(m => m.note && m.note.trim())
+    list = list.filter(m => m.note && m.note.trim());
   }
 
   // 搜索
   if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
+    const query = searchQuery.value.toLowerCase();
     list = list.filter(m =>
       m.question.toLowerCase().includes(query) ||
       m.courseName.toLowerCase().includes(query) ||
       (m.note && m.note.toLowerCase().includes(query))
-    )
+    );
   }
 
   // 排序
   list.sort((a, b) => {
     if (sortBy.value === 'oldest') {
-      return new Date(a.createTime) - new Date(b.createTime)
+      return new Date(a.createTime) - new Date(b.createTime);
     } else if (sortBy.value === 'errorCount') {
-      return b.errorCount - a.errorCount
+      return b.errorCount - a.errorCount;
     } else {
-      return new Date(b.createTime) - new Date(a.createTime)
+      return new Date(b.createTime) - new Date(a.createTime);
     }
-  })
+  });
 
-  return list
-})
+  return list;
+});
 
 // 分页数据
 const paginatedMistakes = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return filteredMistakes.value.slice(start, start + pageSize)
-})
+  const start = (currentPage.value - 1) * pageSize;
+  return filteredMistakes.value.slice(start, start + pageSize);
+});
 
-const totalPages = computed(() => Math.ceil(filteredMistakes.value.length / pageSize))
+const totalPages = computed(() => Math.ceil(filteredMistakes.value.length / pageSize));
 
 // 方法
 const goBack = () => {
-  router.push('/home')
-}
+  router.push('/home');
+};
 
 const formatDate = (date) => {
-  return new Date(date).toLocaleDateString()
-}
+  return new Date(date).toLocaleDateString();
+};
 
 const toggleAnswer = (id) => {
-  showAnswer.value[id] = !showAnswer.value[id]
-}
+  showAnswer.value[id] = !showAnswer.value[id];
+};
 
-const toggleMaster = (mistake) => {
-  mistake.mastered = !mistake.mastered
-  if (mistake.mastered) {
-    ElMessage.success({
-      message: '太棒了！已标记为掌握',
-      type: 'success',
-      plain: true,
-    })
+const toggleMaster = async (mistake) => {
+  const originalMastered = mistake.mastered;
+  mistake.mastered = !mistake.mastered; // Optimistic update
+
+  try {
+    if (mistake.mastered) {
+      await markAsMastered(mistake.id);
+      ElMessage.success({
+        message: '太棒了！已标记为掌握',
+        type: 'success',
+        plain: true,
+      });
+    } else {
+      await cancelMastered(mistake.id);
+      ElMessage.info('已取消标记');
+    }
+  } catch (error) {
+    mistake.mastered = originalMastered; // Revert on error
+    ElMessage.error('操作失败，请重试');
+    console.error(error);
   }
-}
+};
+
 
 const addNote = (mistake) => {
-  currentMistake.value = mistake
-  currentNote.value = mistake.note || ''
-  noteDialogVisible.value = true
-}
+  currentMistake.value = mistake;
+  currentNote.value = mistake.note || '';
+  noteDialogVisible.value = true;
+};
 
 const saveNote = () => {
+  // TODO: Add API call to save note
   if (currentMistake.value) {
-    currentMistake.value.note = currentNote.value
-    ElMessage.success('笔记已保存')
-    noteDialogVisible.value = false
+    currentMistake.value.note = currentNote.value;
+    ElMessage.success('笔记已保存');
+    noteDialogVisible.value = false;
   }
-}
+};
 
 const deleteMistake = async (id) => {
   try {
@@ -489,60 +499,67 @@ const deleteMistake = async (id) => {
       cancelButtonText: '取消',
       type: 'warning',
       confirmButtonClass: 'el-button--danger'
-    })
-    mistakeList.value = mistakeList.value.filter(m => m.id !== id)
+    });
+    
+    await deleteWrongQuestion(id);
+
+    mistakeList.value = mistakeList.value.filter(m => m.id !== id);
     if (paginatedMistakes.value.length === 0 && currentPage.value > 1) {
-      currentPage.value--
+      currentPage.value--;
     }
-    ElMessage.success('删除成功')
-  } catch {
-    // 取消删除
+    ElMessage.success('删除成功');
+  } catch (error) {
+    if (error !== 'cancel') {
+        ElMessage.error('删除失败，请重试');
+        console.error(error);
+    }
   }
-}
+};
 
 const changePage = (page) => {
-  currentPage.value = page
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
+  currentPage.value = page;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
 const startRandomReview = () => {
-  const unmastered = mistakeList.value.filter(m => !m.mastered)
+  const unmastered = mistakeList.value.filter(m => !m.mastered);
   if (unmastered.length === 0) {
-    ElMessage.success('恭喜！所有错题都已掌握！')
-    return
+    ElMessage.success('恭喜！所有错题都已掌握！');
+    return;
   }
 
   // 随机逻辑
-  const random = unmastered[Math.floor(Math.random() * unmastered.length)]
+  const random = unmastered[Math.floor(Math.random() * unmastered.length)];
 
   // 简单定位：如果不在当前视图，重置筛选器以显示
-  activeFilter.value = 'all'
-  searchQuery.value = ''
+  activeFilter.value = 'all';
+  searchQuery.value = '';
 
   setTimeout(() => {
     // 计算所在页码
-    const index = filteredMistakes.value.findIndex(m => m.id === random.id)
+    const index = filteredMistakes.value.findIndex(m => m.id === random.id);
     if (index !== -1) {
-      currentPage.value = Math.floor(index / pageSize) + 1
+      currentPage.value = Math.floor(index / pageSize) + 1;
 
       // 滚动并高亮
       setTimeout(() => {
-        const el = document.getElementById(`mistake-${random.id}`)
+        const el = document.getElementById(`mistake-${random.id}`);
         if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          el.classList.add('highlight-pulse')
-          setTimeout(() => el.classList.remove('highlight-pulse'), 2000)
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('highlight-pulse');
+          setTimeout(() => el.classList.remove('highlight-pulse'), 2000);
         }
-      }, 300)
+      }, 300);
     }
-  }, 100)
-}
+  }, 100);
+};
 
 onMounted(() => {
+  fetchMistakes();
   if (mistakeList.value.length > 0) {
-    showAnswer.value[mistakeList.value[0].id] = true
+    showAnswer.value[mistakeList.value[0].id] = true;
   }
-})
+});
 </script>
 
 <style scoped>

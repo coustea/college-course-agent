@@ -1,242 +1,470 @@
 <template>
-  <div class="login-container" :style="{ backgroundImage: `url(${currentBackground})` }">
-    <div class="overlay"></div>
-    <div class="login-box">
-      <h2 class="title">课程思政学习平台</h2>
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div class="form-group">
-          <input
-              type="text"
-              v-model="username"
-              placeholder="请输入账号"
-              required
-              class="form-input"
-          />
+  <div class="login-wrapper">
+    <!-- 左侧：品牌与背景轮播区 -->
+    <div class="login-banner">
+      <div
+        class="banner-bg"
+        :style="{ backgroundImage: `url(${currentBackground})` }"
+      ></div>
+      <div class="banner-overlay">
+        <div class="banner-content">
+          <h1 class="system-title">课程思政学习平台</h1>
+          <p class="system-desc">立德树人 · 润物无声 · 协同育人</p>
+          <div class="decoration-line"></div>
         </div>
-        <div class="form-group">
-          <input
+      </div>
+    </div>
+
+    <!-- 右侧：登录表单区 -->
+    <div class="login-form-container">
+      <div class="form-box">
+        <div class="form-header">
+          <div class="logo-area">
+            <el-icon :size="32" color="#409eff"><Reading /></el-icon>
+          </div>
+          <h2>欢迎登录</h2>
+          <p>请输入您的账号和密码开始学习</p>
+        </div>
+
+        <el-form
+          ref="loginFormRef"
+          :model="loginForm"
+          :rules="rules"
+          size="large"
+          class="login-form"
+          @submit.prevent
+        >
+          <el-form-item prop="username">
+            <el-input
+              v-model="loginForm.username"
+              placeholder="账号/学号/工号"
+              :prefix-icon="User"
+            />
+          </el-form-item>
+
+          <el-form-item prop="password">
+            <el-input
+              v-model="loginForm.password"
               type="password"
-              v-model="password"
-              placeholder="请输入密码"
-              required
-              class="form-input"
-          />
-        </div>
-        <div class="form-group">
-          <select v-model="role" required class="form-input">
-            <option value="">请选择角色</option>
-            <option value="student">学生</option>
-            <option value="teacher">教师</option>
-          </select>
-        </div>
-        <button type="submit" class="login-btn">登录</button>
-      </form>
-      <!-- <div v-if="errorMsg" class="error-text">{{ errorMsg }}</div> -->
+              placeholder="密码"
+              :prefix-icon="Lock"
+              show-password
+              @keyup.enter="handleLogin"
+            />
+          </el-form-item>
+
+          <el-form-item prop="role" class="role-form-item">
+            <div class="role-selector-compact">
+              <div
+                class="role-option-compact"
+                :class="{ active: loginForm.role === 'student' }"
+                @click="loginForm.role = 'student'"
+              >
+                <div class="icon-wrapper">
+                  <el-icon><School /></el-icon>
+                </div>
+                <span>我是学生</span>
+                <div class="active-dot" v-show="loginForm.role === 'student'"></div>
+              </div>
+
+              <div
+                class="role-option-compact"
+                :class="{ active: loginForm.role === 'teacher' }"
+                @click="loginForm.role = 'teacher'"
+              >
+                <div class="icon-wrapper teacher-icon">
+                  <el-icon><Monitor /></el-icon>
+                </div>
+                <span>我是教师</span>
+                <div class="active-dot" v-show="loginForm.role === 'teacher'"></div>
+              </div>
+            </div>
+          </el-form-item>
+
+          <el-button
+            type="primary"
+            class="submit-btn"
+            :loading="loading"
+            @click="handleLogin"
+          >
+            登录系统
+          </el-button>
+        </el-form>
+      </div>
+
+      <div class="footer-copyright">
+        &copy; {{ new Date().getFullYear() }} 课程思政教学管理系统 | All Rights Reserved
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount,getCurrentInstance} from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
+import { User, Lock, School, Monitor, Reading } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import axios from 'axios'
-const router = useRouter()
 
-const {proxy} = getCurrentInstance()
+const router = useRouter()
+const { proxy } = getCurrentInstance()
 const BASE_URL = proxy.$baseUrl
 
-const username = ref('')
-const password = ref('')
-const role = ref('')
-const errorMsg = ref('')
+// 表单数据
+const loginForm = reactive({
+  username: '',
+  password: '',
+  role: 'student' // 默认角色
+})
 
-// 背景图片数组
+const loading = ref(false)
+const loginFormRef = ref(null)
+
+// 验证规则
+const rules = {
+  username: [
+    { required: true, message: '请输入账号', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' }
+  ],
+  role: [
+    { required: true, message: '请选择登录角色', trigger: 'change' }
+  ]
+}
+
+// 背景图片轮播
 const backgrounds = [
   "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1920&q=80",
   "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1920&q=80",
   "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1920&q=80"
 ]
 const currentBackground = ref(backgrounds[0])
-let index = 0
-let intervalId = null
+let bgInterval = null
 
 onMounted(() => {
-  intervalId = setInterval(() => {
+  let index = 0
+  bgInterval = setInterval(() => {
     index = (index + 1) % backgrounds.length
     currentBackground.value = backgrounds[index]
-  }, 5000)
+  }, 6000)
 })
 
 onBeforeUnmount(() => {
-  if (intervalId) clearInterval(intervalId)
+  if (bgInterval) clearInterval(bgInterval)
 })
 
 const handleLogin = async () => {
-  try {
+  if (!loginFormRef.value) return
 
-    const res = await axios.post(`${BASE_URL}/auth/login`, {
-      username: username.value,
-      password: password.value,
-      role: role.value
-    })
-    console.log('登录信息1', res.data)
-    console.log('登录信息2', res.data.data)
-    if (role.value === 'teacher'&& res.data.code === 200) {
-      localStorage.setItem("userId",res.data.data.userId)
-      localStorage.setItem("userName",res.data.data.username)
-      localStorage.setItem("token",res.data.data.token)
-      console.log('token', res.data.data.token)
-      // 登录成功后，立即拉取教师个人信息
+  await loginFormRef.value.validate(async (valid) => {
+    if (valid) {
+      loading.value = true
       try {
-        const tid = res.data.data.userId
-        const token = res.data.data.token
-        const infoResp = await axios.get(`${BASE_URL}/teacher/${tid}`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await axios.post(`${BASE_URL}/auth/login`, {
+          username: loginForm.username,
+          password: loginForm.password,
+          role: loginForm.role
         })
-        const teacher = infoResp?.data?.data || null
-        if (teacher) {
-          localStorage.setItem('userInfo', JSON.stringify(teacher))
-          if (teacher.id != null) localStorage.setItem('teacherId', String(teacher.id))
-          const currentUser = { id: teacher.id ?? tid, name: teacher.name || res.data.data.username, teacherId: teacher.id ?? tid }
-          localStorage.setItem('currentUser', JSON.stringify(currentUser))
+
+        if (res.data.code === 200) {
+          const { userId, username, token } = res.data.data
+
+          localStorage.setItem("userId", userId)
+          localStorage.setItem("userName", username)
+          localStorage.setItem("token", token)
+          localStorage.setItem("userRole", loginForm.role)
+
+          ElMessage.success('登录成功')
+
+          if (loginForm.role === 'teacher') {
+            // 教师登录：尝试拉取详细信息并缓存
+            try {
+               const infoResp = await axios.get(`${BASE_URL}/teacher/${userId}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+               })
+               if (infoResp.data.data) {
+                 localStorage.setItem('userInfo', JSON.stringify(infoResp.data.data))
+                 const tId = infoResp.data.data.id
+                 if (tId) localStorage.setItem('teacherId', String(tId))
+
+                 const currentUser = {
+                   id: tId || userId,
+                   name: infoResp.data.data.name || username,
+                   teacherId: tId || userId
+                 }
+                 localStorage.setItem('currentUser', JSON.stringify(currentUser))
+               }
+            } catch (e) {
+               // 降级处理
+               localStorage.setItem('teacherId', String(userId))
+            }
+            router.push('/teacher')
+          } else {
+            // 学生登录
+            router.push('/student')
+          }
         } else {
-          // 兜底：至少写入 teacherId，便于后续页面可用
-          localStorage.setItem('teacherId', String(tid))
+          ElMessage.error(res.data.msg || res.data.message || '登录失败，请检查账号密码')
         }
-      } catch (e) {
-        // 忽略错误，继续跳转
-        try { localStorage.setItem('teacherId', String(res.data.data.userId)) } catch {}
+      } catch (error) {
+        console.error(error)
+        ElMessage.error(error.response?.data?.message || '登录服务异常，请稍后重试')
+      } finally {
+        loading.value = false
       }
-      await router.push('/teacher')
-    } else if (role.value === 'student'&& res.data.code === 200) {
-      localStorage.setItem("userId",res.data.data.userId)
-      localStorage.setItem("userName",res.data.data.username)
-      localStorage.setItem("token",res.data.data.token)
-      console.log('token', res.data.data.token)
-      await router.push('/student')
-    } else {
-      alert('登录失败，请检查账号/密码/角色')
     }
-  } catch (error) {
-    alert('登录失败，请检查账号/密码/角色')
-  }
+  })
 }
 </script>
 
 <style scoped>
-.login-container {
-  width: 100%;
+.login-wrapper {
+  display: flex;
+  width: 100vw;
   height: 100vh;
+  overflow: hidden;
+  background-color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* === 左侧 Banner 区域 === */
+.login-banner {
+  flex: 1.2;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.banner-bg {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
   background-size: cover;
   background-position: center;
-  position: relative;
-  transition: background-image 1s ease-in-out;
+  transition: background-image 1.5s ease-in-out;
+  z-index: 1;
+  animation: zoomEffect 20s infinite alternate;
 }
 
-.overlay {
+@keyframes zoomEffect {
+  from { transform: scale(1); }
+  to { transform: scale(1.1); }
+}
+
+.banner-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.5);
-  backdrop-filter: blur(3px);
-}
-
-.login-box {
-  position: relative;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(135deg, rgba(20, 50, 140, 0.85), rgba(40, 80, 180, 0.85));
   z-index: 2;
-  width: 380px;
-  margin: 0 auto;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.15);
-  padding: 45px 35px;
-  border-radius: 16px;
-  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  backdrop-filter: blur(2px);
+}
+
+.banner-content {
   color: white;
-  text-align: center;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-  animation: fadeIn 1.5s ease;
+  max-width: 600px;
+  animation: fadeUp 1s ease-out;
 }
 
-.title {
-  margin-bottom: 25px;
-  font-size: 24px;
-  font-weight: bold;
-  letter-spacing: 1px;
-  color: #fff;
+.system-title {
+  font-size: 3.2rem;
+  font-weight: 800;
+  margin-bottom: 24px;
+  letter-spacing: 4px;
+  line-height: 1.2;
+  text-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-.login-form {
+.system-desc {
+  font-size: 1.6rem;
+  font-weight: 300;
+  opacity: 0.95;
+  letter-spacing: 6px;
+  margin-bottom: 30px;
+}
+
+.decoration-line {
+  width: 80px;
+  height: 4px;
+  background: #fff;
+  border-radius: 2px;
+  opacity: 0.8;
+}
+
+/* === 右侧表单区域 === */
+.login-form-container {
+  flex: 0 0 480px; /* 稍微调窄一点宽度 */
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  background: #fff;
+  position: relative;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+  z-index: 10;
 }
 
-.form-group {
+.form-box {
+  width: 100%;
+  max-width: 340px; /* 表单内容宽度调窄 */
+}
+
+.form-header {
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.logo-area {
+  width: 56px;
+  height: 56px;
+  background: #ecf5ff;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.form-header h2 {
+  font-size: 26px;
+  color: #1e293b;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.form-header p {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* 紧凑型角色选择器 */
+.role-form-item {
+  margin-bottom: 24px;
+}
+
+.role-selector-compact {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.role-option-compact {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  background-color: #fff;
+  color: #64748b;
+  font-weight: 500;
+  font-size: 14px;
+  height: 48px; /* 固定高度，与输入框一致 */
+}
+
+.role-option-compact:hover {
+  border-color: #b3d8ff;
+  background-color: #f9fcff;
+  color: #409eff;
+}
+
+.role-option-compact.active {
+  border-color: #409eff;
+  background-color: #ecf5ff;
+  color: #409eff;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(64, 158, 255, 0.15);
+}
+
+.icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.active-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  background-color: #409eff;
+  border-radius: 50%;
+}
+
+/* 按钮样式 */
+.submit-btn {
+  width: 100%;
+  height: 44px; /* 稍微调小高度 */
+  font-size: 15px;
+  border-radius: 8px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+  transition: all 0.3s;
+}
+
+.submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.4);
+}
+
+.footer-copyright {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+/* Element Plus 覆盖 */
+.login-form :deep(.el-input__wrapper) {
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px #e2e8f0 inset;
+  transition: all 0.2s;
+  background-color: #f9f9f9;
+  height: 44px; /* 统一高度 */
+}
+
+.login-form :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #409eff inset !important;
+  background-color: #fff;
+}
+
+.login-form :deep(.el-form-item) {
   margin-bottom: 20px;
 }
 
-.form-input {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  outline: none;
-  font-size: 14px;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  box-sizing: border-box;
+/* 动画 */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-input::placeholder {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-select {
-  color: #fff;
-}
-
-option {
-  color: #000;
-}
-
-.login-btn {
-  background: linear-gradient(135deg, #1a5fb4, #1c71d8);
-  color: white;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  width: 100%;
-}
-
-.login-btn:hover {
-  background: linear-gradient(135deg, #1558a5, #185ec2);
-  transform: scale(1.05);
-}
-
-.error-text {
-  margin-top: 12px;
-  color: #ffcccc;
-  background: rgba(255, 0, 0, 0.18);
-  border: 1px solid rgba(255, 0, 0, 0.35);
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-60%);
+/* 响应式适配 */
+@media (max-width: 900px) {
+  .login-banner {
+    display: none;
   }
-  to {
-    opacity: 1;
-    transform: translateY(-50%);
+  .login-form-container {
+    width: 100%;
+    flex: 1;
+    box-shadow: none;
   }
 }
 </style>
