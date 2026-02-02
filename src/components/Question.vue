@@ -12,7 +12,7 @@
       <!-- 题干 -->
       <div class="q-stem">
         <span class="q-tag">单选题</span>
-        {{ stem }}
+        <span v-html="renderedStem"></span>
       </div>
 
       <!-- 选项列表 -->
@@ -25,7 +25,7 @@
           @click="handleOptionClick(idx)"
         >
           <div class="option-prefix">{{ ['A', 'B', 'C', 'D'][idx] }}</div>
-          <div class="option-content">{{ opt }}</div>
+          <div class="option-content" v-html="renderMath(opt)"></div>
 
           <!-- 结果图标 -->
           <div class="option-status" v-if="resultShown">
@@ -50,7 +50,7 @@
 
           <div class="analysis-content" v-if="analysis">
             <div class="analysis-label"><i class="fas fa-lightbulb"></i> 解析：</div>
-            <div class="analysis-text">{{ analysis }}</div>
+            <div class="analysis-text" v-html="renderedAnalysis"></div>
           </div>
         </div>
       </transition>
@@ -76,6 +76,8 @@
 
 <script setup>
 import {ref, watch, computed} from 'vue'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 
 const props = defineProps({
   modelValue: {type: Boolean, default: false},
@@ -112,6 +114,31 @@ const normalizedOptions = computed(() => {
 const isCorrect = computed(() => Number(answerIndex.value) === Number(props.correctIndex))
 const correctLetter = computed(() => ['A','B','C','D'][Math.max(0, Math.min(3, Number(props.correctIndex)||0))])
 const btnText = computed(() => resultShown.value ? (props.nextText || '继续学习') : '提交答案')
+
+// 数学公式渲染函数
+function renderMath(text) {
+  if (!text) return ''
+  // 匹配 $...$ 和 $$...$$ 格式的 LaTeX 公式
+  return text.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false })
+    } catch (e) {
+      console.warn('KaTeX render error:', e)
+      return match
+    }
+  }).replace(/\$([^$]+?)\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false })
+    } catch (e) {
+      console.warn('KaTeX render error:', e)
+      return match
+    }
+  })
+}
+
+// 渲染后的题干和解析
+const renderedStem = computed(() => renderMath(props.stem))
+const renderedAnalysis = computed(() => renderMath(props.analysis))
 
 // 选项样式计算
 function getOptionClass(idx) {

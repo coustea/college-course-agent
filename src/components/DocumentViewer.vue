@@ -1,16 +1,18 @@
 <template>
-  <div v-if="modelValue" class="dv-mask" @click.self="close" @wheel="forwardBackgroundScroll">
+  <div v-if="modelValue" class="dv-mask" @click.self="close">
     <div class="dv-modal" ref="modalRef">
       <div class="dv-header">
         <div class="dv-title">{{ headerTitle }}</div>
         <div class="dv-tools">
-          <button class="dv-tool" @click="toggleFullscreen" title="全屏"><i class="fas fa-expand"></i></button>
+          <button class="dv-tool" @click="zoomOut" title="缩小"><i class="fas fa-search-minus"></i></button>
+          <button class="dv-tool" @click="zoomIn" title="放大"><i class="fas fa-search-plus"></i></button>
+          <button class="dv-tool" @click="toggleFullscreen" title="全屏"><i class="fas fa-expand-arrows-alt"></i></button>
         </div>
-        <button class="dv-close" @click="close"><i class="fas fa-times"></i></button>
+        <button class="dv-close" @click="close" title="关闭"><i class="fas fa-times"></i></button>
       </div>
       <div class="dv-body" ref="bodyRef">
         <div class="dv-main">
-          <aside v-if="!isFullscreen && flatChapters.length" class="dv-aside">
+          <aside v-if="!isFullscreen && flatChapters.length > 1" class="dv-aside">
             <div class="dv-aside-title">课程目录</div>
             <div class="dv-aside-list">
               <div
@@ -25,30 +27,74 @@
               </div>
             </div>
           </aside>
-          <div class="dv-view" ref="viewRef">
-            <template v-if="isIframe">
-              <iframe 
-                class="dv-iframe" 
-                :src="viewerSrc" 
-                title="document" 
-                allowfullscreen
-              />
+          <div class="dv-view" ref="viewRef" @scroll="updateReadProgress" @wheel="handleWheel">
+            <!-- 加载状态 -->
+            <div v-if="docLoading" class="dv-loading">
+              <i class="fas fa-spinner fa-spin"></i>
+              <span>文档加载中...</span>
+            </div>
+
+            <!-- 错误状态 -->
+            <div v-else-if="docError" class="dv-error">
+              <i class="fas fa-exclamation-triangle"></i>
+              <p>{{ docError }}</p>
+              <button class="dv-btn" @click="downloadFile">下载文档</button>
+            </div>
+
+            <!-- PDF 原生渲染 -->
+            <template v-else-if="docType === 'pdf'">
+              <div class="dv-pdf-container">
+                <div class="dv-pdf-toolbar">
+                  <span class="dv-page-info">{{ currentPdfPage }} / {{ totalPdfPages || '?' }}</span>
+                  <button class="dv-tool-sm" @click="prevPdfPage" :disabled="currentPdfPage <= 1" title="上一页"><i class="fas fa-chevron-left"></i></button>
+                  <button class="dv-tool-sm" @click="nextPdfPage" :disabled="currentPdfPage >= totalPdfPages" title="下一页"><i class="fas fa-chevron-right"></i></button>
+                </div>
+                <VuePdfEmbed
+                  v-if="pdfSource"
+                  :source="pdfSource"
+                  :page="currentPdfPage"
+                  class="dv-pdf"
+                  :style="{ transform: `scale(${fontScale})` }"
+                  @rendered="onPdfRendered"
+                  @loaded="onPdfLoaded"
+                />
+              </div>
             </template>
-            <template v-else>
+
+            <!-- DOCX 渲染 -->
+            <template v-else-if="docType === 'docx'">
+              <div class="dv-content dv-docx-content" :style="contentStyle" v-html="docxHtml"></div>
+            </template>
+
+            <!-- TXT 渲染 -->
+            <template v-else-if="docType === 'txt'">
+              <pre class="dv-content dv-txt-content" :style="contentStyle">{{ txtContent }}</pre>
+            </template>
+
+            <!-- HTML 内容渲染（原有逻辑） -->
+            <template v-else-if="effectiveHtml">
               <div class="dv-content" :style="contentStyle" v-html="safeHtml"></div>
             </template>
+
+            <!-- 不支持的格式 -->
+            <div v-else class="dv-unsupported">
+              <i class="fas fa-file"></i>
+              <p>暂不支持预览此格式</p>
+              <p class="dv-hint">支持的格式：PDF、DOCX、TXT</p>
+              <button class="dv-btn" @click="downloadFile">下载文档</button>
+            </div>
           </div>
         </div>
       </div>
       <div class="dv-footer">
-        <button class="dv-pill" :class="isCompleted ? 'done' : 'todo'" @click="$emit('progressClick')">{{ isCompleted ? '已看完' : '未看完' }}</button>
+        <button class="dv-pill" :class="isCompleted ? 'done' : 'todo'" @click="$emit('progressClick')">{{ isCompleted ? '已完成' : '未完成' }}</button>
         <div class="dv-actions">
-          <button class="dv-btn dv-btn-quiz" @click="startQuiz" :disabled="quizStarted || isCompleted">
-            {{ quizStarted ? (allQuestionsAnswered ? '已答完' : `答题中 ${answersSoFar.length}/5`) : '观看完毕开始答题' }}
+          <button class="dv-btn dv-btn-secondary" @click="onPrev" :disabled="currentIndex === 0">上一章</button>
+          <button class="dv-btn" @click="onNext" :disabled="currentIndex >= flatChapters.length - 1">下一章</button>
+          <button class="dv-btn dv-btn-quiz" @click="startQuiz" :disabled="!isCompleted || (quizStarted && !allQuestionsAnswered)">
+            {{ quizStarted ? (allQuestionsAnswered ? '查看总结' : `答题中 ${answersSoFar.length}/${questionList.length}`) : '开始答题' }}
           </button>
-          <button class="dv-btn dv-btn-secondary" @click="onPrev">上一章</button>
-          <button class="dv-btn" @click="onNext">下一章</button>
-          <button v-if="allQuestionsAnswered" class="dv-btn dv-btn-finish" @click="finishDocument">结束</button>
+          <button v-if="allQuestionsAnswered" class="dv-btn dv-btn-finish" @click="finishDocument">完成学习</button>
         </div>
       </div>
     </div>
@@ -102,6 +148,8 @@ import Question from '/src/components/Question.vue'
 import { ref, computed, watch, onBeforeUnmount, onMounted, getCurrentInstance, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+import VuePdfEmbed from 'vue-pdf-embed'
+import mammoth from 'mammoth'
 
 const props = defineProps({
   modelValue: {type: Boolean, default: false},
@@ -162,22 +210,46 @@ const currentIndex = ref(Math.max(0, (props.chapterIndex || 1) - 1))
 watch(() => props.modelValue, (v) => {
   if (v) {
     currentIndex.value = Math.max(0, (props.chapterIndex || 1) - 1)
+    isBackendCompleted.value = false  // 重置后端完成状态
     // 立即同步进度展示
     console.log('[DocumentViewer]文档打开，立即同步进度')
     syncDocumentProgressFromCourse(false).catch(e => console.error(e))
+    // 加载文档内容（原生渲染）
+    loadDocument()
+  } else {
+    // 重置文档渲染状态
+    docType.value = ''
+    docError.value = ''
+    pdfSource.value = null
+    docxHtml.value = ''
+    txtContent.value = ''
+    currentPdfPage.value = 1
+    totalPdfPages.value = 0
+    isBackendCompleted.value = false  // 重置后端完成状态
   }
 })
-// 切换章节时重置答题状态
-watch(currentIndex, () => {
+// 切换章节时重置答题状态和阅读时间
+watch(currentIndex, async () => {
   fetchedForChapter = false
   remainingIndex.value = -1
   answersSoFar.value = []
   quizStarted.value = false
   isClosing.value = false  // 重置关闭标志
-  readProgress.value = 0   // 立即重置进度，避免显示上一章节的进度
-  console.log('[DocumentViewer]切换章节，重置答题状态和进度')
-  // 同步进度时不重置答题状态（仅读取后端进度，不清空本地答题记录）
-  try { syncDocumentProgressFromCourse(false) } catch (e) { console.error(e) }
+  isBackendCompleted.value = false  // 重置后端完成状态
+  // 不要立即重置readProgress，等待后端同步完成
+  actualReadTime.value = 0 // 重置阅读时间
+  readTimeAccumulator = 0  // 重置累加器
+  console.log('[DocumentViewer]切换章节，重置答题状态和阅读时间，等待后端同步进度')
+  // 同步进度时等待异步完成，确保后端状态正确加载
+  try {
+    await syncDocumentProgressFromCourse(false)
+  } catch (e) {
+    console.error('[DocumentViewer]同步进度失败', e)
+    // 如果同步失败，重置为0
+    readProgress.value = 0
+  }
+  // 重新加载文档内容（原生渲染）
+  loadDocument()
 })
 const currentChapter = computed(() => flatChapters.value[currentIndex.value] || {
   title: props.title,
@@ -188,14 +260,49 @@ const currentChapter = computed(() => flatChapters.value[currentIndex.value] || 
 const effectiveFileUrl = computed(() => currentChapter.value?.fileUrl || '')
 const effectiveHtml = computed(() => currentChapter.value?.html || '')
 const readProgress = ref(0)
+const isBackendCompleted = ref(false) // 标记后端是否已完成
 const progressDisplay = computed(() => {
   const p = Math.round((readProgress.value || 0) * 100)
   return Number.isFinite(p) ? p : (props.progress || 0)
 })
-// 完成状态：容差 95%
+
+// 计算文档所需阅读时间（动态）
+const requiredReadTime = computed(() => {
+  const html = effectiveHtml.value
+  if (!html) return 30 // 默认最少30秒
+
+  // 提取纯文本字数
+  const text = html.replace(/<[^>]+>/g, '') // 移除HTML标签
+                   .replace(/&nbsp;/g, ' ')
+                   .replace(/&lt;/g, '<')
+                   .replace(/&gt;/g, '>')
+                   .replace(/&amp;/g, '&')
+                   .trim()
+
+  const wordCount = text.length // 中文字符计数
+  // 计算公式：字数/10 + 30，最少30秒，最多5分钟
+  const calculatedTime = Math.floor(wordCount / 10) + 30
+  return Math.min(300, Math.max(30, calculatedTime))
+})
+
+// 实际阅读时间（秒）
+const actualReadTime = ref(0)
+const readTimer = ref(null)
+const isReading = ref(false)
+
+// 完成状态：后端已完成 或（阅读时间达标 且 滚动进度>=50%）
 const isCompleted = computed(() => {
-  const p = Number(progressDisplay.value)
-  return Number.isFinite(p) && p >= 95
+  // 如果后端已经标记为完成，直接返回true
+  if (isBackendCompleted.value) {
+    console.log('[DocumentViewer]后端已完成，直接显示完成状态')
+    return true
+  }
+
+  // 否则根据本地状态判断
+  const scrollPercent = Number(progressDisplay.value)
+  const timeMet = actualReadTime.value >= requiredReadTime.value
+  const scrollMet = Number.isFinite(scrollPercent) && scrollPercent >= 50
+  return timeMet && scrollMet
 })
 const safeHtml = computed(() => {
   if (effectiveHtml.value) return effectiveHtml.value
@@ -235,8 +342,158 @@ const viewerSrc = computed(() => {
   return url
 })
 
-const isIframe = computed(() => !!viewerSrc.value)
+// 移除 isIframe，改用原生渲染
+// const isIframe = computed(() => !!viewerSrc.value)
 
+// ========== 新增：原生文档渲染相关变量 ==========
+const docType = ref('')
+const docLoading = ref(false)
+const docError = ref('')
+const pdfSource = ref(null)
+const docxHtml = ref('')
+const txtContent = ref('')
+const currentPdfPage = ref(1)
+const totalPdfPages = ref(0)
+
+// 检测文档类型
+function detectDocType(url) {
+  if (!url) return ''
+  const ext = url.split('.').pop().toLowerCase().split('?')[0]
+  const typeMap = {
+    'pdf': 'pdf',
+    'doc': 'docx',
+    'docx': 'docx',
+    'txt': 'txt',
+    'md': 'txt'
+  }
+  return typeMap[ext] || ''
+}
+
+// 加载文档
+async function loadDocument() {
+  const url = normalizedFileUrl.value
+  if (!url) {
+    docType.value = ''
+    return
+  }
+
+  docLoading.value = true
+  docError.value = ''
+  
+  const type = detectDocType(url)
+  docType.value = type
+
+  if (!type) {
+    // 如果有 HTML 内容，使用 HTML 渲染
+    if (effectiveHtml.value) {
+      docLoading.value = false
+      return
+    }
+    docError.value = '不支持的文件格式'
+    docLoading.value = false
+    return
+  }
+
+  try {
+    switch (type) {
+      case 'pdf':
+        await loadPdf(url)
+        break
+      case 'docx':
+        await loadDocx(url)
+        break
+      case 'txt':
+        await loadTxt(url)
+        break
+    }
+  } catch (e) {
+    console.error('[DocumentViewer]加载文档失败:', e)
+    docError.value = `加载失败: ${e.message}`
+  } finally {
+    docLoading.value = false
+  }
+}
+
+// 加载 PDF
+async function loadPdf(url) {
+  try {
+    pdfSource.value = url
+    currentPdfPage.value = 1
+    console.log('[DocumentViewer]PDF源设置为:', url)
+  } catch (e) {
+    throw new Error('PDF加载失败')
+  }
+}
+
+// 加载 DOCX
+async function loadDocx(url) {
+  try {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error('文件下载失败')
+
+    const arrayBuffer = await response.arrayBuffer()
+    const result = await mammoth.convertToHtml({ arrayBuffer })
+
+    if (result.messages.length > 0) {
+      console.warn('[DocumentViewer]DOCX转换警告:', result.messages)
+    }
+
+    docxHtml.value = result.value
+    console.log('[DocumentViewer]DOCX加载成功')
+  } catch (e) {
+    throw new Error('DOCX加载失败: ' + e.message)
+  }
+}
+
+// 加载 TXT
+async function loadTxt(url) {
+  try {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error('文件下载失败')
+
+    const text = await response.text()
+    txtContent.value = text
+    console.log('[DocumentViewer]TXT加载成功')
+  } catch (e) {
+    throw new Error('TXT加载失败: ' + e.message)
+  }
+}
+
+// PDF 页面控制
+function prevPdfPage() {
+  if (currentPdfPage.value > 1) {
+    currentPdfPage.value--
+    updateReadProgress() // 更新阅读进度
+  }
+}
+
+function nextPdfPage() {
+  if (currentPdfPage.value < totalPdfPages.value) {
+    currentPdfPage.value++
+    updateReadProgress() // 更新阅读进度
+  }
+}
+
+function onPdfLoaded(info) {
+  if (info && info.numPages) {
+    totalPdfPages.value = info.numPages
+    console.log('[DocumentViewer]PDF总页数:', info.numPages)
+    updateReadProgress() // 初始化阅读进度
+  }
+}
+
+function onPdfRendered() {
+  console.log('[DocumentViewer]PDF页面渲染完成, 当前页:', currentPdfPage.value)
+}
+
+// 下载文档
+function downloadFile() {
+  const link = document.createElement('a')
+  link.href = normalizedFileUrl.value
+  link.download = props.title || '文档'
+  link.target = '_blank'
+  link.click()
+}
 
 async function close() {
   isClosing.value = true
@@ -270,7 +527,8 @@ async function syncDocumentProgressFromCourse(resetQuizState = false) {
     }
     const cur = docs.find(d => String(d.documentId) === String(docId))
     if (cur) {
-      const completed = cur.completed === true 
+      const completed = cur.completed === true
+      isBackendCompleted.value = completed  // 设置后端完成状态标志
       // 根据后端状态设置进度：已完成=1，未完成=后端百分比或0
       readProgress.value = completed ? 1 : (cur.percentage || cur.maxScrollPct || 0)
       console.log('[DocumentViewer]同步进度 - documentId:', docId, '后端完成状态:', completed, '后端百分比:', cur.percentage, '当前进度:', readProgress.value)
@@ -281,8 +539,12 @@ async function syncDocumentProgressFromCourse(resetQuizState = false) {
     } else {
       console.log('[DocumentViewer]未找到 documentId:', docId, '的进度记录，重置为0')
       readProgress.value = 0  // 未找到记录，重置为0
+      isBackendCompleted.value = false
     }
-  } catch (e) { console.error('[DocumentViewer]同步文档进度失败', e) }
+  } catch (e) {
+    console.error('[DocumentViewer]同步文档进度失败', e)
+    isBackendCompleted.value = false
+  }
 }
 
 async function onNext() {
@@ -292,6 +554,10 @@ async function onNext() {
 
 // 开始答题
 async function startQuiz() {
+  if (allQuestionsAnswered.value) {
+    summaryVisible.value = true
+    return
+  }
   try {
     quizStarted.value = true
     console.log('[DocumentViewer]开始答题')
@@ -327,6 +593,11 @@ async function startQuiz() {
 async function finishDocument() {
   console.log('[DocumentViewer]点击结束按钮，提交答案并标记完成')
   await submitDocumentAnswersAndProgress()
+  ElMessage.success('恭喜！文档学习已完成')
+  // 延迟关闭，让用户看到成功消息
+  setTimeout(() => {
+    close()
+  }, 500)
 }
 
 const questionVisible = ref(false)
@@ -344,7 +615,7 @@ const isClosing = ref(false)
 const quizStarted = ref(false)
 
 const allQuestionsAnswered = computed(() => {
-  return quizStarted.value && answersSoFar.value.length >= 5
+  return quizStarted.value && answersSoFar.value.length >= questionList.value.length && questionList.value.length > 0
 })
 
 
@@ -461,34 +732,110 @@ function normalizeQuestion(q) {
 // 记录某章是否已经触发过题目
 // 已移除 hasQuestionShown 和 markQuestionShown 函数（不再需要）
 
-let timer = null
-let last = 0
+// 文档打开时的计时器
+let readTimerInterval = null
+let readTimeAccumulator = 0
+let lastReadTimeCheck = 0
+
 watch(() => props.modelValue, (v) => {
   if (v) {
-    last = Date.now()
-    if (!timer) {
-      timer = setInterval(() => {
+    // 文档打开，启动阅读计时器
+    lastReadTimeCheck = Date.now()
+    readTimeAccumulator = 0
+    isReading.value = true
+
+    if (!readTimerInterval) {
+      readTimerInterval = setInterval(() => {
         const now = Date.now()
-        const delta = Math.floor((now - last) / 1000)
-        if (delta > 0) { last = now }
+        const delta = Math.floor((now - lastReadTimeCheck) / 1000)
+        if (delta > 0) {
+          lastReadTimeCheck = now
+          readTimeAccumulator += delta
+          actualReadTime.value = readTimeAccumulator
+
+          // 每5秒上报一次进度
+          if (readTimeAccumulator % 5 === 0) {
+            reportReadProgress(delta)
+          }
+
+          // 检查是否完成，完成则上报
+          if (isCompleted.value) {
+            reportReadProgress(delta, true)
+            console.log('[DocumentViewer]阅读完成！时间:', actualReadTime.value, '秒, 要求:', requiredReadTime.value, '秒, 滚动:', progressDisplay.value, '%')
+          }
+        }
       }, 1000)
     }
+
+    console.log('[DocumentViewer]阅读计时器启动, 需要阅读时间:', requiredReadTime.value, '秒')
   } else {
-    if (timer) {
-      const now = Date.now()
-      Math.floor((now - last) / 1000);
-      clearInterval(timer); timer = null
+    // 文档关闭，停止计时器
+    if (readTimerInterval) {
+      clearInterval(readTimerInterval)
+      readTimerInterval = null
     }
+    isReading.value = false
+
+    // 上报最终进度
+    if (readTimeAccumulator > 0) {
+      reportReadProgress(readTimeAccumulator, isCompleted.value)
+    }
+
+    console.log('[DocumentViewer]阅读计时器停止, 累计阅读时间:', actualReadTime.value, '秒')
   }
 })
 
-// 已移除自动监听阅读进度弹题的逻辑
+// 上报阅读进度
+async function reportReadProgress(deltaSec, forceCompleted = false) {
+  try {
+    const studentId = localStorage.getItem('userId')
+    const courseId = props.id
+    if (!studentId || !courseId) return
 
-onBeforeUnmount(() => { if (timer) { clearInterval(timer); timer = null } })
+    const currentChapter = flatChapters.value[currentIndex.value]
+    const docId = currentChapter?.documentId
+    if (!docId) {
+      console.log('[DocumentViewer]当前章节没有 documentId，无法上报进度')
+      return
+    }
+
+    const token = localStorage.getItem('token')
+    const scrollPct = Number(progressDisplay.value) / 100
+    const completed = forceCompleted || isCompleted.value
+
+    console.log('[DocumentViewer]上报进度 - documentId:', docId, 'deltaSec:', deltaSec, 'scrollPct:', scrollPct, 'completed:', completed, 'actualTime:', actualReadTime.value, 'required:', requiredReadTime.value)
+
+    const res = await axios.post(`${BASE_URL}/progress/report`, null, {
+      params: {
+        studentId,
+        courseId,
+        documentId: docId,
+        deltaSec: deltaSec,
+        scrollPct: scrollPct,
+        completed: completed
+      },
+      headers: { Authorization: `Bearer ${token}` }
+    })
+
+    if (res.data.code === 200) {
+      console.log('[DocumentViewer]上报进度成功')
+    }
+  } catch (e) {
+    console.error('[DocumentViewer]上报进度失败:', e)
+  }
+}
+
+onBeforeUnmount(() => {
+  if (readTimerInterval) {
+    clearInterval(readTimerInterval)
+    readTimerInterval = null
+  }
+})
 
 const fontScale = ref(1)
 const modalRef = ref(null)
 const bodyRef = ref(null)
+const viewRef = ref(null)
 
 const contentStyle = computed(() => ({
   fontSize: `${Math.round(16 * fontScale.value)}px`,
@@ -517,20 +864,6 @@ function toggleFullscreen() {
   const d = document
   if (!d.fullscreenElement) el.requestFullscreen?.()
   else d.exitFullscreen?.()
-}
-
-function forwardBackgroundScroll(e) {
-  try {
-    const d = document
-    if (d.fullscreenElement) return
-    const sc = document.querySelector('.main-content') || document.scrollingElement || document.documentElement
-    if (sc) {
-      e.preventDefault()
-      sc.scrollTop += e.deltaY
-    }
-  } catch (e) {
-    console.error(e)
-  }
 }
 
 function onPrev() {
@@ -571,9 +904,23 @@ onBeforeUnmount(() => {
   }
 })
 
-// 本地滚动进度计算（非 iframe 文档有效）
 function updateReadProgress() {
-  const el = bodyRef.value
+  // 如果后端已经完成，不再更新进度
+  if (isBackendCompleted.value) {
+    console.log('[DocumentViewer]后端已完成，跳过进度更新')
+    return
+  }
+
+  // 对于 PDF，使用页面进度
+  if (docType.value === 'pdf' && totalPdfPages.value > 0) {
+    const ratio = currentPdfPage.value / totalPdfPages.value
+    readProgress.value = Math.max(0, Math.min(1, ratio))
+    console.log(`[DocumentViewer]PDF页面进度: ${(ratio * 100).toFixed(1)}%, 当前页: ${currentPdfPage.value}/${totalPdfPages.value}`)
+    return
+  }
+
+  // 对于其他类型，使用滚动进度
+  const el = viewRef.value
   if (!el) return
   const total = Math.max(1, el.scrollHeight - el.clientHeight)
   const ratio = Math.max(0, Math.min(1, el.scrollTop / total))
@@ -581,36 +928,32 @@ function updateReadProgress() {
   console.log(`[DocumentViewer]滚动进度: ${(ratio * 100).toFixed(1)}%, scrollTop: ${el.scrollTop}, total: ${total}`)
 }
 
-// Ctrl + 滚轮：仅对 HTML 内容调整字号
+// Ctrl + 滚轮：调整字号
 function handleWheel(e) {
   // 检查是否在文档查看器区域内
-  if (!props.modelValue || !bodyRef.value) {
+  if (!props.modelValue || !viewRef.value) {
     return
   }
   
   const targetElement = e.target
-  const isInViewer = bodyRef.value.contains(targetElement)
-  
-  console.log(`[handleWheel]被调用, isIframe: ${isIframe.value}, isInViewer: ${isInViewer}, ctrlKey: ${e.ctrlKey}, deltaY: ${e.deltaY}`)
-  
+  const isInViewer = viewRef.value.contains(targetElement)
+
   if (!isInViewer) {
     return // 不在文档查看器区域，忽略
   }
   
-  // Ctrl + 滚轮：缩放（仅 HTML）
-  if (e.ctrlKey && !isIframe.value) {
+  // Ctrl + 滚轮：缩放
+  if (e.ctrlKey) {
     e.preventDefault()
     e.deltaY > 0 ? decreaseText() : increaseText()
     return
   }
   
-  // 普通滚轮：在 iframe(PDF/Office) 无法读取内部滚动时，合成阅读进度
-  if (isIframe.value && !e.ctrlKey) {
-    const delta = Math.max(-1, Math.min(1, e.deltaY / 200))
-    const next = Math.max(0, Math.min(1, (readProgress.value || 0) + delta * 0.05))
-    readProgress.value = next
-    console.log(`[handleWheel]iframe滚轮合成进度: ${(next * 100).toFixed(1)}%`)
-  }
+  // 普通滚轮：滚动时更新阅读进度
+  // 延迟更新进度，让滚动事件先完成
+  setTimeout(() => {
+    updateReadProgress()
+  }, 100)
 }
 
 // 滚轮事件现在直接在模板中绑定到 .dv-body 上
@@ -631,8 +974,6 @@ function handleKeydown(e) {
 watch(() => props.modelValue, (v) => {
   if (v) {
     document.addEventListener('keydown', handleKeydown)
-    // 使用捕获阶段监听滚轮事件，可以捕获 iframe 上的滚轮
-    document.addEventListener('wheel', handleWheel, { capture: true, passive: true })
     // 每次打开文档时重置所有状态
     fetchedForChapter = false
     remainingIndex.value = -1
@@ -640,28 +981,12 @@ watch(() => props.modelValue, (v) => {
     quizStarted.value = false
     //isClosing.value = false  // 重置关闭标志
     console.log('[DocumentViewer]文档打开，重置所有答题状态')
-  } else {
-    document.removeEventListener('keydown', handleKeydown)
-    document.removeEventListener('wheel', handleWheel, { capture: true })
-    console.log('[DocumentViewer]文档关闭')
-  }
-})
-
-watch(() => props.modelValue, (v) => {
-  if (v) {
     setTimeout(() => {
-      const el = bodyRef.value
-      if (!el) return
-      el.addEventListener('scroll', updateReadProgress)
       updateReadProgress()
     }, 0)
   } else {
-    const el = bodyRef.value
-    try {
-      el?.removeEventListener('scroll', updateReadProgress)
-    } catch (e) {
-      console.error(e)
-    }
+    document.removeEventListener('keydown', handleKeydown)
+    console.log('[DocumentViewer]文档关闭')
   }
 })
 
@@ -724,10 +1049,9 @@ async function submitDocumentAnswersAndProgress() {
     const eid = examId.value
     const token = localStorage.getItem('token')
     
-    // 确保已经答完5题
-    const expectedQuestions = 5
-    if (answersSoFar.value.length < expectedQuestions) {
-      console.log(`[DocumentViewer]题目未答完，已答${answersSoFar.value.length}/${expectedQuestions}题，不上报完成状态`)
+    // 确保已经答完所有题目
+    if (!allQuestionsAnswered.value) {
+      console.log(`[DocumentViewer]题目未答完，已答${answersSoFar.value.length}/${questionList.value.length}题，不上报完成状态`)
       return
     }
     
@@ -738,7 +1062,7 @@ async function submitDocumentAnswersAndProgress() {
         studentId: studentId,
         answers: answersSoFar.value.map(a => ({ questionId: a.questionId, answer: a.answer }))
       }
-      console.log('[DocumentViewer]提交答案（5题全部完成）:', body)
+      console.log('[DocumentViewer]提交答案（全部完成）:', body)
       const res = await axios.post(`${BASE_URL}/aiexam/submit`, body, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
       })
@@ -761,7 +1085,7 @@ async function submitDocumentAnswersAndProgress() {
         documentId: docId,
         completed: true
       }
-      console.log('[DocumentViewer]上报文档已看完（5题全部答完）, documentId:', docId, 'params:', params)
+      console.log('[DocumentViewer]上报文档已看完（全部答完）, documentId:', docId, 'params:', params)
       const res2 = await axios.post(`${BASE_URL}/progress/report`, null, {
         params: params,
         headers: { Authorization: `Bearer ${token}` }
@@ -783,21 +1107,24 @@ async function submitDocumentAnswersAndProgress() {
 .dv-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1200;
+  backdrop-filter: blur(4px);
 }
 .dv-modal {
-  width: 90%;
-  max-width: 1000px;
-  max-height: 90vh;
-  background: #fff;
-  border-radius: 12px;
+  width: 90vw;
+  max-width: 1200px;
+  height: 90vh;
+  background: #f8f9fa;
+  border-radius: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  transition: all 0.3s ease;
 }
 
 .dv-modal:fullscreen {
@@ -810,65 +1137,90 @@ async function submitDocumentAnswersAndProgress() {
 .dv-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #1a56db 0%, #0d3b9e 100%);
-  color: #fff;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  color: #111827;
+  flex-shrink: 0;
 }
 .dv-title {
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 1.1rem;
 }
 .dv-tools {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
-  margin-right: 8px;
+  margin-right: 16px;
 }
 .dv-tool {
-  border: 0;
-  width: 32px;
-  height: 32px;
+  border: 1px solid #d1d5db;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.2);
-  color: #fff;
+  background: #fff;
+  color: #4b5563;
   cursor: pointer;
+  transition: all 0.2s;
+}
+.dv-tool:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
 }
 .dv-close {
   border: 0;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.2);
-  color: #fff;
+  background: #f3f4f6;
+  color: #4b5563;
   cursor: pointer;
+  transition: all 0.2s;
+}
+.dv-close:hover {
+  background: #e5e7eb;
 }
 .dv-body {
-  padding: 0;
-  height: 70vh;
-  background: #fafafa;
-  overflow-y: auto; /* 只允许纵向滚动 */
-  overflow-x: hidden; /* 禁止横向滚动，避免出现水平滚动条 */
-}
-.dv-main { display: flex; height: 100%; overflow: hidden; }
-.dv-aside {
-  width: 260px;
+  flex: 1;
+  min-height: 0;
   background: #f8f9fa;
-  padding: 12px;
-  border-right: 1px solid #e9ecef;
-  overflow: auto;
+  overflow-y: hidden;
 }
-.dv-aside-title { font-weight: 700; color: #1a56db; margin-bottom: 10px; }
-.dv-aside-list { max-height: calc(70vh - 60px); overflow-y: auto; }
+.dv-main { display: flex; height: 100%; }
+.dv-aside {
+  width: 280px;
+  flex-shrink: 0;
+  background: #fff;
+  padding: 16px;
+  border-right: 1px solid #e5e7eb;
+  overflow-y: auto;
+}
+.dv-aside-title { 
+  font-weight: 600; 
+  color: #374151; 
+  margin-bottom: 12px; 
+  font-size: 1rem;
+}
+.dv-aside-list { max-height: calc(100% - 40px); overflow-y: auto; }
 .dv-aside-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;
+  transition: all 0.2s;
 }
-.dv-aside-item i { color: #10b981; font-size: 14px; }
-.dv-aside-item:hover { background: #f0f3f7; }
-.dv-aside-item.active { background: #e1ebff; color: #1a56db; font-weight: 600; }
-.dv-aside-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-.dv-view { flex: 1; min-width: 0; overflow-x: hidden; }
+.dv-aside-item i { color: #6b7280; font-size: 16px; }
+.dv-aside-item:hover { background: #f3f4f6; }
+.dv-aside-item.active { background: #eef2ff; color: #312e81; font-weight: 600; }
+.dv-aside-item.active i { color: #4338ca; }
+.dv-aside-text { 
+  flex: 1; 
+  white-space: nowrap; 
+  overflow: hidden; 
+  text-overflow: ellipsis; 
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.dv-view { flex: 1; min-width: 0; overflow: auto; background-color: #f8f9fa; }
 .dv-modal:fullscreen .dv-body {
   height: auto;
   flex: 1;
@@ -879,70 +1231,84 @@ async function submitDocumentAnswersAndProgress() {
   height: 100%;
   border: 0;
   display: block;
+  background: #fff;
 }
 .dv-content {
-  padding: 16px;
-  color: #333;
-  line-height: 1.7;
-  max-width: 100%;
-  overflow-x: hidden; /* HTML 内容禁止横向滚动 */
-  word-wrap: break-word;
+  margin: 24px auto;
+  padding: 32px;
+  background: #fff;
+  border-radius: 8px;
+  max-width: 800px;
+  width: 90%;
+  color: #374151;
+  line-height: 1.8;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 }
-.dv-content img,
-.dv-content video,
-.dv-content canvas,
-.dv-content table {
+.dv-content :deep(img),
+.dv-content :deep(video),
+.dv-content :deep(canvas),
+.dv-content :deep(table) {
   max-width: 100%;
   height: auto;
+  border-radius: 8px;
 }
-.dv-content pre {
-  white-space: pre-wrap; /* 长代码换行，避免撑出横向滚动 */
-  word-break: break-word;
+.dv-content :deep(pre) {
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #1f2937;
+  color: #f3f4f6;
+  padding: 16px;
+  border-radius: 8px;
 }
 .dv-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  background: #f6f8fb;
-  gap: 16px;
-}
-
-.dv-modal:fullscreen .dv-footer {
-  padding: 14px 18px;
+  padding: 12px 20px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
 }
 
 .dv-pill {
-  padding: 6px 12px;
-  background: #eef2ff;
-  color: #334155;
-  border: 1px solid #c7d2fe;
+  padding: 8px 16px;
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
   border-radius: 999px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
 }
 .dv-pill.done {
-  background: #dcfce7;
-  border-color: #86efac;
-  color: #065f46;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
 }
 .dv-pill.todo {
-  background: #fee2e2;
+  background: #fef2f2;
   border-color: #fecaca;
-  color: #7f1d1d;
+  color: #b91c1c;
 }
 .dv-actions { display: flex; align-items: center; gap: 12px; }
 .dv-btn {
-  padding: 10px 16px; /* 放大按钮尺寸 */
+  padding: 10px 20px;
+  font-weight: 500;
   background: #2563eb;
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
 }
 .dv-btn-secondary {
-  background: #0ea5e9;
+  background: #f9fafb;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+.dv-btn-secondary:hover {
+  background: #f3f4f6;
 }
 .dv-btn-quiz {
   background: #10b981;
@@ -951,9 +1317,10 @@ async function submitDocumentAnswersAndProgress() {
   background: #059669;
 }
 .dv-btn-quiz:disabled {
-  background: #6ee7b7;
+  background: #a7f3d0;
+  color: #065f46;
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.8;
 }
 .dv-btn-finish {
   background: #f59e0b;
@@ -962,11 +1329,187 @@ async function submitDocumentAnswersAndProgress() {
   background: #d97706;
 }
 .dv-btn:hover {
-  background: #1d4ed8;
+  filter: brightness(1.1);
 }
 .dv-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
+  filter: none;
+}
+
+/* ========== 新增：PDF/DOCX/TXT 原生渲染样式 ========== */
+
+/* 加载状态 */
+.dv-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  height: 100%;
+  color: #6b7280;
+  font-size: 16px;
+}
+
+.dv-loading i {
+  font-size: 48px;
+  color: #3b82f6;
+}
+
+/* 错误状态 */
+.dv-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  height: 100%;
+  color: #ef4444;
+}
+
+.dv-error i {
+  font-size: 48px;
+}
+
+.dv-error p {
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 不支持的格式 */
+.dv-unsupported {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  height: 100%;
+  color: #6b7280;
+}
+
+.dv-unsupported i {
+  font-size: 64px;
+  color: #d1d5db;
+}
+
+.dv-unsupported p {
+  margin: 0;
+  font-size: 16px;
+}
+
+.dv-hint {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+/* PDF 容器 */
+.dv-pdf-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  min-height: 100%;
+  background: #5f6368;
+}
+
+.dv-pdf-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 8px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dv-page-info {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+  min-width: 60px;
+  text-align: center;
+}
+
+.dv-tool-sm {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #4b5563;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.dv-tool-sm:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.dv-tool-sm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dv-pdf {
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 900px;
+  width: 100%;
+  transform-origin: top center;
+  transition: transform 0.3s ease;
+}
+
+/* DOCX 内容样式 */
+.dv-docx-content {
+  line-height: 1.8;
+}
+
+.dv-docx-content :deep(h1),
+.dv-docx-content :deep(h2),
+.dv-docx-content :deep(h3) {
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.dv-docx-content :deep(p) {
+  margin-bottom: 1em;
+}
+
+.dv-docx-content :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.dv-docx-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+.dv-docx-content :deep(table td),
+.dv-docx-content :deep(table th) {
+  border: 1px solid #d1d5db;
+  padding: 8px 12px;
+}
+
+/* TXT 内容样式 */
+.dv-txt-content {
+  font-family: 'Courier New', Courier, monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.6;
+  margin: 0;
 }
 </style>
 

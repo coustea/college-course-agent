@@ -4,11 +4,30 @@ const fallbackBase = 'http://localhost:9999/api'
 
 export const api = axios.create({ baseURL: import.meta?.env?.VITE_API_BASE_URL || fallbackBase, timeout: 15000 })
 
+// 请求拦截器：自动携带token
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
-  if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  const token = localStorage.getItem('token')  // 与登录时存储的key保持一致
+  if (token) {
+    config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
+  }
   return config
 })
+
+// 响应拦截器：统一处理错误
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      // token过期或无效，清除登录信息并跳转登录页
+      localStorage.removeItem('userId')
+      localStorage.removeItem('userName')
+      localStorage.removeItem('token')
+      localStorage.removeItem('userRole')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
 
 // 根据学生ID获取错题列表
 export const getWrongQuestionsByStudentId = (studentId, courseId = null) => {

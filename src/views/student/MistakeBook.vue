@@ -294,7 +294,6 @@ import {
   markAsMastered,
   cancelMastered,
 } from '@/services/mistakeApi';
-import { jwtDecode } from "jwt-decode";
 
 
 const router = useRouter();
@@ -311,15 +310,14 @@ const currentPage = ref(1);
 const pageSize = 5;
 const isLoading = ref(true);
 
-// 从 Token 中获取学生 ID
+// 从 localStorage 中获取学生 ID（与登录时存储的key保持一致）
 const getStudentIdFromToken = () => {
-  const token = localStorage.getItem('userToken');
-  if (token) {
+  const userId = localStorage.getItem('userId');
+  if (userId) {
     try {
-      const decoded = jwtDecode(token);
-      return decoded.id; // 根据你的 Token 结构调整
+      return userId;
     } catch (error) {
-      console.error('Token 解析失败:', error);
+      console.error('获取userId失败:', error);
       return null;
     }
   }
