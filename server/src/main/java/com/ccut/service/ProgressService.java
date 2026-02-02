@@ -90,4 +90,27 @@ public interface ProgressService {
      */
     com.ccut.dto.StudentStatistics getStudentStatistics(Long studentId);
 
+    /**
+     * 获取教师在指定课程的所有学生本周学习情况
+     * @param courseId 课程ID
+     * @param teacherId 教师ID（用于权限验证）
+     * @return 学生学习情况列表
+     */
+    List<Map<String, Object>> getCourseStudentsWeeklyTime(Long courseId, Long teacherId);
+
+    /**
+     * 获取教师所有课程的学生本周学习情况汇总
+     * @param teacherId 教师ID
+     * @return 课程学习情况列表
+     */
+    List<Map<String, Object>> getTeacherCoursesWeeklyTime(Long teacherId);
+
+    /**
+     * 获取学生最近几周的学习时间统计
+     * @param studentId 学生ID
+     * @param weeks 查询最近几周（默认4周）
+     * @return 每周学习时间列表
+     */
+    List<Map<String, Object>> getStudentRecentWeeksTime(Long studentId, Integer weeks);
+
 }

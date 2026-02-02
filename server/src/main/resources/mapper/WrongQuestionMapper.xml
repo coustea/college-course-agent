@@ -23,6 +23,9 @@
     </resultMap>
 
     <resultMap id="DetailResultMap" type="com.ccut.entity.WrongQuestion" extends="BaseResultMap">
+        <!-- 课程和考试信息 -->
+        <result column="course_name" property="courseName"/>
+        <result column="chapter" property="chapter"/>
         <!-- 关联题目信息 -->
         <association property="question" javaType="com.ccut.entity.AiExamQuestion">
             <id column="q_id" property="id"/>
@@ -139,7 +142,7 @@
         </if>
     </select>
 
-    <!-- 批量查询错题详情（包含题目内容） -->
+    <!-- 批量查询错题详情（包含题目内容和课程信息） -->
     <select id="selectDetailByStudentId" resultMap="DetailResultMap">
         SELECT
             wq.*,
@@ -148,9 +151,13 @@
             q.content as q_content,
             q.options as q_options,
             q.answer as q_answer,
-            q.analysis as q_analysis
+            q.analysis as q_analysis,
+            c.course_name,
+            ae.chapter
         FROM wrong_question wq
         LEFT JOIN ai_exam_questions q ON wq.question_id = q.id
+        LEFT JOIN course c ON wq.course_id = c.id
+        LEFT JOIN ai_exam ae ON wq.exam_id = ae.id
         WHERE wq.student_id = #{studentId}
         <if test="courseId != null">
             AND wq.course_id = #{courseId}

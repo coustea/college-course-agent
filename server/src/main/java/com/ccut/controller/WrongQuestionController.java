@@ -253,4 +253,47 @@ public class WrongQuestionController {
             return Result.error(500, "更新笔记失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 添加错题到错题本
+     * 如果题目已存在，则更新错误次数；否则新增记录
+     *
+     * @param studentId    学生ID
+     * @param questionId   题目ID
+     * @param examId       考试ID
+     * @param courseId     课程ID
+     * @param wrongAnswer  学生的错误答案
+     * @param correctAnswer 正确答案
+     * @return 操作结果
+     */
+    @PostMapping("/add")
+    public Result<String> addToWrongBook(
+            @RequestParam("studentId") Long studentId,
+            @RequestParam("questionId") Long questionId,
+            @RequestParam("examId") Long examId,
+            @RequestParam("courseId") Long courseId,
+            @RequestParam("wrongAnswer") String wrongAnswer,
+            @RequestParam("correctAnswer") String correctAnswer) {
+        try {
+            if (studentId == null) {
+                return Result.error(400, "studentId 不能为空");
+            }
+            if (questionId == null) {
+                return Result.error(400, "questionId 不能为空");
+            }
+            if (examId == null) {
+                return Result.error(400, "examId 不能为空");
+            }
+            if (courseId == null) {
+                return Result.error(400, "courseId 不能为空");
+            }
+
+            wrongQuestionService.addToWrongBook(studentId, questionId, examId, courseId, wrongAnswer, correctAnswer);
+            return Result.success("错题添加成功");
+        } catch (Exception e) {
+            log.error("添加错题失败: studentId={}, questionId={}, examId={}, courseId={}",
+                    studentId, questionId, examId, courseId, e);
+            return Result.error(500, "添加错题失败: " + e.getMessage());
+        }
+    }
 }

@@ -6,6 +6,7 @@ import com.ccut.service.WrongQuestionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
@@ -33,7 +34,7 @@ public class WrongQuestionServiceImpl implements WrongQuestionService {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void addToWrongBook(Long studentId, Long questionId, Long examId, Long courseId,
                                 String wrongAnswer, String correctAnswer) {
         try {
@@ -131,6 +132,13 @@ public class WrongQuestionServiceImpl implements WrongQuestionService {
                 item.put("firstWrongTime", wq.getFirstWrongTime());
                 item.put("lastWrongTime", wq.getLastWrongTime());
                 item.put("masteredTime", wq.getMasteredTime());
+                item.put("note", wq.getNote());
+                item.put("createTime", wq.getCreateTime());
+                item.put("updateTime", wq.getUpdateTime());
+
+                // 添加课程名称和章节信息
+                item.put("courseName", wq.getCourseName());
+                item.put("chapter", wq.getChapter());
 
                 // 题目详细信息
                 if (wq.getQuestion() != null) {
@@ -139,6 +147,7 @@ public class WrongQuestionServiceImpl implements WrongQuestionService {
                     question.put("type", wq.getQuestion().getType());
                     question.put("content", wq.getQuestion().getContent());
                     question.put("options", wq.getQuestion().getOptions());
+                    question.put("answer", wq.getQuestion().getAnswer());
                     question.put("analysis", wq.getQuestion().getAnalysis());
                     item.put("question", question);
                 }

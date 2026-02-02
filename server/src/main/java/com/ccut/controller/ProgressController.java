@@ -145,4 +145,51 @@ public class ProgressController {
         }
     }
 
+    /**
+     * 获取教师在指定课程的所有学生本周学习情况
+     */
+    @GetMapping("/teacher/course/students/weekly")
+    public Result<List<Map<String, Object>>> getCourseStudentsWeeklyTime(
+            @RequestParam("courseId") Long courseId,
+            @RequestParam("teacherId") Long teacherId) {
+        try {
+            return Result.success(progressService.getCourseStudentsWeeklyTime(courseId, teacherId));
+        } catch (IllegalArgumentException e) {
+            log.warn("权限验证失败: {}", e.getMessage());
+            return Result.error(403, e.getMessage());
+        } catch (Exception e) {
+            log.error("查询课程学生本周学习时间异常", e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    /**
+     * 获取教师所有课程的学生本周学习情况汇总
+     */
+    @GetMapping("/teacher/courses/weekly")
+    public Result<List<Map<String, Object>>> getTeacherCoursesWeeklyTime(
+            @RequestParam("teacherId") Long teacherId) {
+        try {
+            return Result.success(progressService.getTeacherCoursesWeeklyTime(teacherId));
+        } catch (Exception e) {
+            log.error("查询教师课程本周学习时间异常", e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    /**
+     * 获取学生最近几周的学习时间统计
+     */
+    @GetMapping("/student/recent/weeks")
+    public Result<List<Map<String, Object>>> getStudentRecentWeeksTime(
+            @RequestParam("studentId") Long studentId,
+            @RequestParam(value = "weeks", required = false, defaultValue = "4") Integer weeks) {
+        try {
+            return Result.success(progressService.getStudentRecentWeeksTime(studentId, weeks));
+        } catch (Exception e) {
+            log.error("查询学生最近周学习时间异常", e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
 }

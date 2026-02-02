@@ -11,11 +11,13 @@ import com.ccut.entity.AiExamAnswer;
 import com.ccut.entity.AiExamAttempt;
 import com.ccut.entity.AiExamQuestion;
 import com.ccut.entity.Course;
+import com.ccut.entity.Student;
 import com.ccut.mapper.AiExamAnswerMapper;
 import com.ccut.mapper.AiExamAttemptMapper;
 import com.ccut.mapper.AiExamMapper;
 import com.ccut.mapper.AiExamQuestionMapper;
 import com.ccut.mapper.CourseMapper;
+import com.ccut.mapper.StudentMapper;
 import com.ccut.service.AiExamService;
 import com.ccut.service.WrongQuestionService;
 import org.springframework.ai.chat.client.ChatClient;
@@ -25,12 +27,14 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 
 /**
  * AI考试服务实现类
  */
+@Slf4j
 @Service
 public class AiExamServiceImpl implements AiExamService {
 
@@ -43,6 +47,7 @@ public class AiExamServiceImpl implements AiExamService {
     private final AiExamAttemptMapper attemptMapper;
     private final AiExamAnswerMapper answerMapper;
     private final WrongQuestionService wrongQuestionService;
+    private final StudentMapper studentMapper;
 
     private static final String PROMPT_TEMPLATE = """
             你是一位经验丰富的出题专家。
@@ -62,7 +67,8 @@ public class AiExamServiceImpl implements AiExamService {
                             AiExamQuestionMapper questionMapper,
                             AiExamAttemptMapper attemptMapper,
                             AiExamAnswerMapper answerMapper,
-                            WrongQuestionService wrongQuestionService) {
+                            WrongQuestionService wrongQuestionService,
+                            StudentMapper studentMapper) {
         this.converter = new BeanOutputConverter<>(new ParameterizedTypeReference<Exam>() {});
         this.format = converter.getFormat();
         this.chatClient = builder.build();
@@ -72,6 +78,7 @@ public class AiExamServiceImpl implements AiExamService {
         this.attemptMapper = attemptMapper;
         this.answerMapper = answerMapper;
         this.wrongQuestionService = wrongQuestionService;
+        this.studentMapper = studentMapper;
     }
 
     @Override
@@ -142,6 +149,18 @@ public class AiExamServiceImpl implements AiExamService {
             throw new IllegalArgumentException("参数不完整");
         }
 
+        // 验证学生是否存在，如果不存在则自动创建
+        Student student = studentMapper.selectById(req.studentId());
+        if (student == null) {
+            log.info("学生表中没有记录，自动创建: studentId={}", req.studentId());
+            student = new Student();
+            student.setId(req.studentId());
+            student.setName(String.valueOf(req.studentId())); // 使用ID作为临时名称
+            student.setStudentNumber(String.valueOf(req.studentId())); // 使用ID作为临时学号
+            studentMapper.insertStudent(student);
+            log.info("自动创建学生记录成功: studentId={}", student.getId());
+        }
+
         // 查询考试信息以获取课程ID
         AiExam exam = aiExamMapper.selectById(req.examId());
         if (exam == null) {
@@ -177,10 +196,13 @@ public class AiExamServiceImpl implements AiExamService {
                             String.valueOf(a.answer()),
                             q != null ? q.getAnswer() : null
                         );
+                        log.info("添加错题成功: studentId={}, questionId={}, examId={}",
+                                req.studentId(), a.questionId(), req.examId());
                     } catch (Exception e) {
                         // 错题本添加失败不影响答题流程
-                        // 记录日志即可
-                        System.err.println("添加错题失败: " + e.getMessage());
+                        // 记录详细错误日志
+                        log.error("添加错题失败: studentId={}, questionId={}, examId={}, error={}",
+                                req.studentId(), a.questionId(), req.examId(), e.getMessage(), e);
                     }
                 }
                 answerMapper.insert(new AiExamAnswer(null, attempt.getId(), a.questionId(), a.answer(), correct));

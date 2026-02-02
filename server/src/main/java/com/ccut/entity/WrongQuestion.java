@@ -33,4 +33,8 @@ public class WrongQuestion {
 
     // 关联的题目详细信息（用于查询时返回）
     private AiExamQuestion question;
+
+    // 关联的课程和考试信息（用于查询时返回，不存储）
+    private String courseName;     // 课程名称
+    private String chapter;        // 章节
 }

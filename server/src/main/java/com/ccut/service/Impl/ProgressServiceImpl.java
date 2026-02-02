@@ -12,12 +12,17 @@ import com.ccut.mapper.CourseVideoMapper;
 import com.ccut.mapper.DocumentProgressMapper;
 import com.ccut.mapper.LearningProgressMapper;
 import com.ccut.mapper.VideoProgressMapper;
+import com.ccut.mapper.WeeklyStudyTimeMapper;
 import com.ccut.service.ProgressService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +48,9 @@ public class ProgressServiceImpl implements ProgressService {
     @Autowired
     private CourseDocumentMapper courseDocumentMapper;
 
+    @Autowired
+    private WeeklyStudyTimeMapper weeklyStudyTimeMapper;
+
     @Override
     @Transactional
     public void reportProgress(Long studentId, Long courseId, Long videoId, Long documentId,
@@ -67,6 +75,20 @@ public class ProgressServiceImpl implements ProgressService {
         // 重新计算课程层的百分比与完成（由 SQL 聚合：视频+文档个数完成度）
         // 这里仍然保留 time_spent 的累计字段，用于历史兼容或展示
         learningProgressMapper.upsert(studentId, courseId, 0.0, deltaSec, completed);
+
+        // 记录每周学习时间（按课程和总体分别记录）
+        if (deltaSec > 0) {
+            // 计算本周一的日期
+            LocalDate today = LocalDate.now();
+            LocalDate monday = today.with(DayOfWeek.MONDAY);
+            Date weekStartDate = Date.from(monday.atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+            // 记录该课程本周学习时间
+            weeklyStudyTimeMapper.upsert(studentId, courseId, weekStartDate, deltaSec);
+
+            // 记录总体本周学习时间（courseId为null）
+            weeklyStudyTimeMapper.upsert(studentId, null, weekStartDate, deltaSec);
+        }
     }
 
     @Override
@@ -196,5 +218,42 @@ public class ProgressServiceImpl implements ProgressService {
         if (consecutiveDays == null) consecutiveDays = 0;
 
         return new StudentStatistics(courseCount, weeklyHours, consecutiveDays);
+    }
+
+    @Override
+    public List<Map<String, Object>> getCourseStudentsWeeklyTime(Long courseId, Long teacherId) {
+        // 验证课程是否属于该教师
+        List<CourseStatistics> teacherCourses = getAllCourseStatistics(teacherId);
+        boolean hasPermission = teacherCourses.stream()
+                .anyMatch(course -> course.getCourseId().equals(courseId));
+
+        if (!hasPermission) {
+            throw new IllegalArgumentException("无权访问该课程数据");
+        }
+
+        // 计算本周一的日期
+        LocalDate today = LocalDate.now();
+        LocalDate monday = today.with(DayOfWeek.MONDAY);
+        Date weekStartDate = Date.from(monday.atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+        return weeklyStudyTimeMapper.getCourseStudentsWeeklyTime(courseId, weekStartDate);
+    }
+
+    @Override
+    public List<Map<String, Object>> getTeacherCoursesWeeklyTime(Long teacherId) {
+        // 计算本周一的日期
+        LocalDate today = LocalDate.now();
+        LocalDate monday = today.with(DayOfWeek.MONDAY);
+        Date weekStartDate = Date.from(monday.atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+        return weeklyStudyTimeMapper.getTeacherCoursesWeeklyTime(teacherId, weekStartDate);
+    }
+
+    @Override
+    public List<Map<String, Object>> getStudentRecentWeeksTime(Long studentId, Integer weeks) {
+        if (weeks == null || weeks <= 0) {
+            weeks = 4; // 默认查询最近4周
+        }
+        return weeklyStudyTimeMapper.getStudentRecentWeeksTime(studentId, weeks);
     }
 }
