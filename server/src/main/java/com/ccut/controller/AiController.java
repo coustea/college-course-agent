@@ -1,15 +1,12 @@
 package com.ccut.controller;
 
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.ccut.entity.Exam;
 import com.ccut.dto.Result;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,15 +16,9 @@ import java.util.Map;
 @RequestMapping("/api/ai")
 public class AiController {
 
-    private final ChatClient chatClient;
+    private final ChatModel chatModel;
     private final BeanOutputConverter<Exam> converter;
     private final String format;
-    private final InMemoryChatMemoryRepository chatMemoryRepository = new InMemoryChatMemoryRepository();
-    private final int MAX_MESSAGES = 100;
-    private final MessageWindowChatMemory messageWindowChatMemory = MessageWindowChatMemory.builder()
-            .chatMemoryRepository(chatMemoryRepository)
-            .maxMessages(MAX_MESSAGES)
-            .build();
 
     private static final String PROMPT_TEMPLATE = """
             你是一位经验丰富的出题专家。
@@ -49,24 +40,10 @@ public class AiController {
             """;
 
 
-    public AiController(ChatClient.Builder builder) {
-
+    public AiController(ChatModel chatModel) {
+        this.chatModel = chatModel;
         this.converter = new BeanOutputConverter<>(new ParameterizedTypeReference<Exam>() {});
         this.format = converter.getFormat();
-        this.chatClient = builder
-                .defaultOptions(
-                        DashScopeChatOptions.builder()
-                                .model("qwen-flash")
-                                .enableThinking(true)
-                                .temperature(0.1)
-                                .enableSearch(true)
-                                .build()
-                )
-                .defaultAdvisors(
-                        MessageChatMemoryAdvisor.builder(messageWindowChatMemory).build()
-                )
-                .build();
-
     }
 
 
@@ -79,9 +56,9 @@ public class AiController {
                 "judge", judge,
                 "choice", choice,
                 "format", format));
-        Exam exam = chatClient.prompt(prompt).call().entity(Exam.class);
+        var response = chatModel.call(prompt);
+        String content = response.getResult().getOutput().getText();
+        Exam exam = converter.convert(content);
         return Result.success(exam);
     }
 }
-
-

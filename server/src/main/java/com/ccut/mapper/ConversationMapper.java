@@ -38,4 +38,9 @@ public interface ConversationMapper {
      * 删除会话
      */
     int deleteByConversationId(@Param("conversationId") String conversationId);
+
+    /**
+     * 根据用户ID查询会话
+     */
+    Conversation findByUserId(@Param("userId") Long userId);
 }

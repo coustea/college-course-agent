@@ -48,6 +48,12 @@ const studentRoutes = [
         component: () => import('../views/student/MistakeBook.vue'),
         meta: {title: '错题本'}
     },
+    {
+        path: '/student/ai-chat',
+        name: 'StudentAIChat',
+        component: () => import('@/views/student/StudentAIChat.vue'),
+        meta: { title: 'AI 学习助手' }
+    },
 ]
 
 // 教师端路由

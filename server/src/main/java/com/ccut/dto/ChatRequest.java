@@ -1,5 +1,7 @@
 package com.ccut.dto;
 
+import java.util.List;
+
 /**
  * 聊天请求 DTO
  */
@@ -12,5 +14,10 @@ public record ChatRequest(
     /**
      * 用户消息内容
      */
-    String message
+    String message,
+
+    /**
+     * 附件列表（图片、文档等）
+     */
+    List<Attachment> attachments
 ) {}

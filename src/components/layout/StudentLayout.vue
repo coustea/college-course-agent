@@ -57,6 +57,26 @@
             </div>
           </li>
 
+          <li class="menu-item">
+            <div class="menu-title" :class="{active: $route.path === '/student/mistake-book'}"
+                 @click="navigateTo('/student/mistake-book')">
+              <div>
+                <i class="fas fa-book"></i>
+                <span>错题本</span>
+              </div>
+            </div>
+          </li>
+
+          <li class="menu-item">
+            <div class="menu-title" :class="{active: $route.path === '/student/ai-chat'}"
+                 @click="navigateTo('/student/ai-chat')">
+              <div>
+                <i class="fas fa-robot"></i>
+                <span>AI 学习助手</span>
+              </div>
+            </div>
+          </li>
+
 <!--          <li class="menu-item">-->
 <!--            <div class="menu-title" :class="{active: $route.path === '/profile'}"-->
 <!--                 @click="navigateTo('/profile')">-->

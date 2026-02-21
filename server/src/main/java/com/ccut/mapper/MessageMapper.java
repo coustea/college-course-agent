@@ -23,6 +23,11 @@ public interface MessageMapper {
     List<Message> findByConversationId(@Param("conversationId") String conversationId);
 
     /**
+     * 根据用户名查询所有消息（按序号排序）
+     */
+    List<Message> findByUsername(@Param("username") String username);
+
+    /**
      * 统计会话的消息数量
      */
     int countByConversationId(@Param("conversationId") String conversationId);

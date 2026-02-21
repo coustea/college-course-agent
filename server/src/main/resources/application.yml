@@ -21,12 +21,12 @@ spring:
     username: root
     password: 123456
     hikari:
-      maximum-pool-size: 30        # 最大连接数
-      minimum-idle: 10             # 最小空闲连接数
-      connection-timeout: 30000    # 获取连接超时时间（30秒）
-      idle-timeout: 600000         # 空闲连接超时（10分钟）
-      max-lifetime: 1800000        # 连接最大生命周期（30分钟）
-      leak-detection-threshold: 60000  # 连接泄漏检测（1分钟）
+      maximum-pool-size: 30 # 最大连接数
+      minimum-idle: 10 # 最小空闲连接数
+      connection-timeout: 30000 # 获取连接超时时间（30秒）
+      idle-timeout: 600000 # 空闲连接超时（10分钟）
+      max-lifetime: 1800000 # 连接最大生命周期（30分钟）
+      leak-detection-threshold: 60000 # 连接泄漏检测（1分钟）
 
   jpa:
     hibernate:
@@ -38,8 +38,13 @@ spring:
       max-request-size: 1024MB
 
   ai:
-    dashscope:
-      api-key: sk-414fa005f52f41acb70c615dd2f7cc95
+    openai:
+      api-key: sk-eb6f314b76cf4570a81f4e35df8b9874
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-chat
+          temperature: 0.7
 
 server:
   port: 9999
@@ -47,20 +52,19 @@ server:
   # === 内嵌 Tomcat 优化 ===
   tomcat:
     threads:
-      max: 100         # 最大处理线程数
-      min-spare: 10    # 最小空闲线程数
-    accept-count: 50   # 请求排队上限
-    connection-timeout: 20000  # 连接超时时间20秒
+      max: 100 # 最大处理线程数
+      min-spare: 10 # 最小空闲线程数
+    accept-count: 50 # 请求排队上限
+    connection-timeout: 20000 # 连接超时时间20秒
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
 
-
 logging:
   level:
-    com.ccut.mapper: debug   # 打印SQL语句
+    com.ccut.mapper: debug # 打印SQL语句
 
 file:
   # 文件上传目录 - 按日期分文件夹存储在 resources/upload 目录下

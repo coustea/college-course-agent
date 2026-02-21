@@ -45,9 +45,16 @@ public interface ConversationService {
     void updateConversationTitle(String conversationId, String title);
 
     /**
-     * 生成会话ID（格式：username:序号）
+     * 生成会话ID（格式：username:1）
      * @param username 用户名
      * @return 会话ID
      */
     String generateConversationId(String username);
+
+    /**
+     * 获取或创建用户的唯一会话（每个用户只有一个会话，序号固定为1）
+     * @param username 用户名
+     * @return 会话对象
+     */
+    Conversation getOrCreateUserConversation(String username);
 }

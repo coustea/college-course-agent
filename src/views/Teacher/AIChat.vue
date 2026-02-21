@@ -1,111 +1,144 @@
 <template>
   <div class="ai-chat-container">
-    <!-- 侧边栏 - 历史会话 -->
-    <div class="chat-sidebar" :class="{ collapsed: sidebarCollapsed }">
-      <div class="sidebar-header">
-        <h3 v-if="!sidebarCollapsed">历史会话</h3>
-        <el-button 
-          :icon="sidebarCollapsed ? Expand : Fold" 
-          circle 
-          size="small"
-          @click="sidebarCollapsed = !sidebarCollapsed"
-        />
-      </div>
-      <div class="sidebar-content" v-if="!sidebarCollapsed">
-        <el-button type="primary" class="new-chat-btn" @click="startNewChat">
-          <el-icon><Plus /></el-icon>
-          新建对话
-        </el-button>
-        <div class="history-list">
-          <div 
-            v-for="chat in chatHistory" 
-            :key="chat.id"
-            class="history-item"
-            :class="{ active: currentChatId === chat.id }"
-            @click="loadChat(chat.id)"
-          >
-            <el-icon><ChatDotRound /></el-icon>
-            <span class="history-title">{{ chat.title }}</span>
-            <el-button 
-              :icon="Delete" 
-              circle 
-              size="small" 
-              class="delete-btn"
-              @click.stop="deleteChat(chat.id)"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 主聊天区域 -->
     <div class="chat-main">
-      <!-- 消息列表 -->
+      <div class="chat-header">
+        <div class="header-title">
+          <el-icon class="title-icon"><ChatDotRound /></el-icon>
+          <h2>AI 教学助手</h2>
+        </div>
+        <el-button
+          v-if="messages.length > 0"
+          type="danger"
+          plain
+          class="clear-btn"
+          :icon="Delete"
+          @click="clearChatHistory"
+        >
+          清空对话
+        </el-button>
+      </div>
+
       <div class="messages-container" ref="messagesContainer">
         <div v-if="messages.length === 0" class="welcome-screen">
-          <div class="welcome-icon">
-            <el-icon :size="64"><ChatDotRound /></el-icon>
+          <div class="welcome-avatar">
+            <div class="avatar-inner">
+              <el-icon :size="48"><ChatDotRound /></el-icon>
+            </div>
           </div>
-          <h2>AI 教学助手</h2>
-          <p>我可以帮助您解答教学问题、分析学生数据、生成教案等</p>
+          <h1 class="welcome-title">有什么我可以帮您的？</h1>
+          <p class="welcome-subtitle">
+            支持上传文档与图片进行深度分析、教案生成等教学辅助工作
+          </p>
           <div class="quick-prompts">
-            <div class="prompt-card" @click="sendQuickPrompt('帮我分析一下学生的学习情况')">
-              <el-icon><DataAnalysis /></el-icon>
-              <span>分析学生学习情况</span>
+            <div
+              class="prompt-card"
+              @click="sendQuickPrompt('帮我分析一下这批学生的学习数据')"
+            >
+              <el-icon class="prompt-icon"><DataAnalysis /></el-icon>
+              <span>数据分析</span>
             </div>
-            <div class="prompt-card" @click="sendQuickPrompt('帮我生成一份课程教案')">
-              <el-icon><Document /></el-icon>
-              <span>生成课程教案</span>
+            <div
+              class="prompt-card"
+              @click="sendQuickPrompt('生成一份45分钟的公开课教案')"
+            >
+              <el-icon class="prompt-icon"><Document /></el-icon>
+              <span>生成教案</span>
             </div>
-            <div class="prompt-card" @click="sendQuickPrompt('如何提高学生的学习积极性？')">
-              <el-icon><QuestionFilled /></el-icon>
-              <span>教学方法建议</span>
+            <div
+              class="prompt-card"
+              @click="sendQuickPrompt('如何提升课堂互动率？')"
+            >
+              <el-icon class="prompt-icon"><QuestionFilled /></el-icon>
+              <span>教学建议</span>
             </div>
           </div>
         </div>
 
         <div v-else class="messages-list">
-          <div 
-            v-for="(msg, index) in messages" 
+          <div
+            v-for="(msg, index) in messages"
             :key="index"
             class="message-item"
             :class="msg.role"
           >
             <div class="message-wrapper">
               <div class="message-avatar">
-                <span v-if="msg.role === 'assistant'" class="avatar-label">AI 助手</span>
-                <el-avatar v-if="msg.role === 'user'" :size="32" :icon="User" />
-                <el-avatar v-else :size="32" class="ai-avatar">
+                <div v-if="msg.role === 'assistant'" class="ai-avatar">
                   <el-icon><ChatDotRound /></el-icon>
-                </el-avatar>
-              </div>
-              <div class="message-content">
-                <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
-                <!-- 附件显示 -->
-                <div v-if="msg.files && msg.files.length" class="message-files">
-                  <div v-for="file in msg.files" :key="file.name" class="file-tag">
-                    <el-icon><Document /></el-icon>
-                    {{ file.name }}
-                  </div>
                 </div>
-                <div class="message-time">{{ formatTime(msg.timestamp) }}</div>
-              </div>
-            </div>
-          </div>
-          <!-- 加载中指示器 -->
-          <div v-if="isLoading" class="message-item assistant">
-            <div class="message-wrapper">
-              <div class="message-avatar">
-                <span class="avatar-label">AI 助手</span>
-                <el-avatar :size="32" class="ai-avatar">
-                  <el-icon><ChatDotRound /></el-icon>
-                </el-avatar>
+                <el-avatar
+                  v-if="msg.role === 'user'"
+                  :size="36"
+                  :icon="User"
+                  class="user-avatar"
+                />
               </div>
               <div class="message-content">
-                <div class="typing-indicator">
-                  <span></span>
-                  <span></span>
-                  <span></span>
+                <div class="message-header">
+                  <span class="message-sender">{{
+                    msg.role === "user" ? "您" : "AI 助手"
+                  }}</span>
+                  <span class="message-time">{{
+                    formatTime(msg.timestamp)
+                  }}</span>
+                </div>
+
+                <div class="message-body">
+                  <div
+                    v-if="msg.files && msg.files.length"
+                    class="message-attachments"
+                  >
+                    <div
+                      v-for="(file, fIndex) in msg.files"
+                      :key="fIndex"
+                      class="attachment-item"
+                    >
+                      <div v-if="file.isImage" class="attachment-image-wrap">
+                        <img
+                          :src="file.url"
+                          :alt="file.name"
+                          class="attachment-image"
+                        />
+                      </div>
+                      <div v-else class="attachment-doc-card">
+                        <div class="doc-icon-wrap">
+                          <el-icon><Document /></el-icon>
+                        </div>
+                        <div class="doc-info">
+                          <span class="doc-name" :title="file.name">{{
+                            file.name
+                          }}</span>
+                          <span class="doc-size">{{
+                            formatFileSize(file.size)
+                          }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="msg.content"
+                    class="message-text"
+                    v-html="renderMarkdown(msg.content)"
+                  ></div>
+
+                  <div v-else-if="msg.role === 'assistant'" class="typing-indicator">
+                    <span></span><span></span><span></span>
+                  </div>
+
+                  <div
+                    v-if="msg.role === 'assistant' && msg.content"
+                    class="message-actions"
+                  >
+                    <el-button
+                      text
+                      size="small"
+                      :icon="CopyDocument"
+                      @click="copyMessage(msg.content)"
+                    >
+                      复制
+                    </el-button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -113,51 +146,80 @@
         </div>
       </div>
 
-      <!-- 输入区域 -->
-      <div class="input-area">
-        <!-- 文件预览 -->
-        <div v-if="uploadedFiles.length" class="uploaded-files">
-          <div v-for="(file, index) in uploadedFiles" :key="index" class="file-preview">
-            <el-icon><Document /></el-icon>
-            <span>{{ file.name }}</span>
-            <el-button :icon="Close" circle size="small" @click="removeFile(index)" />
+      <div class="input-area-container">
+        <div class="input-container-inner" :class="{ 'drag-over': isDragOver }">
+          <div v-if="uploadedFiles.length" class="staging-area">
+            <div
+              v-for="(file, index) in uploadedFiles"
+              :key="index"
+              class="staging-file"
+            >
+              <template v-if="file.isImage">
+                <img :src="file.url" class="staging-image" />
+              </template>
+              <template v-else>
+                <div class="staging-doc-pill">
+                  <div class="staging-doc-icon">
+                    <el-icon><Document /></el-icon>
+                  </div>
+                  <div class="staging-doc-info">
+                    <span class="staging-doc-name" :title="file.name">{{ file.name }}</span>
+                    <span class="staging-doc-size">{{ formatFileSize(file.size) }}</span>
+                  </div>
+                </div>
+              </template>
+
+              <button class="remove-file-btn" @click="removeFile(index)">
+                <el-icon><Close /></el-icon>
+              </button>
+            </div>
+          </div>
+
+          <div
+            class="input-wrapper"
+            @dragover.prevent="handleDragOver"
+            @dragleave.prevent="handleDragLeave"
+            @drop.prevent="handleDrop"
+          >
+            <el-button
+              :icon="Plus"
+              circle
+              class="upload-btn"
+              @click="triggerFileUpload"
+              title="上传文件或图片"
+            />
+            <input
+              type="file"
+              ref="fileInput"
+              multiple
+              @change="handleFileUpload"
+              style="display: none"
+              accept=".txt,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp"
+            />
+
+            <el-input
+              v-model="inputMessage"
+              type="textarea"
+              :autosize="{ minRows: 1, maxRows: 8 }"
+              placeholder="输入消息或提问，支持拖拽文件到此处..."
+              @keydown="handleKeydown"
+              :disabled="isLoading"
+              class="message-input"
+            />
+
+            <el-button
+              type="primary"
+              :icon="Promotion"
+              circle
+              class="send-btn"
+              :disabled="!canSend"
+              @click="sendMessage"
+              :class="{ 'can-send': canSend }"
+            />
           </div>
         </div>
-        
-        <div class="input-wrapper">
-          <el-button 
-            :icon="Upload" 
-            circle 
-            class="upload-btn"
-            @click="triggerFileUpload"
-          />
-          <input 
-            type="file" 
-            ref="fileInput" 
-            multiple 
-            @change="handleFileUpload"
-            style="display: none"
-            accept=".txt,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-          />
-          <el-input
-            v-model="inputMessage"
-            type="textarea"
-            :autosize="{ minRows: 1, maxRows: 6 }"
-            placeholder="输入消息，按 Enter 发送，Shift+Enter 换行..."
-            @keydown="handleKeydown"
-            :disabled="isLoading"
-          />
-          <el-button 
-            type="primary" 
-            :icon="Promotion" 
-            circle 
-            class="send-btn"
-            :disabled="!canSend"
-            @click="sendMessage"
-          />
-        </div>
         <div class="input-tips">
-          支持上传 txt、pdf、doc、docx、xls、xlsx、png、jpg 等文件
+          内容由 AI 生成，请注意甄别。支持上传 PDF, Word, Excel, 图片等文件。
         </div>
       </div>
     </div>
@@ -165,405 +227,255 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted } from 'vue'
-import { 
-  Plus, Delete, Fold, Expand, Upload, Promotion, Close,
-  ChatDotRound, User, Document, DataAnalysis, QuestionFilled 
-} from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed, nextTick, onMounted } from "vue";
+import {
+  Plus, Delete, Promotion, Close, ChatDotRound,
+  User, Document, DataAnalysis, QuestionFilled, CopyDocument,
+} from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import MarkdownIt from "markdown-it";
+import hljs from "highlight.js";
+import "highlight.js/styles/github.css";
+import {
+  getUserConversations, createConversation,
+  getChatHistory, deleteChat, sendChatStream,
+} from "@/services/chatApi";
 
-// 获取当前用户ID，用于隔离不同用户的聊天记录
-const getUserId = () => {
-  return localStorage.getItem('userId') || localStorage.getItem('teacherId') || 'default'
-}
-
-const getStorageKey = () => {
-  return `aiChatHistory_${getUserId()}`
-}
-
-// 状态
-const sidebarCollapsed = ref(false)
-const messages = ref([])
-const inputMessage = ref('')
-const isLoading = ref(false)
-const uploadedFiles = ref([])
-const chatHistory = ref([])
-const currentChatId = ref(null)
-const messagesContainer = ref(null)
-const fileInput = ref(null)
-
-// 计算属性
-const canSend = computed(() => {
-  return (inputMessage.value.trim() || uploadedFiles.value.length) && !isLoading.value
-})
-
-// 格式化时间
-const formatTime = (timestamp) => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
-
-// 简单的 Markdown 渲染
-const renderMarkdown = (text) => {
-  if (!text) return ''
-  return text
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/\n/g, '<br>')
-}
-
-// 滚动到底部
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
-}
-
-// 文件上传
-const triggerFileUpload = () => {
-  fileInput.value?.click()
-}
-
-const handleFileUpload = (event) => {
-  const files = Array.from(event.target.files || [])
-  const maxSize = 10 * 1024 * 1024 // 10MB
-  
-  files.forEach(file => {
-    if (file.size > maxSize) {
-      ElMessage.warning(`文件 ${file.name} 超过10MB限制`)
-      return
-    }
-    uploadedFiles.value.push(file)
-  })
-  
-  event.target.value = ''
-}
-
-const removeFile = (index) => {
-  uploadedFiles.value.splice(index, 1)
-}
-
-// 发送消息
-const sendMessage = async () => {
-  if (!canSend.value) return
-  
-  const content = inputMessage.value.trim()
-  const files = [...uploadedFiles.value]
-  
-  // 添加用户消息
-  messages.value.push({
-    role: 'user',
-    content: content || '(已上传文件)',
-    files: files.map(f => ({ name: f.name, size: f.size })),
-    timestamp: Date.now()
-  })
-  
-  inputMessage.value = ''
-  uploadedFiles.value = []
-  scrollToBottom()
-  
-  // 开始流式响应
-  isLoading.value = true
-  
+// === 配置 ===
+const getUsername = () => {
   try {
-    await streamResponse(content, files)
-  } catch (error) {
-    console.error('AI 响应错误:', error)
-    messages.value.push({
-      role: 'assistant',
-      content: '抱歉，发生了错误，请稍后重试。',
-      timestamp: Date.now()
-    })
-  } finally {
-    isLoading.value = false
-    scrollToBottom()
-    saveChatHistory()
+    const u = JSON.parse(localStorage.getItem("userInfo") || "null");
+    return u?.username || u?.name || "teacher";
+  } catch { return "teacher"; }
+};
+
+// === 状态 ===
+const messages = ref([]);
+const inputMessage = ref("");
+const isLoading = ref(false);
+const uploadedFiles = ref([]);
+const messagesContainer = ref(null);
+const fileInput = ref(null);
+const isDragOver = ref(false);
+const conversationId = ref("");
+const username = ref(getUsername());
+
+const canSend = computed(() => (inputMessage.value.trim() || uploadedFiles.value.length) && !isLoading.value);
+
+// === 工具函数 ===
+const formatTime = (ts) => {
+  if (!ts) return "";
+  return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+};
+const formatFileSize = (b) => {
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+  return (b / 1048576).toFixed(1) + " MB";
+};
+
+// Markdown 渲染
+const md = new MarkdownIt({
+  html: true, linkify: true, typographer: true, breaks: true,
+  highlight(str, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try { return '<pre class="hljs"><code>' + hljs.highlight(str, { language: lang, ignoreIllegals: true }).value + "</code></pre>"; } catch {}
+    }
+    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + "</code></pre>";
+  },
+});
+const renderMarkdown = (text) => text ? md.render(text) : "";
+
+const scrollToBottom = () => nextTick(() => { if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight; });
+
+// === 初始化 ===
+onMounted(async () => { await ensureConversation(); await loadHistory(); });
+
+const ensureConversation = async () => {
+  try {
+    const res = await getUserConversations(username.value);
+    if (res?.code === 200 && res.data?.length > 0) { conversationId.value = res.data[0].conversationId; return; }
+  } catch {}
+  try {
+    const res = await createConversation(username.value, "AI 教学助手");
+    if (res?.code === 200) conversationId.value = res.data.conversationId;
+  } catch (e) { console.error("创建会话失败", e); }
+};
+
+const loadHistory = async () => {
+  try {
+    const res = await getChatHistory(username.value);
+    if (res?.code === 200 && Array.isArray(res.data)) {
+      messages.value = res.data.map((m) => ({ role: m.role, content: m.content, timestamp: m.createdAt }));
+      scrollToBottom();
+    }
+  } catch (e) { console.error("加载历史失败", e); }
+};
+
+// === 文件处理 ===
+const processFiles = (list) => {
+  list.forEach((file) => {
+    if (file.size > 20 * 1024 * 1024) { ElMessage.warning(`文件 ${file.name} 超过 20MB`); return; }
+    const isImage = file.type.startsWith("image/");
+    uploadedFiles.value.push({ file, url: isImage ? URL.createObjectURL(file) : null, name: file.name, size: file.size, isImage });
+  });
+};
+const triggerFileUpload = () => fileInput.value?.click();
+const handleFileUpload = (e) => { processFiles(Array.from(e.target.files || [])); e.target.value = ""; };
+const handleDragOver = () => (isDragOver.value = true);
+const handleDragLeave = () => (isDragOver.value = false);
+const handleDrop = (e) => { isDragOver.value = false; processFiles(Array.from(e.dataTransfer.files || [])); };
+const removeFile = (i) => { const f = uploadedFiles.value[i]; if (f.url) URL.revokeObjectURL(f.url); uploadedFiles.value.splice(i, 1); };
+
+// === 会话管理 ===
+const clearChatHistory = async () => {
+  try {
+    await ElMessageBox.confirm("确定要清空所有聊天记录吗？此操作将无法恢复。", "清空对话",
+      { confirmButtonText: "确定清空", cancelButtonText: "取消", type: "warning", confirmButtonClass: "el-button--danger" });
+    isLoading.value = true;
+    await deleteChat(username.value);
+    messages.value = [];
+    ElMessage.success("聊天记录已清空");
+  } catch (err) { if (err !== "cancel") ElMessage.error("清空失败"); }
+  finally { isLoading.value = false; }
+};
+
+const copyMessage = (c) => navigator.clipboard.writeText(c).then(() => ElMessage.success("已复制到剪贴板"));
+const sendQuickPrompt = (p) => { inputMessage.value = p; sendMessage(); };
+const handleKeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+
+// === 发送消息 ===
+const sendMessage = async () => {
+  if (!canSend.value) return;
+  const content = inputMessage.value.trim();
+  const files = [...uploadedFiles.value];
+
+  console.log('[TeacherAIChat] 准备发送消息:', { content, files: files.length, conversationId: conversationId.value })
+
+  if (!conversationId.value) {
+    console.log('[TeacherAIChat] 会话不存在，创建新会话...')
+    await ensureConversation();
+    if (!conversationId.value) {
+      console.error('[TeacherAIChat] 无法创建会话')
+      ElMessage.error("无法创建会话");
+      return;
+    }
+    console.log('[TeacherAIChat] 会话创建成功:', conversationId.value)
   }
-}
 
-// 流式响应模拟（实际项目中替换为真实 API）
-const streamResponse = async (content, files) => {
-  // 创建 AI 消息占位
-  const aiMessage = {
-    role: 'assistant',
-    content: '',
-    timestamp: Date.now()
-  }
-  messages.value.push(aiMessage)
-  
-  // 模拟流式输出（实际项目中使用 SSE 或 WebSocket）
-  const mockResponse = generateMockResponse(content, files)
-  
-  for (let i = 0; i < mockResponse.length; i++) {
-    await new Promise(resolve => setTimeout(resolve, 20))
-    aiMessage.content += mockResponse[i]
-    scrollToBottom()
-  }
-}
+  messages.value.push({ role: "user", content, files, timestamp: Date.now() });
+  inputMessage.value = "";
+  uploadedFiles.value = [];
+  scrollToBottom();
+  isLoading.value = true;
 
-// 模拟 AI 响应（实际项目中替换为真实 API 调用）
-const generateMockResponse = (content, files) => {
-  const hasFiles = files && files.length > 0
-  
-  if (hasFiles) {
-    return `我已收到您上传的 ${files.length} 个文件。
+  messages.value.push({ role: "assistant", content: "", timestamp: Date.now() });
+  const aiMsgIndex = messages.value.length - 1;
 
-**文件列表：**
-${files.map(f => `- ${f.name}`).join('\n')}
+  console.log('[TeacherAIChat] 开始流式对话...')
 
-我会分析这些文件内容，请问您需要我做什么？
-
-> 提示：在实际部署时，请配置后端 AI 服务（如 OpenAI、Gemini 等）来处理文件分析。`
-  }
-  
-  if (content.includes('学习情况') || content.includes('分析')) {
-    return `## 学生学习情况分析
-
-根据当前数据，我为您整理了以下分析报告：
-
-### 整体概况
-- **课程完成率**：平均 68%
-- **活跃学生比例**：85%
-- **作业提交率**：92%
-
-### 需要关注的问题
-1. 部分学生视频观看进度较慢
-2. 第三章测验正确率偏低（平均 65%）
-3. 有 5 名学生超过一周未登录
-
-### 建议措施
-- 对进度落后的学生进行一对一辅导
-- 针对第三章内容安排答疑课
-- 通过系统发送学习提醒
-
-> 如需更详细的分析，请上传具体的学生数据文件。`
-  }
-  
-  if (content.includes('教案')) {
-    return `## 课程教案模板
-
-### 一、教学目标
-1. 知识目标：掌握本章核心概念
-2. 能力目标：能够独立完成相关练习
-3. 情感目标：培养学习兴趣
-
-### 二、教学重难点
-- **重点**：核心知识点讲解
-- **难点**：实际应用场景
-
-### 三、教学过程
-1. **导入**（5分钟）：回顾上节内容
-2. **新课讲授**（30分钟）：讲解新知识
-3. **练习巩固**（10分钟）：课堂练习
-4. **总结**（5分钟）：归纳要点
-
-### 四、作业布置
-- 完成课后习题 1-5
-- 预习下一章内容
-
-> 请告诉我具体的课程主题，我可以生成更详细的教案。`
-  }
-  
-  return `您好！我是 AI 教学助手，很高兴为您服务。
-
-您的问题是：**${content}**
-
-我可以帮助您：
-- 📊 分析学生学习数据
-- 📝 生成课程教案和教学材料
-- 💡 提供教学方法建议
-- 📁 分析上传的文档内容
-
-请告诉我您具体需要什么帮助？
-
-> 提示：您可以上传文件让我进行分析，支持 PDF、Word、Excel、图片等格式。`
-}
-
-// 快捷提示
-const sendQuickPrompt = (prompt) => {
-  inputMessage.value = prompt
-  sendMessage()
-}
-
-// 键盘事件
-const handleKeydown = (event) => {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    sendMessage()
-  }
-}
-
-// 聊天历史管理
-const startNewChat = () => {
-  if (messages.value.length > 0) {
-    saveChatHistory()
-  }
-  currentChatId.value = Date.now().toString()
-  messages.value = []
-}
-
-const saveChatHistory = () => {
-  if (messages.value.length === 0) return
-  
-  const chatId = currentChatId.value || Date.now().toString()
-  const title = messages.value[0]?.content?.slice(0, 20) || '新对话'
-  
-  const existingIndex = chatHistory.value.findIndex(c => c.id === chatId)
-  const chatData = {
-    id: chatId,
-    title: title + (title.length >= 20 ? '...' : ''),
-    messages: messages.value,
-    updatedAt: Date.now()
-  }
-  
-  if (existingIndex >= 0) {
-    chatHistory.value[existingIndex] = chatData
-  } else {
-    chatHistory.value.unshift(chatData)
-  }
-  
-  currentChatId.value = chatId
-  localStorage.setItem(getStorageKey(), JSON.stringify(chatHistory.value))
-}
-
-const loadChat = (chatId) => {
-  const chat = chatHistory.value.find(c => c.id === chatId)
-  if (chat) {
-    currentChatId.value = chatId
-    messages.value = [...chat.messages]
-    scrollToBottom()
-  }
-}
-
-const deleteChat = (chatId) => {
-  chatHistory.value = chatHistory.value.filter(c => c.id !== chatId)
-  localStorage.setItem(getStorageKey(), JSON.stringify(chatHistory.value))
-  
-  if (currentChatId.value === chatId) {
-    currentChatId.value = null
-    messages.value = []
-  }
-}
-
-// 初始化
-onMounted(() => {
-  const saved = localStorage.getItem(getStorageKey())
-  if (saved) {
-    try {
-      chatHistory.value = JSON.parse(saved)
-    } catch {}
-  }
-})
+  sendChatStream(
+    conversationId.value,
+    content,
+    files,
+    // onChunk - 接收到文本片段
+    (text) => {
+      console.log('[TeacherAIChat] 接收文本片段:', text.substring(0, 30))
+      messages.value[aiMsgIndex].content += text;
+      scrollToBottom();
+    },
+    // onError - 发生错误
+    (errMsg) => {
+      console.error('[TeacherAIChat] 流式对话错误:', errMsg)
+      messages.value[aiMsgIndex].content += `\n\n**错误**: ${errMsg}`;
+      isLoading.value = false;
+      scrollToBottom();
+    },
+    // onDone - 对话完成
+    () => {
+      console.log('[TeacherAIChat] 流式对话完成')
+      if (!messages.value[aiMsgIndex].content) {
+        messages.value[aiMsgIndex].content = "抱歉，AI 暂时无法回复，请稍后重试。";
+      }
+      isLoading.value = false;
+      scrollToBottom();
+    }
+  );
+};
 </script>
 
 <style scoped>
+/* 全局容器背景 */
 .ai-chat-container {
   display: flex;
-  height: calc(100vh - 60px);
-  background: #f5f7fa;
+  margin: -30px; /* 抵消 TeacherLayout 的 30px padding，实现真正的全屏 */
+  height: 100vh; /* 充满整个可视区域 */
+  background: #ffffff;
+  box-sizing: border-box;
 }
 
-/* 侧边栏 */
-.chat-sidebar {
-  width: 260px;
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+/* 主聊天卡片：实现无缝全屏填充 */
+.chat-main {
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  overflow: hidden;
 }
 
-.chat-sidebar.collapsed {
-  width: 50px;
-}
-
-.sidebar-header {
-  padding: 16px;
+/* ==================== 顶部导航条 ==================== */
+.chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 16px 24px;
+  border-bottom: 1px solid #f3f4f6;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  z-index: 10;
 }
 
-.sidebar-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #303133;
-}
-
-.sidebar-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-}
-
-.new-chat-btn {
-  width: 100%;
-  margin-bottom: 12px;
-}
-
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.history-item {
+.header-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 10px;
+}
+
+.header-title h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.title-icon {
+  font-size: 22px;
+  color: #667eea;
+}
+
+.clear-btn {
   border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.2s;
+  font-weight: 500;
 }
 
-.history-item:hover {
-  background: #f5f7fa;
-}
-
-.history-item.active {
-  background: #ecf5ff;
-  color: #409eff;
-}
-
-.history-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-.delete-btn {
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.history-item:hover .delete-btn {
-  opacity: 1;
-}
-
-/* 主聊天区域 */
-.chat-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
+/* ==================== 聊天记录区 ==================== */
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 24px 10%;
+  scroll-behavior: smooth;
 }
 
-/* 欢迎界面 */
+.messages-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+/* 欢迎页 */
 .welcome-screen {
   display: flex;
   flex-direction: column;
@@ -571,48 +483,63 @@ onMounted(() => {
   justify-content: center;
   height: 100%;
   text-align: center;
-  color: #606266;
+  animation: fadeIn 0.5s ease-out;
 }
 
-.welcome-icon {
-  color: #409eff;
+.avatar-inner {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
   margin-bottom: 20px;
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
 }
 
-.welcome-screen h2 {
-  margin: 0 0 12px;
-  font-size: 24px;
-  color: #303133;
+.welcome-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
 }
 
-.welcome-screen p {
-  margin: 0 0 30px;
-  font-size: 14px;
+.welcome-subtitle {
+  color: #6b7280;
+  margin-bottom: 30px;
 }
 
 .quick-prompts {
   display: flex;
   gap: 16px;
-  flex-wrap: wrap;
   justify-content: center;
 }
 
 .prompt-card {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 12px 20px;
-  background: #fff;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
   cursor: pointer;
+  color: #374151;
+  font-weight: 500;
   transition: all 0.2s;
 }
 
 .prompt-card:hover {
-  border-color: #409eff;
-  color: #409eff;
-  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.1);
+  background: #f3f4f6;
+  border-color: #667eea;
+  color: #667eea;
+  transform: translateY(-2px);
+}
+
+.prompt-icon {
+  font-size: 18px;
 }
 
 /* 消息列表 */
@@ -620,221 +547,439 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  max-width: 900px;
-  margin: 0 auto;
 }
 
 .message-item {
   display: flex;
+  animation: slideUp 0.3s ease-out;
+}
+
+.message-wrapper {
+  display: flex;
+  gap: 16px;
+  max-width: 85%;
 }
 
 .message-item.user {
   justify-content: flex-end;
 }
 
-.message-wrapper {
-  display: flex;
-  flex-direction: column;
-  max-width: 70%;
-}
-
 .message-item.user .message-wrapper {
-  align-items: flex-end;
+  flex-direction: row-reverse;
 }
 
 .message-avatar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.message-item.user .message-avatar {
-  align-items: flex-end;
-}
-
-.message-item.assistant .message-avatar {
-  align-items: flex-start;
-}
-
-.avatar-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #606266;
-  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .ai-avatar {
-  background: linear-gradient(135deg, #409eff, #67c23a);
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.user-avatar {
+  background: #e5e7eb;
+  color: #4b5563;
 }
 
 .message-content {
-  background: #fff;
-  border-radius: 12px;
-  padding: 12px 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .message-item.user .message-content {
-  background: #409eff;
-  color: #fff;
+  align-items: flex-end;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-left: 4px;
+}
+
+.message-sender {
+  font-weight: 600;
+  color: #374151;
 }
 
 .message-time {
-  font-size: 11px;
-  color: #909399;
-  margin-top: 8px;
+  color: #9ca3af;
 }
 
-.message-item.user .message-time {
-  color: rgba(255, 255, 255, 0.7);
-  text-align: right;
-}
-
-.message-text {
+/* 气泡主体 */
+.message-body {
+  background: #f3f4f6;
+  color: #1f2937;
+  padding: 14px 18px;
+  border-radius: 18px;
+  border-top-left-radius: 4px;
+  font-size: 15px;
   line-height: 1.6;
+}
+
+.message-item.user .message-body {
+  background: #ebf5ff; /* 淡蓝色，更接近Gemini的用户气泡 */
+  color: #111827;
+  border-radius: 18px;
+  border-top-right-radius: 4px;
+}
+
+/* 在聊天气泡中渲染图片和文档 (Gemini风格) */
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px; /* 如果下方有文字则留出间距 */
+}
+
+.attachment-image {
+  max-width: 250px;
+  max-height: 250px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.attachment-doc-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 10px 14px;
+  border-radius: 12px;
+  min-width: 200px;
+}
+
+.message-item.user .attachment-doc-card {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.05);
+}
+
+.doc-icon-wrap {
+  width: 36px;
+  height: 36px;
+  background: #ef4444; /* 默认红色代表PDF等，可根据类型动态调色 */
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.doc-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-name {
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-size {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* 文本和Markdown */
+.message-text {
   word-break: break-word;
 }
-
-.message-text :deep(pre) {
-  background: #f5f7fa;
+.message-text :deep(p) {
+  margin: 0 0 10px 0;
+  padding: 0;
+}
+.message-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.message-text :deep(pre.hljs) {
+  background: #ffffff;
+  color: #1f2937;
   padding: 12px;
-  border-radius: 6px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
   overflow-x: auto;
-  margin: 8px 0;
-}
-
-.message-item.user .message-text :deep(pre) {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.message-text :deep(code) {
-  background: #f5f7fa;
-  padding: 2px 6px;
-  border-radius: 4px;
+  margin: 10px 0;
   font-family: monospace;
 }
-
-.message-item.user .message-text :deep(code) {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.message-files {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.file-tag {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: #f5f7fa;
+.message-text :deep(code) {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
   border-radius: 4px;
-  font-size: 12px;
+  color: #ef4444;
+}
+.message-text :deep(pre.hljs code) {
+  background: transparent;
+  color: inherit;
+  padding: 0;
 }
 
-.message-item.user .file-tag {
-  background: rgba(255, 255, 255, 0.2);
+/* ==================== 底部输入区域 ==================== */
+.input-area-container {
+  padding: 20px 10%;
+  background: #ffffff;
+  border-top: 1px solid #f3f4f6;
 }
 
-/* 加载动画 */
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 8px 0;
+.input-container-inner {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  transition: all 0.3s;
+  position: relative;
 }
 
-.typing-indicator span {
-  width: 8px;
-  height: 8px;
-  background: #409eff;
-  border-radius: 50%;
-  animation: typing 1.4s infinite ease-in-out;
+.input-container-inner:focus-within {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: #ffffff;
 }
 
-.typing-indicator span:nth-child(2) {
-  animation-delay: 0.2s;
+.input-container-inner.drag-over {
+  border-color: #667eea;
+  background: #ebf5ff;
 }
 
-.typing-indicator span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes typing {
-  0%, 60%, 100% {
-    transform: translateY(0);
-    opacity: 0.4;
-  }
-  30% {
-    transform: translateY(-8px);
-    opacity: 1;
-  }
-}
-
-/* 输入区域 */
-.input-area {
-  padding: 16px 20px;
-  background: #fff;
-  border-top: 1px solid #e4e7ed;
-}
-
-.uploaded-files {
+/* 上传暂存区 (Gemini风格附件胶囊) */
+.staging-area {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 12px;
+  padding: 16px 16px 0 16px;
 }
 
-.file-preview {
+.staging-file {
+  position: relative;
+  /* width: 70px; */ /* 移除固定宽度适配文档名 */
+  height: 70px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: #f5f7fa;
-  border-radius: 6px;
-  font-size: 13px;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
+.staging-image {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+/* 上传文档胶囊样式 */
+.staging-doc-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 0 10px;
+  min-width: 140px;
+  max-width: 250px;
+  height: 100%;
+}
+
+.staging-doc-icon {
+  width: 40px;
+  height: 40px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #667eea;
+  font-size: 20px;
+}
+
+.staging-doc-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.staging-doc-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.staging-doc-size {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.remove-file-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #374151;
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.staging-file:hover .remove-file-btn {
+  opacity: 1;
+}
+
+/* 输入框 */
 .input-wrapper {
   display: flex;
   align-items: flex-end;
+  padding: 12px 16px;
   gap: 12px;
-  max-width: 900px;
-  margin: 0 auto;
 }
 
-.input-wrapper :deep(.el-textarea__inner) {
-  border-radius: 12px;
-  padding: 12px 16px;
+.upload-btn {
+  background: #f3f4f6;
+  border: none;
+  color: #4b5563;
+  margin-bottom: 2px;
+}
+
+.upload-btn:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.message-input {
+  flex: 1;
+}
+
+.message-input :deep(.el-textarea__inner) {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 8px 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #111827;
   resize: none;
 }
 
-.upload-btn, .send-btn {
-  flex-shrink: 0;
+.send-btn {
+  background: #e5e7eb;
+  border: none;
+  color: #9ca3af;
+  margin-bottom: 2px;
+  transition: all 0.3s;
+}
+
+.send-btn.can-send {
+  background: #111827;
+  color: #ffffff;
+}
+
+.send-btn.can-send:hover {
+  transform: scale(1.05);
 }
 
 .input-tips {
   text-align: center;
   font-size: 12px;
-  color: #909399;
-  margin-top: 8px;
+  color: #9ca3af;
+  margin-top: 12px;
 }
 
-/* 响应式 */
+/* 打字动画 */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+}
+.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  background: #6b7280;
+  border-radius: 50%;
+  animation: typing 1.4s infinite ease-in-out;
+}
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 响应式适配 */
 @media (max-width: 768px) {
-  .chat-sidebar {
-    display: none;
+  .messages-container,
+  .input-area-container {
+    padding-left: 16px;
+    padding-right: 16px;
   }
-  
   .message-wrapper {
-    max-width: 85%;
+    max-width: 95%;
   }
-  
-  .quick-prompts {
-    flex-direction: column;
+  .staging-file {
+    width: 60px;
+    height: 60px;
+  }
+  .attachment-image {
+    max-width: 200px;
   }
 }
 </style>

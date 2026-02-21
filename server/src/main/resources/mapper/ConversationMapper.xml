@@ -37,6 +37,8 @@
         WHERE username = #{username}
     </select>
 
+
+
     <update id="updateTitle">
         UPDATE conversations
         SET title = #{title}

@@ -69,7 +69,7 @@ public class ConversationController {
         }
 
         // 加载消息历史
-        List<Message> messages = messageService.loadConversationHistory(conversationId);
+        List<Message> messages = messageService.loadConversationHistory(conversationId, conversation.getUsername());
 
         Map<String, Object> data = new HashMap<>();
         data.put("conversationId", conversationId);

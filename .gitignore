@@ -1,0 +1,167 @@
+# ===================
+# Node.js / Vue.js (前端)
+# ===================
+
+# 依赖
+node_modules/
+jspm_packages/
+
+# 构建输出
+dist/
+dist-ssr/
+*.local
+
+# Vite 缓存
+.vite/
+
+# ESLint 缓存
+.eslintcache
+
+# ===================
+# Java / Maven (后端)
+# ===================
+
+# Maven 构建输出
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Maven 日志
+mvnw
+mvnw.cmd
+
+# STS / Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# VS Code
+.vscode/
+
+# ===================
+# 日志文件
+# ===================
+
+*.log
+server.log
+logs/
+
+# ===================
+# 操作系统
+# ===================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+
+# ===================
+# 上传文件和临时文件
+# ===================
+
+# 用户上传的文件
+server/src/main/resources/upload/
+server/src/main/resources/static/uploads/
+upload/
+uploads/
+
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ===================
+# 配置文件（敏感信息）
+# ===================
+
+# 环境配置
+.env
+.env.local
+.env.*.local
+
+# 应用配置（包含数据库密码等）
+application-prod.yml
+application-dev.yml
+application-local.yml
+
+# ===================
+# 测试覆盖率
+# ===================
+
+coverage/
+*.lcov
+.nyc_output/
+
+# ===================
+# 其他
+# ===================
+
+# 打包文件
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 缓存
+.cache/
+.parcel-cache/
+
+# Clerk
+.clerk/
+
+# AI Agent 工具目录
+.agent/
+.claude/
+.gemini/
+
+# 数据库文件
+server/data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ===================
+# 保留特定文件
+# ===================
+
+# 保留示例配置文件
+!application-example.yml
+!application-example.properties
+!.env.example

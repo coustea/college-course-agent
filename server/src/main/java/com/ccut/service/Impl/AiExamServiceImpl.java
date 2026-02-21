@@ -20,7 +20,7 @@ import com.ccut.mapper.CourseMapper;
 import com.ccut.mapper.StudentMapper;
 import com.ccut.service.AiExamService;
 import com.ccut.service.WrongQuestionService;
-import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -38,7 +38,7 @@ import java.util.*;
 @Service
 public class AiExamServiceImpl implements AiExamService {
 
-    private final ChatClient chatClient;
+    private final ChatModel chatModel;
     private final BeanOutputConverter<Exam> converter;
     private final String format;
     private final CourseMapper courseMapper;
@@ -61,7 +61,7 @@ public class AiExamServiceImpl implements AiExamService {
             {format}
             """;
 
-    public AiExamServiceImpl(ChatClient.Builder builder,
+    public AiExamServiceImpl(ChatModel chatModel,
                             CourseMapper courseMapper,
                             AiExamMapper aiExamMapper,
                             AiExamQuestionMapper questionMapper,
@@ -71,7 +71,7 @@ public class AiExamServiceImpl implements AiExamService {
                             StudentMapper studentMapper) {
         this.converter = new BeanOutputConverter<>(new ParameterizedTypeReference<Exam>() {});
         this.format = converter.getFormat();
-        this.chatClient = builder.build();
+        this.chatModel = chatModel;
         this.courseMapper = courseMapper;
         this.aiExamMapper = aiExamMapper;
         this.questionMapper = questionMapper;
@@ -104,7 +104,9 @@ public class AiExamServiceImpl implements AiExamService {
                 "choiceCount", choiceCount,
                 "judgeCount", judgeCount
         ));
-        Exam ai = chatClient.prompt(prompt).call().entity(Exam.class);
+        var response = chatModel.call(prompt);
+        String content = response.getResult().getOutput().getText();
+        Exam ai = converter.convert(content);
 
         AiExam exam = new AiExam();
         exam.setCourseId(req.courseId());

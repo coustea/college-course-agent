@@ -136,6 +136,16 @@
 <!--          </li>-->
 
           <li class="menu-item">
+            <div class="menu-title" :class="{active: $route.path === '/teacher/ai-chat'}"
+                 @click="navigateTo('/teacher/ai-chat')">
+              <div>
+                <i class="fas fa-robot"></i>
+                <span>AI 教学助手</span>
+              </div>
+            </div>
+          </li>
+
+          <li class="menu-item">
             <div class="menu-title" :class="{active: $route.path === '/teacher/profile'}"
                  @click="navigateTo('/teacher/profile')">
               <div>

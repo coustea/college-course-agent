@@ -100,9 +100,98 @@
     </div>
   </div>
 
-<!-- 题目弹窗复用视频题目组件 -->
+<!-- 文档多题答题弹窗 -->
+<el-dialog
+    v-if="modelValue && quizStarted"
+    v-model="documentQuizVisible"
+    title="文档测试题"
+    width="800px"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    append-to-body
+    class="document-quiz-dialog"
+>
+  <div class="document-quiz-body">
+    <div class="quiz-header-info">
+      <span class="quiz-count">共 {{ questionList.length }} 道题</span>
+      <span class="quiz-progress">已作答 {{ answersSoFar.length }} 题</span>
+    </div>
+
+    <div class="quiz-questions-list">
+      <div
+        v-for="(q, idx) in questionList"
+        :key="q.id || idx"
+        class="quiz-question-item"
+        :class="{ 'answered': isQuestionAnswered(q.id) }"
+      >
+        <!-- 题目序号和状态 -->
+        <div class="question-header">
+          <span class="question-number">第 {{ idx + 1 }} 题</span>
+          <span v-if="isQuestionAnswered(q.id)" class="question-status answered-badge">已作答</span>
+          <span v-else class="question-status pending-badge">未作答</span>
+        </div>
+
+        <!-- 题干 -->
+        <div class="question-stem">{{ q.stem }}</div>
+
+        <!-- 选项 -->
+        <div class="question-options">
+          <div
+            v-for="(opt, optIdx) in q.options"
+            :key="optIdx"
+            class="quiz-option-item"
+            :class="{ 'selected': isOptionSelected(q.id, optIdx) }"
+            @click="selectOption(q.id, optIdx)"
+          >
+            <span class="option-label">{{ ['A', 'B', 'C', 'D'][optIdx] }}</span>
+            <span class="option-text">{{ opt }}</span>
+          </div>
+        </div>
+
+        <!-- 答题结果显示（仅在答题后显示） -->
+        <div v-if="showQuizResults" class="quiz-result-panel" :class="{ 'correct': isQuestionCorrect(q.id), 'wrong': !isQuestionCorrect(q.id) }">
+          <div class="result-title">
+            <i class="fas" :class="isQuestionCorrect(q.id) ? 'fa-check-circle' : 'fa-times-circle'"></i>
+            {{ isQuestionCorrect(q.id) ? '回答正确' : '回答错误' }}
+          </div>
+          <div v-if="!isQuestionCorrect(q.id)" class="correct-answer">
+            正确答案：{{ ['A', 'B', 'C', 'D'][q.correct] }}
+          </div>
+          <div v-if="q.analysis" class="quiz-analysis">
+            <strong>解析：</strong>{{ q.analysis }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <template #footer>
+    <div class="dialog-footer">
+      <el-button v-if="!showQuizResults" @click="documentQuizVisible = false" size="large">暂时关闭</el-button>
+      <el-button
+          v-if="!showQuizResults"
+          type="primary"
+          @click="submitDocumentQuiz"
+          size="large"
+          :disabled="answersSoFar.length < questionList.length"
+      >
+        提交答案（{{ answersSoFar.length }}/{{ questionList.length }}）
+      </el-button>
+      <el-button
+          v-if="showQuizResults"
+          type="primary"
+          @click="closeDocumentQuiz"
+          size="large"
+      >
+        完成
+      </el-button>
+    </div>
+  </template>
+</el-dialog>
+
+<!-- 题目弹窗复用视频题目组件（仅视频使用） -->
 <Question
-    v-if="modelValue && questionVisible"
+    v-if="modelValue && questionVisible && !quizStarted"
     v-model="questionVisible"
     :title="'选择题'"
     :stem="currentStem"
@@ -567,32 +656,104 @@ async function startQuiz() {
   try {
     quizStarted.value = true
     console.log('[DocumentViewer]开始答题')
-    
+
     const courseId = props.id || props.title
     const qs = await fetchQuestionsOnce(courseId)
-    
+
     if (!Array.isArray(qs) || qs.length === 0) {
       ElMessage.error('获取题目失败，请重试')
       quizStarted.value = false
       return
     }
-    
-    // 显示第一题
-    remainingIndex.value = 0
-    const q = qs[0]
-    if (q) {
-      currentQuestionId.value = q.id
-      currentStem.value = q.stem
-      currentOptions.value = q.options
-      currentCorrect.value = q.correct
-      currentAnalysis.value = q.analysis
-      questionVisible.value = true
-    }
+
+    // 打开多题答题弹窗
+    showQuizResults.value = false
+    documentQuizVisible.value = true
   } catch (e) {
     console.error('[DocumentViewer]开始答题失败:', e)
     ElMessage.error('开始答题失败')
     quizStarted.value = false
   }
+}
+
+// 判断题目是否已作答
+function isQuestionAnswered(questionId) {
+  return answersSoFar.value.some(a => a.questionId === questionId)
+}
+
+// 判断题目是否正确
+function isQuestionCorrect(questionId) {
+  const answer = answersSoFar.value.find(a => a.questionId === questionId)
+  if (!answer) return false
+  const question = questionList.value.find(q => q.id === questionId)
+  if (!question) return false
+  return answer.answer === ['A', 'B', 'C', 'D'][question.correct]
+}
+
+// 判断选项是否被选中
+function isOptionSelected(questionId, optionIndex) {
+  const answer = answersSoFar.value.find(a => a.questionId === questionId)
+  if (!answer) return false
+  return answer.answer === ['A', 'B', 'C', 'D'][optionIndex]
+}
+
+// 选择选项
+function selectOption(questionId, optionIndex) {
+  if (showQuizResults.value) return // 已提交后不允许修改
+
+  const letter = ['A', 'B', 'C', 'D'][optionIndex]
+  const existingIndex = answersSoFar.value.findIndex(a => a.questionId === questionId)
+
+  if (existingIndex >= 0) {
+    // 已有答案，更新
+    answersSoFar.value[existingIndex] = { questionId, answer: letter }
+  } else {
+    // 新增答案
+    answersSoFar.value.push({ questionId, answer: letter })
+  }
+}
+
+// 提交文档测试答案
+async function submitDocumentQuiz() {
+  if (answersSoFar.value.length < questionList.value.length) {
+    ElMessage.warning('请先完成所有题目')
+    return
+  }
+
+  try {
+    // 先判断并保存错题（在提交答案之前）
+    for (const answer of answersSoFar.value) {
+      const question = questionList.value.find(q => q.id === answer.questionId)
+      if (!question) continue
+
+      const correctLetter = ['A', 'B', 'C', 'D'][question.correct]
+      const isCorrect = (answer.answer === correctLetter)
+
+      // 如果答错了，添加到错题本
+      if (!isCorrect) {
+        console.log(`[DocumentViewer] 答题错误: 题目ID=${answer.questionId}, 你的答案=${answer.answer}, 正确答案=${correctLetter}`)
+        await addToWrongQuestionBook(answer.questionId, answer.answer, correctLetter)
+      } else {
+        console.log(`[DocumentViewer] 答题正确: 题目ID=${answer.questionId}, 你的答案=${answer.answer}`)
+      }
+    }
+
+    // 提交答案到后端
+    await submitDocumentAnswersAndProgress()
+
+    // 显示结果
+    showQuizResults.value = true
+    ElMessage.success('答案已提交')
+  } catch (e) {
+    console.error('[DocumentViewer]提交答案失败:', e)
+    ElMessage.error('提交答案失败')
+  }
+}
+
+// 关闭文档答题弹窗（只关闭dialog，不关闭整个DocumentViewer）
+function closeDocumentQuiz() {
+  documentQuizVisible.value = false
+  console.log('[DocumentViewer] 答题dialog已关闭，用户可以点击"完成学习"按钮结束文档学习')
 }
 
 // 结束文档学习（提交答案并标记完成）
@@ -617,6 +778,10 @@ const currentCorrect = ref(0)
 const currentAnalysis = ref('')
 const pendingNodeKey = ref('')
 const resolver = ref(null)
+
+// 文档多题答题相关
+const documentQuizVisible = ref(false)
+const showQuizResults = ref(false)
 const isClosing = ref(false)  
 const quizStarted = ref(false)
 
@@ -660,16 +825,73 @@ async function onQuestionSubmit(payload) {
     const idx = Number(payload?.answerIndex)
     const letter = ['A','B','C','D'][Math.max(0, Math.min(3, Number.isFinite(idx) ? idx : 0))]
     const qid = currentQuestionId.value
+
+    // 获取当前题目的正确答案
+    const currentQuestion = questionList.value.find(q => q.id === qid)
+    const correctIndex = currentQuestion?.correct ?? 0
+    const correctLetter = ['A','B','C','D'][correctIndex]
+
+    // 判断是否答错
+    const isCorrect = (idx === correctIndex)
+
     if (qid) {
       const existing = answersSoFar.value.findIndex(a => a.questionId === qid)
       if (existing >= 0) answersSoFar.value.splice(existing, 1, { questionId: qid, answer: letter })
       else answersSoFar.value.push({ questionId: qid, answer: letter })
+
+      // 如果答错了，立即添加到错题本
+      if (!isCorrect) {
+        await addToWrongQuestionBook(qid, letter, correctLetter)
+      }
+
+      console.log(`[DocumentViewer] 答题${isCorrect ? '正确' : '错误'}: 题目ID=${qid}, 你的答案=${letter}, 正确答案=${correctLetter}`)
     }
-  } catch (e) { console.error(e) }
+  } catch (e) {
+    console.error('[DocumentViewer] 答题处理失败:', e)
+  }
   questionVisible.value = false
   if (typeof resolver.value === 'function') {
-    resolver.value(true) 
+    resolver.value(true)
     resolver.value = null
+  }
+}
+
+// 添加错题到错题本
+async function addToWrongQuestionBook(questionId, wrongAnswer, correctAnswer) {
+  try {
+    const studentId = localStorage.getItem('userId')
+    const courseId = props.id
+    const examIdValue = examId.value
+
+    if (!studentId || !courseId || !questionId || !examIdValue) {
+      console.warn('[DocumentViewer] 缺少必要参数，跳过添加错题本', { studentId, courseId, questionId, examId: examIdValue })
+      return
+    }
+
+    const token = localStorage.getItem('token')
+    console.log('[DocumentViewer] 添加错题到错题本:', { questionId, wrongAnswer, correctAnswer })
+
+    const res = await axios.post(`${BASE_URL}/wrong-question/add`, null, {
+      params: {
+        studentId,
+        questionId,
+        examId: examIdValue,
+        courseId,
+        wrongAnswer,
+        correctAnswer
+      },
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+
+    if (res.data.code === 200) {
+      console.log('[DocumentViewer] 错题添加成功')
+    } else {
+      console.warn('[DocumentViewer] 错题添加失败:', res.data.message)
+    }
+  } catch (e) {
+    console.error('[DocumentViewer] 添加错题到错题本失败:', e)
   }
 }
 
@@ -1528,6 +1750,200 @@ async function submitDocumentAnswersAndProgress() {
   word-wrap: break-word;
   line-height: 1.6;
   margin: 0;
+}
+
+/* 文档多题答题界面样式 */
+.document-quiz-dialog .quiz-header-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.quiz-questions-list {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.quiz-question-item {
+  padding: 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  transition: all 0.2s;
+}
+
+.quiz-question-item.answered {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.question-number {
+  font-weight: 600;
+  font-size: 16px;
+  color: #1f2937;
+}
+
+.question-status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.answered-badge {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.pending-badge {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.question-stem {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #374151;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quiz-option-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quiz-option-item:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.quiz-option-item.selected {
+  border-color: #3b82f6;
+  background: #dbeafe;
+}
+
+.option-label {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.quiz-option-item.selected .option-label {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.option-text {
+  flex: 1;
+  font-size: 14px;
+  color: #374151;
+}
+
+.quiz-result-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.quiz-result-panel.correct {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.quiz-result-panel.wrong {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.result-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.quiz-result-panel.correct .result-title {
+  color: #047857;
+}
+
+.quiz-result-panel.wrong .result-title {
+  color: #b91c1c;
+}
+
+.correct-answer {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.quiz-analysis {
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+/* 自定义滚动条 */
+.quiz-questions-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.quiz-questions-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.quiz-questions-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.quiz-questions-list::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
 }
 </style>
 

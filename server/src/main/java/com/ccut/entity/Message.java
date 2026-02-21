@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 public class Message {
     private Long id; // 数据库自增主键
     private String conversationId; // 关联的会话ID（外键）
+    private String username; // 用户名（方便直接查询）
     private String role; // 消息角色：user(用户)/assistant(AI)/system(系统)
     private String content; // 消息内容（TEXT类型，支持长文本）
     private Integer sequenceNum; // 消息序号，同一会话内递增，用于排序和上下文

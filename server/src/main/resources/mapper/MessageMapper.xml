@@ -6,6 +6,7 @@
     <resultMap id="MessageResultMap" type="com.ccut.entity.Message">
         <id property="id" column="id"/>
         <result property="conversationId" column="conversation_id"/>
+        <result property="username" column="username"/>
         <result property="role" column="role"/>
         <result property="content" column="content"/>
         <result property="sequenceNum" column="sequence_num"/>
@@ -14,14 +15,21 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.ccut.entity.Message" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO messages (conversation_id, role, content, sequence_num, tokens_used)
-        VALUES (#{conversationId}, #{role}, #{content}, #{sequenceNum}, #{tokensUsed})
+        INSERT INTO messages (conversation_id, username, role, content, sequence_num, tokens_used)
+        VALUES (#{conversationId}, #{username}, #{role}, #{content}, #{sequenceNum}, #{tokensUsed})
     </insert>
 
     <select id="findByConversationId" resultMap="MessageResultMap">
-        SELECT id, conversation_id, role, content, sequence_num, created_at, tokens_used
+        SELECT id, conversation_id, username, role, content, sequence_num, created_at, tokens_used
         FROM messages
         WHERE conversation_id = #{conversationId}
+        ORDER BY sequence_num ASC
+    </select>
+
+    <select id="findByUsername" resultMap="MessageResultMap">
+        SELECT id, conversation_id, username, role, content, sequence_num, created_at, tokens_used
+        FROM messages
+        WHERE username = #{username}
         ORDER BY sequence_num ASC
     </select>
 

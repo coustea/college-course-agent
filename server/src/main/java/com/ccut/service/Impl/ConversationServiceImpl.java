@@ -68,9 +68,30 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public String generateConversationId(String username) {
-        // 获取用户下一个会话序号
-        int nextSequenceNum = conversationMapper.getNextSequenceNum(username);
-        // 生成格式：username:序号（如zhangsan:1）
-        return username + ":" + nextSequenceNum;
+        // 每个用户只有一个会话，序号固定为1
+        return username + ":1";
+    }
+
+    @Override
+    public Conversation getOrCreateUserConversation(String username) {
+        // 尝试获取用户的唯一会话（序号为1）
+        String conversationId = username + ":1";
+        Conversation existingConversation = conversationMapper.findByConversationId(conversationId);
+
+        if (existingConversation != null) {
+            return existingConversation;
+        }
+
+        // 会话不存在，创建新会话
+        Conversation conversation = new Conversation();
+        conversation.setConversationId(conversationId);
+        conversation.setUsername(username);
+        conversation.setSequenceNum(1);
+        conversation.setTitle("AI助手对话");
+        conversation.setCreatedAt(LocalDateTime.now());
+        conversation.setUpdatedAt(LocalDateTime.now());
+
+        conversationMapper.insert(conversation);
+        return conversation;
     }
 }
