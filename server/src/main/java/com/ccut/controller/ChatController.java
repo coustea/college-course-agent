@@ -4,9 +4,12 @@ import com.ccut.dto.Attachment;
 import com.ccut.dto.ChatRequest;
 import com.ccut.dto.ChatResponse;
 import com.ccut.dto.Result;
+import com.ccut.entity.Message;
 import com.ccut.service.ChatAgentService;
 import com.ccut.service.FileStorageService;
 import com.ccut.service.MessageService;
+import com.ccut.utils.JWTUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -42,7 +45,8 @@ public class ChatController {
     public Result<ChatResponse> chat(
             @RequestPart("conversationId") String conversationId,
             @RequestPart("message") String message,
-            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+            @RequestPart(value = "files", required = false) List<MultipartFile> files,
+            HttpServletRequest request) {
 
         if (conversationId == null || conversationId.trim().isEmpty()) {
             return Result.error(400, "conversationId 不能为空");
@@ -52,11 +56,28 @@ public class ChatController {
         }
 
         try {
+            // 从JWT token中提取当前登录用户的用户名
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return Result.error(401, "未授权访问");
+            }
+            String token = authHeader.substring(7);
+            String username = JWTUtils.getUsernameFromToken(token);
+
+            if (username == null || username.trim().isEmpty()) {
+                return Result.error(401, "无法获取用户信息");
+            }
+
+            System.out.println("========== [Chat Controller - Send] ==========");
+            System.out.println("Username from JWT: " + username);
+            System.out.println("ConversationId: " + conversationId);
+
             List<Attachment> attachments = saveFiles(files);
-            ChatRequest request = new ChatRequest(conversationId, message, attachments);
-            ChatResponse chatResponse = chatAgentService.chat(request);
+            ChatRequest chatRequest = new ChatRequest(conversationId, message, attachments);
+            ChatResponse chatResponse = chatAgentService.chat(chatRequest, username);
             return Result.success(chatResponse);
         } catch (Exception e) {
+            e.printStackTrace();
             return Result.error(500, "聊天失败: " + e.getMessage());
         }
     }
@@ -70,7 +91,8 @@ public class ChatController {
     public Flux<String> chatStream(
             @RequestPart("conversationId") String conversationId,
             @RequestPart("message") String message,
-            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+            @RequestPart(value = "files", required = false) List<MultipartFile> files,
+            HttpServletRequest request) {
 
         if (conversationId == null || conversationId.trim().isEmpty()) {
             return Flux.just("{\"code\": 400, \"message\": \"conversationId 不能为空\"}");
@@ -80,10 +102,26 @@ public class ChatController {
         }
 
         try {
+            // 从JWT token中提取当前登录用户的用户名
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return Flux.just("{\"code\": 401, \"message\": \"未授权访问\"}");
+            }
+            String token = authHeader.substring(7);
+            String username = JWTUtils.getUsernameFromToken(token);
+
+            if (username == null || username.trim().isEmpty()) {
+                return Flux.just("{\"code\": 401, \"message\": \"无法获取用户信息\"}");
+            }
+
+            System.out.println("========== [Chat Controller - Stream] ==========");
+            System.out.println("Username from JWT: " + username);
+            System.out.println("ConversationId: " + conversationId);
+
             List<Attachment> attachments = saveFiles(files);
-            ChatRequest request = new ChatRequest(conversationId, message, attachments);
-            System.out.println("[ChatController] 开始流式响应，conversationId: " + conversationId);
-            return chatAgentService.chatStream(request)
+            ChatRequest chatRequest = new ChatRequest(conversationId, message, attachments);
+            System.out.println("[ChatController] 开始流式响应，username: " + username + ", conversationId: " + conversationId);
+            return chatAgentService.chatStream(chatRequest, username)
                     .doOnNext(chunk -> {
                         System.out.println("[ChatController] 发送SSE chunk: " + chunk.substring(0, Math.min(100, chunk.length())));
                     })
@@ -102,15 +140,26 @@ public class ChatController {
 
     /**
      * 获取聊天记录
-     * GET /api/ai/chat/history?username=xxx
+     * GET /api/ai/chat/history
+     * 从JWT token中获取当前登录用户的用户名，确保只能查看自己的聊天记录
      */
     @GetMapping("/history")
-    public Result<List<com.ccut.entity.Message>> getChatHistory(@RequestParam String username) {
-        if (username == null || username.trim().isEmpty()) {
-            return Result.error(400, "用户名不能为空");
-        }
+    public Result<List<Message>> getChatHistory(HttpServletRequest request) {
         try {
-            List<com.ccut.entity.Message> messages = messageService.findByUsername(username);
+            // 从JWT token中提取当前登录用户的用户名
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return Result.error(401, "未授权访问");
+            }
+            String token = authHeader.substring(7);
+            String username = JWTUtils.getUsernameFromToken(token);
+
+            if (username == null || username.trim().isEmpty()) {
+                return Result.error(401, "无法获取用户信息");
+            }
+
+            // 只查询当前登录用户的消息
+            List<Message> messages = messageService.findByUsername(username);
             return Result.success(messages);
         } catch (Exception e) {
             return Result.error(500, "获取聊天记录失败: " + e.getMessage());
@@ -119,15 +168,26 @@ public class ChatController {
 
     /**
      * 删除聊天记录
-     * DELETE /api/ai/chat/delete?username=xxx
+     * DELETE /api/ai/chat/delete
+     * 从JWT token中获取当前登录用户的用户名，确保只能删除自己的聊天记录
      */
     @DeleteMapping("/delete")
-    public Result<String> deleteChat(@RequestParam String username) {
-        if (username == null || username.trim().isEmpty()) {
-            return Result.error(400, "用户名不能为空");
-        }
+    public Result<String> deleteChat(HttpServletRequest request) {
         try {
-            List<com.ccut.entity.Message> messages = messageService.findByUsername(username);
+            // 从JWT token中提取当前登录用户的用户名
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return Result.error(401, "未授权访问");
+            }
+            String token = authHeader.substring(7);
+            String username = JWTUtils.getUsernameFromToken(token);
+
+            if (username == null || username.trim().isEmpty()) {
+                return Result.error(401, "无法获取用户信息");
+            }
+
+            // 只删除当前登录用户的消息
+            List<Message> messages = messageService.findByUsername(username);
             if (!messages.isEmpty()) {
                 String conversationId = messages.get(0).getConversationId();
                 messageService.deleteMessages(conversationId, username);
@@ -143,17 +203,29 @@ public class ChatController {
      * GET /api/ai/chat/test
      */
     @GetMapping("/test")
-    public Result<Map<String, Object>> testAIConnection() {
+    public Result<Map<String, Object>> testAIConnection(HttpServletRequest request) {
         Map<String, Object> result = new HashMap<>();
 
         try {
+            // 从JWT token中提取用户名用于测试
+            String authHeader = request.getHeader("Authorization");
+            String username = "test_user"; // 默认测试用户
+
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                String tokenUsername = JWTUtils.getUsernameFromToken(token);
+                if (tokenUsername != null && !tokenUsername.trim().isEmpty()) {
+                    username = tokenUsername;
+                }
+            }
+
             // 测试同步调用
             ChatRequest testRequest = new ChatRequest("test", "你好，请简短回复", null);
-            ChatResponse response = chatAgentService.chat(testRequest);
+            ChatResponse chatResponse = chatAgentService.chat(testRequest, username);
 
             result.put("status", "success");
             result.put("message", "AI服务正常");
-            result.put("response", response.getAiMessage() != null ? response.getAiMessage().getContent() : "无响应");
+            result.put("response", chatResponse.getAiMessage() != null ? chatResponse.getAiMessage().getContent() : "无响应");
 
             return Result.success(result);
         } catch (Exception e) {

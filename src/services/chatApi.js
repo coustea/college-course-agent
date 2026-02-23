@@ -6,46 +6,60 @@ const API_BASE = import.meta?.env?.VITE_API_BASE_URL || '/api'
 // ======================== 会话管理 ========================
 
 /** 创建新会话 */
-export async function createConversation(username, title = '新对话') {
-  const res = await axios.post(`${API_BASE}/ai/conversation/create`, { username, title })
+export async function createConversation(title = '新对话') {
+  const res = await axios.post(`${API_BASE}/ai/conversation/create`, { title }, {
+    headers: getAuthHeaders()
+  })
   return res.data
 }
 
 /** 获取用户所有会话列表 */
 export async function getUserConversations(username) {
-  const res = await axios.get(`${API_BASE}/ai/conversation/list/${username}`)
+  const res = await axios.get(`${API_BASE}/ai/conversation/list/${username}`, {
+    headers: getAuthHeaders()
+  })
   return res.data
 }
 
 /** 获取会话历史消息 */
 export async function getConversationMessages(conversationId) {
-  const res = await axios.get(`${API_BASE}/ai/conversation/${conversationId}/messages`)
+  const res = await axios.get(`${API_BASE}/ai/conversation/${conversationId}/messages`, {
+    headers: getAuthHeaders()
+  })
   return res.data
 }
 
 /** 删除会话 */
 export async function deleteConversation(conversationId) {
-  const res = await axios.delete(`${API_BASE}/ai/conversation/${conversationId}`)
+  const res = await axios.delete(`${API_BASE}/ai/conversation/${conversationId}`, {
+    headers: getAuthHeaders()
+  })
   return res.data
 }
 
 /** 更新会话标题 */
 export async function updateConversationTitle(conversationId, title) {
-  const res = await axios.put(`${API_BASE}/ai/conversation/${conversationId}/title`, { title })
+  const res = await axios.put(`${API_BASE}/ai/conversation/${conversationId}/title`, { title }, {
+    headers: getAuthHeaders()
+  })
   return res.data
 }
 
 // ======================== 聊天 ========================
 
 /** 获取聊天历史 */
-export async function getChatHistory(username) {
-  const res = await axios.get(`${API_BASE}/ai/chat/history`, { params: { username } })
+export async function getChatHistory() {
+  const res = await axios.get(`${API_BASE}/ai/chat/history`, {
+    headers: getAuthHeaders()
+  })
   return res.data
 }
 
 /** 删除聊天记录 */
-export async function deleteChat(username) {
-  const res = await axios.delete(`${API_BASE}/ai/chat/delete`, { params: { username } })
+export async function deleteChat() {
+  const res = await axios.delete(`${API_BASE}/ai/chat/delete`, {
+    headers: getAuthHeaders()
+  })
   return res.data
 }
 

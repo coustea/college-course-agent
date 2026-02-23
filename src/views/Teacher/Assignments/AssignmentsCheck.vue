@@ -21,7 +21,6 @@
     </div>
 
     <div class="check-content-premium">
-      <!-- 统计概览 -->
       <div class="stats-overview-premium">
         <el-row :gutter="24">
           <el-col :span="6">
@@ -60,9 +59,9 @@
           <el-col :span="6">
             <el-card shadow="hover" class="stat-card-premium progress-card">
               <div class="stat-icon-wrapper">
-                <el-progress 
-                  type="circle" 
-                  :percentage="Math.round(((submittedCount / totalGroups) || 0) * 100)" 
+                <el-progress
+                  type="circle"
+                  :percentage="Math.round(((submittedCount / totalGroups) || 0) * 100)"
                   :width="40"
                   :stroke-width="5"
                   :show-text="false"
@@ -78,7 +77,6 @@
         </el-row>
       </div>
 
-      <!-- 小组列表 -->
       <div class="groups-list">
         <h3>小组检查情况</h3>
         <el-table :data="groups" style="width: 100%" stripe>
@@ -145,20 +143,19 @@
               >
                 查看详情
               </el-button>
-
             </template>
           </el-table-column>
         </el-table>
       </div>
 
 
-      <!-- 检查详情对话框 -->
       <el-dialog
         v-model="detailDialogVisible"
         :title="`${selectedGroup?.groupName} - 检查详情`"
         width="80%"
         top="50px"
         class="centered-dialog"
+        append-to-body
       >
         <div v-if="selectedGroup">
           <el-descriptions title="基本信息" border>
@@ -236,12 +233,12 @@
         </template>
       </el-dialog>
 
-      <!-- 个人提交详情对话框 -->
       <el-dialog
           v-model="personalDialogVisible"
           :title="`个人提交详情 - 学生ID: ${selectedPersonal?.studentId || ''}`"
           width="60%"
           top="80px"
+          append-to-body
       >
         <div v-if="selectedPersonal">
           <el-descriptions title="基本信息" border>
@@ -356,7 +353,14 @@ const completedCount = computed(() => {
 
 // 方法
 const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleDateString('zh-CN')
+  if (!dateString) return '-'
+  const date = new Date(dateString)
+  // 处理时区问题：确保显示正确的本地时间
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
 }
 
 // 自动生成头像颜色
@@ -379,7 +383,22 @@ const customColors = [
 ]
 
 const formatDateTime = (dateTimeString) => {
-  return new Date(dateTimeString).toLocaleString('zh-CN')
+  if (!dateTimeString) return '-'
+  const date = new Date(dateTimeString)
+  // 处理时区问题：确保显示正确的本地时间（中国时区 UTC+8）
+  // 如果传入的是字符串，确保正确解析
+  const timestamp = date.getTime()
+  if (isNaN(timestamp)) return dateTimeString // 如果无法解析，返回原字符串
+
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
 }
 
 const getSubmitStatusType = (status) => {
@@ -583,42 +602,67 @@ const submitCheck = async () => {
 const tryPrefillExistingGrades = async () => {
   try {
     const submissionId = selectedGroup.value && (selectedGroup.value.submissionId || selectedGroup.value.submission_id)
-    if (!submissionId) return
+
+    console.log('[加载历史评分] selectedGroup:', selectedGroup.value)
+    console.log('[加载历史评分] submissionId:', submissionId)
+
+    if (!submissionId) {
+      console.warn('[加载历史评分] submissionId 为空，无法加载历史评分')
+      return
+    }
+
     const resp = await api.get(`/grading/group/${submissionId}`)
-    console.log('加载评分和评语响应:', resp)
+    console.log('[加载历史评分] 完整响应:', resp)
+
     const raw = resp?.data
     const data = raw?.data || raw
-    
+
+    console.log('[加载历史评分] data对象:', data)
+    console.log('[加载历史评分] memberScores:', data?.memberScores)
+    console.log('[加载历史评分] groupComment:', data?.groupComment)
+
     // 处理成员评分（新版本返回格式：{ memberScores: [...], groupComment: "..." }）
     const list = Array.isArray(data?.memberScores) ? data.memberScores : (Array.isArray(data) ? data : [])
-    
+
     if (Array.isArray(list) && list.length > 0) {
+      console.log('[加载历史评分] 找到', list.length, '个成员评分')
       const map = new Map()
       list.forEach(it => map.set(Number(it.studentId || it.student_id), {
         score: it.score != null ? Number(it.score) : null,
         level: it.level || '',
         feedback: it.feedback || ''
       }))
+
       gradingMembers.value = gradingMembers.value.map(m => {
         const got = map.get(Number(m.studentId))
-        return got ? { ...m, ...got } : m
+        const result = got ? { ...m, ...got } : m
+        if (got) {
+          console.log('[加载历史评分] 成员', m.studentName, '的评分:', got)
+        }
+        return result
       })
-      
+
       // 若存在任一成员已有评分，则标为已评分
       const anyScored = gradingMembers.value.some(x => x.score != null && !isNaN(Number(x.score)))
       if (anyScored && selectedGroup.value) {
         const group = groups.value.find(g => g.id === selectedGroup.value.id)
         if (group) group.hasGrades = true
+        console.log('[加载历史评分] 标记小组为已评分')
       }
+    } else {
+      console.log('[加载历史评分] 未找到历史评分记录')
     }
-    
+
     // 处理小组评语（新版本已包含在同一个响应中）
     if (data && data.groupComment) {
       gradingForm.groupComment = data.groupComment
-      console.log('已加载小组评语:', data.groupComment)
+      console.log('[加载历史评分] 已加载小组评语:', data.groupComment)
+    } else {
+      console.log('[加载历史评分] 未找到小组评语')
     }
   } catch (error) {
-    console.error('加载评分和评语失败:', error)
+    console.error('[加载历史评分] 加载评分和评语失败:', error)
+    ElMessage.warning('加载历史评分失败: ' + (error?.response?.data?.message || error?.message || '未知错误'))
   }
 }
 
@@ -901,18 +945,22 @@ onMounted(async () => {
 
 <style scoped>
 .assignments-check {
+  margin: -30px; /* Offset TeacherLayout's padding */
+  width: calc(100% + 60px); /* Re-calculate width */
   padding: 0;
   background: #f3f4f6;
-  min-height: 100vh;
+  min-height: calc(100vh - 60px); /* Adjust min-height */
+  overflow-x: hidden;
 }
 
 /* Header White Styles */
 .check-header-white {
   position: relative;
   background: white;
-  padding: 24px 32px;
+  padding: 24px 32px 24px 32px; /* 确保有足够的右侧和左侧padding */
   border-bottom: 1px solid #e5e7eb;
   margin-bottom: 24px;
+  z-index: 1; /* 确保在侧边栏之上 */
 }
 
 .header-top {

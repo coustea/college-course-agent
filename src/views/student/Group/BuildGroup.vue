@@ -399,6 +399,14 @@ onMounted(async () => {
     const saved = JSON.parse(localStorage.getItem('currentUser') || 'null')
     mySid.value = String(localStorage.getItem('studentNumber') || saved?.studentNumber || saved?.sid || '')
 
+    // 检查是否是编辑模式
+    const isEditMode = localStorage.getItem('from_group_edit') === '1'
+    const currentLeaderId = localStorage.getItem('current_leader_id')
+
+    console.log('[组建小组] 是否编辑模式:', isEditMode)
+    console.log('[组建小组] 当前用户ID:', myId.value)
+    console.log('[组建小组] 组长ID:', currentLeaderId)
+
     const list = await getStudentsByClassName(className.value)
 
 
@@ -406,7 +414,18 @@ onMounted(async () => {
     try {
       const baseIds = JSON.parse(localStorage.getItem('base_member_student_ids') || '[]')
       if (Array.isArray(baseIds) && baseIds.length) {
-        const idSet = new Set((list || []).filter(s => baseIds.includes(Number(s.id) || s.id)).map(s => s.id))
+        // 过滤掉组长ID
+        const filteredBaseIds = baseIds.filter(id => {
+          const idNum = Number(id)
+          const leaderIdNum = Number(currentLeaderId || myId.value)
+          console.log('[组建小组] 检查成员ID:', idNum, '组长ID:', leaderIdNum, '是否排除:', idNum === leaderIdNum)
+          return idNum !== leaderIdNum
+        })
+
+        console.log('[组建小组] 原始成员ID:', baseIds)
+        console.log('[组建小组] 过滤后成员ID:', filteredBaseIds)
+
+        const idSet = new Set((list || []).filter(s => filteredBaseIds.includes(Number(s.id) || s.id)).map(s => s.id))
         selectedIds.value = Array.from(idSet)
       }
     } catch {}
@@ -419,6 +438,14 @@ onMounted(async () => {
     allStudents.value = list.map((s, i) => {
       const groupStatusRaw = String(s.groupStatus || s.status || '').toLowerCase()
       let mappedUnavailable = (groupStatusRaw === 'approval' || groupStatusRaw === 'approved' || s.grouped === true || s.status === 'grouped')
+
+      // 在编辑模式下，标记当前用户（组长）为不可选
+      const isCurrentUser = isEditMode && (String(s.id) === String(myId.value) || String(s.id) === String(currentLeaderId))
+      if (isCurrentUser) {
+        console.log('[组建小组] 标记当前用户为不可选:', s.name, 'ID:', s.id)
+        mappedUnavailable = true
+      }
+
       const sidStr = String(s.studentNumber || s.sid || '')
       if (sidStr && (rejectedSet.has(sidStr) || overrides[sidStr] === 'available')) mappedUnavailable = false
       return {
@@ -535,6 +562,26 @@ function finishSelecting() {
   }
   isSelecting.value = false
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: true, selecting: false}))
+
+  // 如果是编辑模式，保存选中的成员并返回编辑页面
+  const isEditMode = localStorage.getItem('from_group_edit') === '1'
+  if (isEditMode) {
+    console.log('[组建小组] 编辑模式：保存成员并返回')
+    // 保存选中的成员信息
+    const selectedMembersInfo = selectedMembers.value.map(m => ({
+      groupId: null, // 会在 MyGroup.vue 中填充
+      name: m.name,
+      studentId: m.id
+    }))
+    localStorage.setItem('added_member_infos', JSON.stringify(selectedMembersInfo))
+
+    // 清理临时标记
+    localStorage.removeItem('current_leader_id')
+    localStorage.removeItem('from_group_edit')
+
+    // 返回编辑页面
+    router.push({ name: 'GroupMine' })
+  }
 }
 
 function cancelCreate() {
@@ -543,13 +590,47 @@ function cancelCreate() {
   selectedIds.value = []
   statusFilter.value = ''
   localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: false, selecting: false}))
+
+  // 如果是编辑模式，返回编辑页面并清理临时数据
+  const isEditMode = localStorage.getItem('from_group_edit') === '1'
+  if (isEditMode) {
+    console.log('[组建小组] 编辑模式：取消选择并返回')
+    localStorage.removeItem('current_leader_id')
+    localStorage.removeItem('from_group_edit')
+    localStorage.removeItem('base_member_student_ids')
+    router.push({ name: 'GroupMine' })
+  }
 }
 
 async function submitGroup() {
   if (!canSubmit.value) return
 
   try {
-    const leaderId = Number(myId.value) || Number(localStorage.getItem('userId')) || undefined
+    // 调试日志
+    console.log('[创建小组] myId.value:', myId.value)
+    console.log('[创建小组] localStorage userId:', localStorage.getItem('userId'))
+    console.log('[创建小组] myId.value 类型:', typeof myId.value)
+
+    let leaderId = Number(myId.value)
+
+    // 如果 Number(myId.value) 是 NaN 或 0，尝试从 localStorage 获取
+    if (!leaderId || leaderId === 0 || isNaN(leaderId)) {
+      const localStorageUserId = localStorage.getItem('userId')
+      console.log('[创建小组] myId.value 无效，尝试从 localStorage 获取:', localStorageUserId)
+      leaderId = Number(localStorageUserId)
+    }
+
+    console.log('[创建小组] 最终 leaderId:', leaderId)
+    console.log('[创建小组] leaderId 类型:', typeof leaderId)
+    console.log('[创建小组] isNaN(leaderId):', isNaN(leaderId))
+
+    // 验证 leaderId 是否有效
+    if (!leaderId || leaderId === 0 || isNaN(leaderId)) {
+      ElMessage.error('无法获取用户ID，请重新登录')
+      console.error('[创建小组] leaderId 无效:', leaderId)
+      return
+    }
+
     const members = selectedMembers.value
     const payload = {
       groupName: groupName.value,
@@ -557,11 +638,30 @@ async function submitGroup() {
       groupDescription: taskDescription.value,
       memberIds: members.map(m => m.id)
     }
+
+    console.log('[创建小组] 提交的 payload:', payload)
+
     const res = isUpdate.value ? await updateStudentGroup(payload) : await createStudentGroup(payload)
     if (Number(res?.code ?? res?.status) === 200) {
       localStorage.setItem(GROUP_STATUS_KEY, 'pending')
       ElMessage.success('提交成功，等待审核')
-      cancelCreate()
+
+      // 清理编辑模式的临时数据
+      const isEditMode = localStorage.getItem('from_group_edit') === '1'
+      if (isEditMode) {
+        localStorage.removeItem('current_leader_id')
+        localStorage.removeItem('from_group_edit')
+        localStorage.removeItem('base_member_student_ids')
+        localStorage.removeItem('added_member_infos')
+      }
+
+      // 重置状态
+      isCreating.value = false
+      isSelecting.value = false
+      selectedIds.value = []
+      statusFilter.value = ''
+      localStorage.setItem(uiStateStorageKey, JSON.stringify({creating: false, selecting: false}))
+
       router.push('/group/mine')
     } else {
       ElMessage.error(`提交失败：${res?.message || '未知错误'}`)

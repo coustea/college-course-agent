@@ -14,14 +14,16 @@ public interface ChatAgentService {
     /**
      * 同步聊天
      * @param request 聊天请求（含消息、会话ID、附件）
+     * @param username 当前登录用户的用户名（从JWT token中提取，确保用户隔离）
      * @return 聊天响应
      */
-    ChatResponse chat(ChatRequest request);
+    ChatResponse chat(ChatRequest request, String username);
 
     /**
      * 流式聊天（SSE）
      * @param request 聊天请求
+     * @param username 当前登录用户的用户名（从JWT token中提取，确保用户隔离）
      * @return 流式文本响应
      */
-    Flux<String> chatStream(ChatRequest request);
+    Flux<String> chatStream(ChatRequest request, String username);
 }

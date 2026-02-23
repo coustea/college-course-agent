@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * AI 聊天 Agent 实现
@@ -87,12 +88,14 @@ public class ChatAgentServiceImpl implements ChatAgentService {
     // ============================================================
 
     @Override
-    public ChatResponse chat(ChatRequest request) {
+    public ChatResponse chat(ChatRequest request, String username) {
         String conversationId = request.conversationId();
         String userInput = request.message();
-        String username = extractUsername(conversationId);
 
-        logger.info("Agent chat: conversationId={}", conversationId);
+        logger.info("========== [Chat Start] ==========");
+        logger.info("Username from JWT: {}", username);
+        logger.info("ConversationId: {}", conversationId);
+        logger.info("User Input: {}", userInput);
 
         // 1. 异步解析文档附件
         String docContent = documentAnalysisService.analyzeAllAttachments(request.attachments());
@@ -103,11 +106,13 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         // 2. 处理图片附件（嵌入 base64 描述）
         userInput = appendImageDescriptions(userInput, request.attachments());
 
-        // 3. 保存用户消息
+        // 3. 保存用户消息（使用从JWT token中提取的username）
+        logger.info("Saving user message for username: {}", username);
         messageService.saveUserMessage(conversationId, userInput, username);
 
         // 4. 加载历史消息
         List<Message> history = messageService.loadConversationHistory(conversationId, username);
+        logger.info("Loaded {} history messages for username: {}", history.size(), username);
         List<org.springframework.ai.chat.messages.Message> historyMsgs = buildHistoryMessages(history);
 
         // 5. Agent 执行：Think → Plan → Reflect → Reply
@@ -118,7 +123,8 @@ public class ChatAgentServiceImpl implements ChatAgentService {
             aiText = executeDirectChat(historyMsgs, userInput);
         }
 
-        // 6. 保存 AI 回复
+        // 6. 保存 AI 回复（使用从JWT token中提取的username）
+        logger.info("Saving AI message for username: {}", username);
         Message aiMessage = messageService.saveAIMessage(conversationId, aiText, username);
 
         // 7. 异步刷新缓存
@@ -131,14 +137,13 @@ public class ChatAgentServiceImpl implements ChatAgentService {
     }
 
     @Override
-    public Flux<String> chatStream(ChatRequest request) {
+    public Flux<String> chatStream(ChatRequest request, String username) {
         String conversationId = request.conversationId();
         String userInput = request.message();
-        String username = extractUsername(conversationId);
 
         logger.info("========== [Stream Chat Start] ==========");
+        logger.info("Username from JWT: {}", username);
         logger.info("ConversationId: {}", conversationId);
-        logger.info("Username: {}", username);
         logger.info("User Input: {}", userInput);
         logger.info("Attachments: {}", request.attachments() != null ? request.attachments().size() : 0);
 
@@ -224,8 +229,8 @@ public class ChatAgentServiceImpl implements ChatAgentService {
             logger.info("发送请求到 AI 模型（Direct模式），消息数量: {}", allMessages.size());
 
             // 使用AtomicReference保证线程安全的累积
-            java.util.concurrent.atomic.AtomicReference<StringBuilder> atomicResponse =
-                    new java.util.concurrent.atomic.AtomicReference<>(new StringBuilder());
+            AtomicReference<StringBuilder> atomicResponse =
+                    new AtomicReference<>(new StringBuilder());
 
             return chatModel.stream(prompt)
                     .map(response -> {

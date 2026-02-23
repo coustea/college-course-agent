@@ -238,12 +238,17 @@ import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
 import {
   getUserConversations, createConversation,
-  getChatHistory, deleteChat, sendChatStream,
+  getConversationMessages, deleteChat, sendChatStream,
 } from "@/services/chatApi";
 
 // === 配置 ===
 const getUsername = () => {
   try {
+    // 优先使用 userName（登录时直接设置）
+    const userName = localStorage.getItem("userName");
+    if (userName) return userName;
+
+    // 降级：从 userInfo 中获取
     const u = JSON.parse(localStorage.getItem("userInfo") || "null");
     return u?.username || u?.name || "teacher";
   } catch { return "teacher"; }
@@ -296,16 +301,26 @@ const ensureConversation = async () => {
     if (res?.code === 200 && res.data?.length > 0) { conversationId.value = res.data[0].conversationId; return; }
   } catch {}
   try {
-    const res = await createConversation(username.value, "AI 教学助手");
+    const res = await createConversation("AI 教学助手");
     if (res?.code === 200) conversationId.value = res.data.conversationId;
   } catch (e) { console.error("创建会话失败", e); }
 };
 
 const loadHistory = async () => {
   try {
-    const res = await getChatHistory(username.value);
-    if (res?.code === 200 && Array.isArray(res.data)) {
-      messages.value = res.data.map((m) => ({ role: m.role, content: m.content, timestamp: m.createdAt }));
+    // 如果没有conversationId，先确保会话存在
+    if (!conversationId.value) {
+      await ensureConversation();
+    }
+
+    // 使用conversationId加载当前会话的历史消息
+    const res = await getConversationMessages(conversationId.value);
+    if (res?.code === 200 && res.data?.messages) {
+      messages.value = res.data.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.createdAt
+      }));
       scrollToBottom();
     }
   } catch (e) { console.error("加载历史失败", e); }
@@ -332,7 +347,7 @@ const clearChatHistory = async () => {
     await ElMessageBox.confirm("确定要清空所有聊天记录吗？此操作将无法恢复。", "清空对话",
       { confirmButtonText: "确定清空", cancelButtonText: "取消", type: "warning", confirmButtonClass: "el-button--danger" });
     isLoading.value = true;
-    await deleteChat(username.value);
+    await deleteChat();
     messages.value = [];
     ElMessage.success("聊天记录已清空");
   } catch (err) { if (err !== "cancel") ElMessage.error("清空失败"); }

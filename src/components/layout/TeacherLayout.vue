@@ -82,12 +82,6 @@
                 <i class="fas fa-layer-group"></i>
                 <span>分组管理</span>
               </li>
-<!--              <li class="submenu-item"-->
-<!--                  :class="{active: $route.path === '/teacher/students/performance'}"-->
-<!--                  @click="navigateTo('/teacher/students/performance')">-->
-<!--                <i class="fas fa-chart-line"></i>-->
-<!--                <span>学习表现</span>-->
-<!--              </li>-->
             </ul>
           </li>
 
@@ -116,24 +110,8 @@
                 <i class="fas fa-plus-square"></i>
                 <span>布置作品</span>
               </li>
-<!--              <li class="submenu-item"-->
-<!--                  :class="{active: $route.path === '/teacher/assignments/grading'}"-->
-<!--                  @click="navigateTo('/teacher/assignments/grading')">-->
-<!--                <i class="fas fa-check-circle"></i>-->
-<!--                <span>批改作品</span>-->
-<!--              </li>-->
             </ul>
           </li>
-
-<!--          <li class="menu-item">-->
-<!--            <div class="menu-title" :class="{active: $route.path === '/teacher/analytics'}"-->
-<!--                 @click="navigateTo('/teacher/analytics')">-->
-<!--              <div>-->
-<!--                <i class="fas fa-chart-bar"></i>-->
-<!--                <span>数据分析</span>-->
-<!--              </div>-->
-<!--            </div>-->
-<!--          </li>-->
 
           <li class="menu-item">
             <div class="menu-title" :class="{active: $route.path === '/teacher/ai-chat'}"
@@ -540,6 +518,8 @@ watch(() => route.path, (newPath) => {
   margin-left: 280px;
   padding: 30px;
   overflow-y: auto;
+  min-width: 0; /* 防止子元素过宽撑破布局 */
+  overflow-x: hidden; /* 隐藏整页的横向滚动，交给内部组件处理 */
   min-height: 100vh;
   background-color: #f8fafc;
   transition: margin-left 0.3s ease;

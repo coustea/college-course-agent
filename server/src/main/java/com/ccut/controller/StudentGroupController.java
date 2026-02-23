@@ -63,11 +63,18 @@ public class StudentGroupController {
                                        @RequestParam String groupDescription,
                                        @RequestParam List<Long> memberIds) {
         try {
+            log.info("=== 创建小组请求 ===");
+            log.info("groupName: {}", groupName);
+            log.info("groupLeaderId: {} (类型: {})", groupLeaderId, groupLeaderId != null ? groupLeaderId.getClass().getName() : "null");
+            log.info("groupDescription: {}", groupDescription);
+            log.info("memberIds: {}", memberIds);
+
             // === 参数校验 ===
             if (groupName == null || groupName.isEmpty()) {
                 return Result.error(400, "参数错误：groupName 不能为空");
             }
             if (groupLeaderId == null) {
+                log.error("groupLeaderId 为 null！");
                 return Result.error(400, "参数错误：groupLeaderId 不能为空");
             }
             if (groupDescription == null || groupDescription.isEmpty()) {
@@ -78,9 +85,19 @@ public class StudentGroupController {
             }
 
             // === 1. 验证组长是否存在 ===
+            log.info("正在查询组长，groupLeaderId = {}", groupLeaderId);
             Student leader = studentService.selectById(groupLeaderId);
+            log.info("查询结果: leader = {}", leader);
             if (leader == null) {
-                return Result.error(400, "参数错误：groupLeaderId 不存在");
+                log.error("未找到 groupLeaderId={} 的学生记录", groupLeaderId);
+                // 尝试查询所有学生，看看数据库中有哪些数据
+                List<Student> allStudents = studentService.selectAll();
+                log.error("数据库中共有 {} 个学生", allStudents.size());
+                if (!allStudents.isEmpty()) {
+                    log.error("前5个学生的ID: {}",
+                        allStudents.stream().limit(5).map(s -> s.getId()).toList());
+                }
+                return Result.error(400, "参数错误：groupLeaderId 不存在，ID=" + groupLeaderId);
             }
 
             // === 2. 组长是否已在其他小组 ===
@@ -216,10 +233,20 @@ public class StudentGroupController {
             @RequestBody FullUpdateRequest body
     ) {
         try {
+            log.info("=== 完整更新小组请求 ===");
+            log.info("groupId: {}", groupId);
+            log.info("请求体: groupName={}, groupDescription={}, groupLeaderId={}, approvalStatus={}",
+                    body.getGroupName(), body.getGroupDescription(), body.getGroupLeaderId(), body.getApprovalStatus());
+            log.info("新增成员: {}", body.getAddMemberIds());
+            log.info("移除成员: {}", body.getRemoveMemberIds());
+
             StudentGroup group = studentGroupService.selectByGroupId(groupId);
             if (group == null) {
+                log.error("小组不存在，groupId={}", groupId);
                 return Result.error(404, "用户分组不存在!");
             }
+
+            log.info("当前小组信息: name={}, approvalStatus={}", group.getGroupName(), group.getApprovalStatus());
 
             // 1) 更新组的基础信息
             StudentGroup patch = new StudentGroup();
@@ -230,7 +257,8 @@ public class StudentGroupController {
             if (body.getApprovalStatus() != null) patch.setApprovalStatus(body.getApprovalStatus());
             if (body.getStatus() != null) patch.setStatus(body.getStatus());
             if (patch.getGroupName() != null || patch.getGroupDescription() != null || patch.getApprovalStatus() != null || patch.getStatus() != null) {
-                studentGroupService.update(patch);
+                int updateResult = studentGroupService.update(patch);
+                log.info("小组基础信息更新结果: {}", updateResult);
             }
 
             // 2) 成员处理（增删）
@@ -238,19 +266,23 @@ public class StudentGroupController {
                 for (Long sid : body.getRemoveMemberIds()) {
                     if (sid == null) continue;
                     groupMemberService.deleteMember(sid, groupId);
+                    log.info("移除成员: studentId={}", sid);
                 }
             }
-            if (body.getAddMemberIds() != null) {
+            if (body.getAddMemberIds() != null && !body.getAddMemberIds().isEmpty()) {
                 for (Long sid : body.getAddMemberIds()) {
                     if (sid == null) continue;
+                    log.info("添加成员: studentId={}", sid);
                     // 若该学生已在任一小组，禁止重复加入（与创建逻辑一致）
                     GroupMember existing = groupMemberService.selectById(sid);
                     if (existing != null) {
+                        log.warn("成员已在其他小组中: studentId={}", sid);
                         return Result.error(400, "成员已在其他小组中: " + sid);
                     }
                     // 填充成员姓名/班级
                     Student member = studentService.selectById(sid);
                     if (member == null) {
+                        log.warn("成员不存在: studentId={}", sid);
                         return Result.error(400, "成员不存在: " + sid);
                     }
                     GroupMember item = new GroupMember(
@@ -263,6 +295,7 @@ public class StudentGroupController {
                             GroupMember.Status.approval
                     );
                     groupMemberService.insertMember(item);
+                    log.info("成员添加成功: {}", item);
                     // 同步更新学生的分组状态为 approval
                     try {
                         member.setGroupStatus("approval");

@@ -180,7 +180,8 @@
 
 
 <script setup>
-import { ref, onMounted, getCurrentInstance, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, getCurrentInstance, watch, computed } from 'vue'
+import { ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import {
@@ -203,6 +204,11 @@ const editTaskDesc = ref('')
 const editableMembers = ref([])
 const originalMemberIds = ref([])
 
+// 轮询和通知相关
+const pollingInterval = ref(null)
+const lastStatus = ref('none')
+const hasShownRejectedNotification = ref(false)
+
 
 
 // 状态显示的计算属性
@@ -222,6 +228,13 @@ const statusClass = computed(() => {
 
 onMounted(async () => {
   await refreshMyGroup()
+  // 如果当前是 pending 状态，启动轮询
+  startPolling()
+})
+
+onUnmounted(() => {
+  // 组件卸载时停止轮询
+  stopPolling()
 })
 
 function formatDate(date) {
@@ -342,6 +355,9 @@ async function refreshMyGroup() {
 
       console.log('[我的小组] 最终小组数据:', createdGroup.value)
 
+      // 检测状态变化并显示通知
+      checkStatusChange()
+
       // 初始化编辑数据
       const draftName = localStorage.getItem('edit_group_name_draft')
       const draftTask = localStorage.getItem('edit_group_task_draft')
@@ -403,6 +419,82 @@ function setNone() {
   createdGroup.value = null
 }
 
+// 检测状态变化并显示通知
+function checkStatusChange() {
+  const currentStatus = groupStatus.value
+
+  // 如果状态从 pending 变为 rejected，显示通知
+  if (lastStatus.value === 'pending' && currentStatus === 'rejected' && !hasShownRejectedNotification.value) {
+    showRejectedNotification()
+    hasShownRejectedNotification.value = true
+    // 停止轮询（已收到最终结果）
+    stopPolling()
+  }
+  // 如果状态从 pending 变为 approved，显示通过通知
+  else if (lastStatus.value === 'pending' && currentStatus === 'approved') {
+    ElNotification({
+      title: '🎉 小组申请已通过',
+      message: '恭喜！您的小组申请已通过老师审核，可以开始协作学习了！',
+      type: 'success',
+      duration: 5000,
+      position: 'top-right'
+    })
+    // 停止轮询（已收到最终结果）
+    stopPolling()
+  }
+  // 如果状态不再是 rejected，重置标志
+  else if (currentStatus !== 'rejected') {
+    hasShownRejectedNotification.value = false
+  }
+
+  lastStatus.value = currentStatus
+}
+
+// 显示被拒绝通知
+function showRejectedNotification() {
+  // 自动打开编辑面板
+  openEditPanel.value = true
+
+  ElNotification({
+    title: '❌ 小组申请被驳回',
+    message: '您的小组申请未被通过。请修改小组信息后重新提交申请。',
+    type: 'error',
+    duration: 0, // 不自动关闭，需要用户手动关闭
+    position: 'top-right',
+    onClick: () => {
+      // 点击通知后滚动到编辑面板
+      const panel = document.querySelector('.edit-panel-card')
+      if (panel) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+  })
+}
+
+// 启动轮询
+function startPolling() {
+  // 清除已有的轮询
+  stopPolling()
+
+  // 如果当前状态是 pending，启动轮询
+  if (groupStatus.value === 'pending') {
+    console.log('[我的小组] 启动状态轮询...')
+    pollingInterval.value = setInterval(async () => {
+      console.log('[我的小组] 轮询检查小组状态...')
+      await refreshMyGroup()
+    }, 5000) // 每5秒轮询一次
+  }
+}
+
+// 停止轮询
+function stopPolling() {
+  if (pollingInterval.value) {
+    console.log('[我的小组] 停止状态轮询')
+    clearInterval(pollingInterval.value)
+    pollingInterval.value = null
+  }
+}
+
 function toggleEditPanel() {
   openEditPanel.value = !openEditPanel.value
 }
@@ -437,14 +529,29 @@ async function removeMember(m) {
 }
 
 function goSelectMembers() {
-  localStorage.setItem('edit_group_name_draft', editGroupName.value || '') 
-  localStorage.setItem('edit_group_task_draft', editTaskDesc.value || '') 
-  localStorage.setItem('from_group_edit', '1') 
+  localStorage.setItem('edit_group_name_draft', editGroupName.value || '')
+  localStorage.setItem('edit_group_task_draft', editTaskDesc.value || '')
+  localStorage.setItem('from_group_edit', '1')
+
+  // 获取当前用户ID（组长）
+  const currentUserId = Number(localStorage.getItem('userId'))
   const currentLeaderId = (createdGroup.value?.allMembers || []).find(m => m.isLeader)?.studentId
+
+  console.log('[编辑小组] 当前用户ID:', currentUserId)
+  console.log('[编辑小组] 组长ID:', currentLeaderId)
+
+  // 只保存现有组员的ID，不包含组长
   const memberIds = editableMembers.value.map(x => x.studentId)
-  const allIds = currentLeaderId ? [currentLeaderId, ...memberIds] : memberIds
-  localStorage.setItem('base_member_student_ids', JSON.stringify(allIds))
-  localStorage.setItem('student_groups_ui_state', JSON.stringify({ creating: true, selecting: true })) 
+
+  console.log('[编辑小组] 现有组员ID:', memberIds)
+
+  // 保存到 localStorage，注意：不包含组长ID
+  localStorage.setItem('base_member_student_ids', JSON.stringify(memberIds))
+
+  // 保存组长ID，用于 BuildGroup.vue 排除
+  localStorage.setItem('current_leader_id', String(currentLeaderId || currentUserId))
+
+  localStorage.setItem('student_groups_ui_state', JSON.stringify({ creating: true, selecting: true }))
   router.push({ name: 'GroupBuild' })
 }
 
@@ -453,36 +560,84 @@ watch(editTaskDesc, (v) => localStorage.setItem('edit_group_task_draft', v ?? ''
 
 async function resubmitNow() {
     try {
-      const newLeaderId = Number(localStorage.getItem('userId'))
-      const count = editableMembers.value.length
-      if (count < 1 || count > 4) {
-        alert(`组员人数需为 1~4 人（不含组长），当前为 ${count} 人`)
+      console.log('[重新提交] 开始重新提交小组申请...')
+
+      // 获取当前用户ID（组长ID）
+      const userIdStr = localStorage.getItem('userId')
+      let newLeaderId = Number(userIdStr)
+
+      // 验证 leaderId 是否有效
+      if (!newLeaderId || newLeaderId === 0 || isNaN(newLeaderId)) {
+        ElMessage.error('无法获取用户ID，请重新登录')
+        console.error('[重新提交] leaderId 无效:', userIdStr, '->', newLeaderId)
         return
       }
-      const baseSet = new Set(originalMemberIds.value.map(Number))
-      let addMemberIds = editableMembers.value.map(m => m.studentId).filter(id => !baseSet.has(Number(id)))
+
+      console.log('[重新提交] 组长ID:', newLeaderId)
+
+      // 验证组员人数
+      const count = editableMembers.value.length
+      if (count < 1 || count > 4) {
+        ElMessage.warning(`组员人数需为 1~4 人（不含组长），当前为 ${count} 人`)
+        return
+      }
+
+      console.log('[重新提交] 当前组员数:', count)
+      console.log('[重新提交] editableMembers:', editableMembers.value)
+
+      // 计算新增的成员
+      const baseSet = new Set(originalMemberIds.value.map(id => Number(id)))
+      let addMemberIds = editableMembers.value
+        .map(m => Number(m.studentId))
+        .filter(id => !baseSet.has(id))
+
+      console.log('[重新提交] 原始成员ID:', originalMemberIds.value)
+      console.log('[重新提交] 新增成员ID:', addMemberIds)
+
       const payload = {
-        groupName: editGroupName.value,
-        groupDescription: editTaskDesc.value,
+        groupName: editGroupName.value?.trim(),
+        groupDescription: editTaskDesc.value?.trim(),
         groupLeaderId: newLeaderId,
-        addMemberIds,
+        addMemberIds: addMemberIds.length > 0 ? addMemberIds : null,
         approvalStatus: 'pending'
       }
-      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' }
+
+      console.log('[重新提交] 提交的 payload:', payload)
+
+      const headers = {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
       const gid = currentGroupId.value
+
+      console.log('[重新提交] 发送请求到:', `${BASE_URL}/student-group/${gid}/full-update`)
+
       const resp = await axios.put(`${BASE_URL}/student-group/${gid}/full-update`, payload, { headers })
-      
+
+      console.log('[重新提交] 响应:', resp.data)
+
       if (resp.data.code === 200) {
         localStorage.setItem('student_group_status', 'pending')
         groupStatus.value = 'pending'
         openEditPanel.value = false
-        alert('已提交修改')
+
+        ElNotification({
+          title: '✅ 重新提交成功',
+          message: '小组信息已更新，等待老师审核...',
+          type: 'success',
+          duration: 3000,
+          position: 'top-right'
+        })
+
         await refreshMyGroup()
+        // 重新提交后状态变为 pending，启动轮询
+        startPolling()
       } else {
-        alert(`提交失败：${resp?.data?.message || '未知错误'}`)
+        ElMessage.error(`提交失败：${resp?.data?.message || '未知错误'}`)
       }
     } catch (e) {
-      alert(`提交失败：${e?.message || e}`)
+      console.error('[重新提交] 异常:', e)
+      ElMessage.error(`提交失败：${e?.response?.data?.message || e?.message || '网络错误'}`)
     }
 }
 </script>
@@ -706,23 +861,66 @@ async function resubmitNow() {
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 24px;
-  border: 1px solid #e4e7ed;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  border: 2px solid #f56c6c; /* 红色边框，更醒目 */
+  box-shadow: 0 4px 16px rgba(245, 108, 108, 0.15); /* 红色阴影 */
+  animation: shake 0.5s ease-in-out; /* 抖动动画 */
 }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 2px solid #fee; /* 淡红色分隔线 */
   padding-bottom: 12px;
 }
-.panel-header h3 { margin: 0; color: #303133; display: flex; align-items: center; gap: 8px; font-size: 18px;}
+.panel-header h3 {
+  margin: 0;
+  color: #f56c6c; /* 红色标题 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
 .form-row { margin-bottom: 20px; }
-.form-row label { display: block; margin-bottom: 8px; font-weight: 600; color: #606266; }
-.edit-members-area { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; background: #f9fafe; border-radius: 8px; border: 1px dashed #dcdfe6; }
-.edit-member-tag { font-size: 13px; padding: 6px 12px; height: auto; }
-.form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.form-row label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #f56c6c; /* 红色标签 */
+  font-size: 14px;
+}
+.edit-members-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: #fff5f5; /* 淡红色背景 */
+  border-radius: 8px;
+  border: 2px dashed #fbc4c4;
+}
+.edit-member-tag {
+  font-size: 13px;
+  padding: 6px 12px;
+  height: auto;
+  background: white;
+  border-color: #fbc4c4;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #fee;
+}
 
 /* Responsive */
 @media (max-width: 768px) {

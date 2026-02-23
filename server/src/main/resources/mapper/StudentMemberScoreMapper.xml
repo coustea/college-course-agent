@@ -68,7 +68,8 @@
 	</update>
 
     <select id="selectBySubmissionId" resultType="com.ccut.dto.StudentMemberScore">
-        SELECT sms.submission_id AS submissionId,
+        SELECT sms.id            AS memberId,
+               sms.submission_id AS submissionId,
                sms.student_id    AS studentId,
                s.name            AS studentName,
                sms.score,
