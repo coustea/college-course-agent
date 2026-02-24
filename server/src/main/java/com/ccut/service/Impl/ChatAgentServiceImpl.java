@@ -103,6 +103,8 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         logger.info("ConversationId: {}", conversationId);
         logger.info("User Input: {}", userInput);
 
+        String originalInput = request.message(); // 保存原始输入
+
         // 1. 智能判断：是否有附件需要解析
         boolean hasAttachments = request.attachments() != null && !request.attachments().isEmpty();
 
@@ -110,11 +112,11 @@ public class ChatAgentServiceImpl implements ChatAgentService {
             // 📄 场景1：文档+文字问答 - 解析文档后调用大模型
             logger.info("检测到附件，开始解析文档内容...");
 
-            // 1.1 解析文档附件
+            // 1.1 解析文档附件（仅用于AI处理）
             String docContent = documentAnalysisService.analyzeAllAttachments(request.attachments());
             if (!docContent.isEmpty()) {
                 userInput += docContent;
-                logger.info("文档内容已追加，总长度: {}", userInput.length());
+                logger.info("文档内容已追加到AI输入，总长度: {}", userInput.length());
             }
 
             // 1.2 处理图片附件
@@ -126,9 +128,9 @@ public class ChatAgentServiceImpl implements ChatAgentService {
             logger.info("无附件，纯文字问答模式，跳过文档解析");
         }
 
-        // 3. 保存用户消息（使用从JWT token中提取的username）
+        // 3. 保存用户消息（保存原始输入，不包含解析后的内容）
         logger.info("Saving user message for username: {}", username);
-        messageService.saveUserMessage(conversationId, userInput, username);
+        messageService.saveUserMessage(conversationId, originalInput, username);
 
         // 4. 加载历史消息
         List<Message> history = messageService.loadConversationHistory(conversationId, username);
@@ -159,7 +161,8 @@ public class ChatAgentServiceImpl implements ChatAgentService {
     @Override
     public Flux<String> chatStream(ChatRequest request, String username) {
         String conversationId = request.conversationId();
-        String userInput = request.message();
+        String originalInput = request.message(); // 保存原始输入
+        String userInput = request.message(); // 用于AI处理的输入
 
         logger.info("========== [Stream Chat Start] ==========");
         logger.info("Username from JWT: {}", username);
@@ -174,11 +177,11 @@ public class ChatAgentServiceImpl implements ChatAgentService {
             // 📄 场景1：文档+文字问答 - 解析文档后调用大模型
             logger.info("检测到附件，开始解析文档内容...");
 
-            // 1.1 解析文档附件
+            // 1.1 解析文档附件（仅用于AI处理）
             String docContent = documentAnalysisService.analyzeAllAttachments(request.attachments());
             if (!docContent.isEmpty()) {
                 userInput += docContent;
-                logger.info("文档内容已追加，总长度: {}", userInput.length());
+                logger.info("文档内容已追加到AI输入，总长度: {}", userInput.length());
             }
 
             // 1.2 处理图片附件
@@ -190,10 +193,10 @@ public class ChatAgentServiceImpl implements ChatAgentService {
             logger.info("无附件，纯文字问答模式，跳过文档解析");
         }
 
-        // 3. 保存用户消息
+        // 3. 保存用户消息（保存原始输入，不包含解析后的内容）
         try {
-            messageService.saveUserMessage(conversationId, userInput, username);
-            logger.info("用户消息已保存");
+            messageService.saveUserMessage(conversationId, originalInput, username);
+            logger.info("用户消息已保存（原始输入）");
         } catch (Exception e) {
             logger.error("保存用户消息失败: {}", e.getMessage(), e);
             return Flux.just("{\"code\":500,\"message\":\"保存消息失败: " + escapeJson(e.getMessage()) + "\"}");
