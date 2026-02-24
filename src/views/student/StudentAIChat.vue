@@ -6,7 +6,18 @@
           <el-icon class="title-icon"><ChatDotRound /></el-icon>
           <h2>AI 学习助手</h2>
         </div>
-        </div>
+        <el-button
+          v-if="messages.length > 0"
+          type="danger"
+          plain
+          size="small"
+          class="clear-btn"
+          :icon="Delete"
+          @click="clearChatHistory"
+        >
+          清空对话
+        </el-button>
+      </div>
 
       <div class="messages-container" ref="messagesContainer">
         <div v-if="messages.length === 0" class="welcome-screen">
@@ -167,15 +178,6 @@
             @drop.prevent="handleDrop"
           >
             <el-button
-              v-if="messages.length > 0"
-              :icon="Delete"
-              circle
-              class="toolbar-btn danger-hover"
-              @click="clearChatHistory"
-              title="清空对话"
-            />
-
-            <el-button
               :icon="Plus"
               circle
               class="toolbar-btn"
@@ -304,25 +306,11 @@ const loadHistory = async () => {
     }
     const res = await getConversationMessages(conversationId.value);
     if (res?.code === 200 && res.data?.messages) {
-      messages.value = res.data.messages.map((m) => {
-        const msg = {
-          role: m.role,
-          content: m.content,
-          timestamp: m.createdAt
-        };
-
-        // 解析文件信息
-        if (m.files) {
-          try {
-            msg.files = JSON.parse(m.files);
-          } catch (e) {
-            console.error("解析文件信息失败", e);
-            msg.files = [];
-          }
-        }
-
-        return msg;
-      });
+      messages.value = res.data.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.createdAt
+      }));
       scrollToBottom();
     }
   } catch (e) { console.error("加载历史失败", e); }
@@ -457,6 +445,11 @@ const sendMessage = async () => {
 .title-icon {
   font-size: 22px;
   color: #4f9cf7;
+}
+
+.clear-btn {
+  border-radius: 8px;
+  font-weight: 500;
 }
 
 /* ==================== 聊天记录区 ==================== */
@@ -657,7 +650,6 @@ const sendMessage = async () => {
 .input-wrapper { display: flex; align-items: flex-end; padding: 12px 16px; gap: 10px; }
 .toolbar-btn { background: #f3f4f6; border: none; color: #4b5563; margin-bottom: 2px; transition: all 0.2s; }
 .toolbar-btn:hover { background: #e5e7eb; color: #111827; }
-.toolbar-btn.danger-hover:hover { background: #fee2e2; color: #ef4444; } /* 删除按钮专属 hover 颜色 */
 
 .message-input { flex: 1; }
 .message-input :deep(.el-textarea__inner) {

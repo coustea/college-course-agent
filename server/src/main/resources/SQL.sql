@@ -484,6 +484,7 @@ CREATE TABLE messages (
     username VARCHAR(50) NOT NULL COMMENT '用户名（方便直接查询）',
     role VARCHAR(20) NOT NULL COMMENT '角色（user/assistant/system）',
     content TEXT NOT NULL COMMENT '消息内容',
+    files TEXT NULL COMMENT '附件信息（JSON字符串，存储文件列表）',
     sequence_num INT NOT NULL COMMENT '消息序号（同一会话内递增）',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     tokens_used INT DEFAULT 0 COMMENT '使用的token数（可选）',
