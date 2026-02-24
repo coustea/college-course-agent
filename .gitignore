@@ -90,6 +90,9 @@ $RECYCLE.BIN/
 # 上传文件和临时文件
 # ===================
 
+# PDF 文档
+*.pdf
+
 # 用户上传的文件
 server/src/main/resources/upload/
 server/src/main/resources/static/uploads/
