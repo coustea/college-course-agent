@@ -74,4 +74,4 @@ file:
 
 # JWT认证开关（开发环境设为false，生产环境设为true）
 jwt:
-  enabled: false
+  enabled: true

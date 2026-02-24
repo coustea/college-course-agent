@@ -71,20 +71,40 @@ public class AiConfig {
         }
     }
 
-    @Bean
+    @Bean("chatModel")
     public ChatModel chatModel() {
         OpenAiApi openAiApi = OpenAiApi.builder()
                 .apiKey(apiKey)
                 .baseUrl(baseUrl)
                 .build();
 
-        logger.info("AI 模型初始化成功");
+        logger.info("AI 模型初始化成功（deepseek-chat）");
 
         return OpenAiChatModel.builder()
                 .openAiApi(openAiApi)
                 .defaultOptions(
                         OpenAiChatOptions.builder()
-                                .model(model)
+                                .model("deepseek-chat")
+                                .temperature(temperature)
+                                .build()
+                )
+                .build();
+    }
+
+    @Bean("reasoningChatModel")
+    public ChatModel reasoningChatModel() {
+        OpenAiApi openAiApi = OpenAiApi.builder()
+                .apiKey(apiKey)
+                .baseUrl(baseUrl)
+                .build();
+
+        logger.info("AI 推理模型初始化成功（deepseek-reasoner）");
+
+        return OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
+                .defaultOptions(
+                        OpenAiChatOptions.builder()
+                                .model("deepseek-reasoner")
                                 .temperature(temperature)
                                 .build()
                 )

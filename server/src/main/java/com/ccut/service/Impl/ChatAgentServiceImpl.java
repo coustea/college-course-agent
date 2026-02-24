@@ -42,13 +42,19 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatAgentServiceImpl.class);
     private static final int MAX_HISTORY_MESSAGES = 20;
-    private static final int MAX_REACT_ITERATIONS = 3;
+    // 增加最大搜索次数到5次，确保 AI 有足够的时间验证信息准确性
+    private static final int MAX_REACT_ITERATIONS = 5;
 
     private final String agentPrompt;
     private final String directChatPrompt;
 
     @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("chatModel")
     private ChatModel chatModel;
+
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("reasoningChatModel")
+    private ChatModel reasoningChatModel;
 
     @Autowired
     private MessageService messageService;
@@ -181,13 +187,13 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         StringBuilder fullResponse = new StringBuilder();
 
         if (needsSearch(userInput)) {
-            logger.info("使用 ReAct 模式（需要搜索）");
+            logger.info("使用 ReAct 模式（需要搜索），将使用 deepseek-reasoner 模型");
             // ReAct Agent 流式（先完成搜索循环，再流式输出结果）
             final String finalInput = userInput;
             return Flux.create(sink -> {
                 new Thread(() -> {
                     try {
-                        logger.info("[ReAct] 开始执行搜索循环");
+                        logger.info("[ReAct] 开始执行搜索循环（使用 deepseek-reasoner）");
                         String answer = executeReActLoop(historyMsgs, finalInput);
                         logger.info("[ReAct] 搜索完成，回答长度: {}", answer.length());
 
@@ -218,7 +224,7 @@ public class ChatAgentServiceImpl implements ChatAgentService {
                 }, "react-agent-stream").start();
             });
         } else {
-            logger.info("使用普通流式模式");
+            logger.info("使用普通流式模式（deepseek-chat）");
             // 普通流式对话（使用直接对话prompt，不使用ReAct格式）
             List<org.springframework.ai.chat.messages.Message> allMessages = new ArrayList<>();
             allMessages.add(new SystemMessage(directChatPrompt));
@@ -226,7 +232,7 @@ public class ChatAgentServiceImpl implements ChatAgentService {
             allMessages.add(new UserMessage(userInput));
 
             Prompt prompt = new Prompt(allMessages);
-            logger.info("发送请求到 AI 模型（Direct模式），消息数量: {}", allMessages.size());
+            logger.info("发送请求到 deepseek-chat 模型（Direct模式），消息数量: {}", allMessages.size());
 
             // 使用AtomicReference保证线程安全的累积
             AtomicReference<StringBuilder> atomicResponse =
@@ -303,6 +309,12 @@ public class ChatAgentServiceImpl implements ChatAgentService {
      * - Plan: 决定执行搜索还是直接回答
      * - Reflect: 分析搜索结果，判断是否需要更多信息
      * - Reply: 输出最终回答
+     *
+     * 优化策略：
+     * - 第1轮：使用用户原始问题搜索，快速命中答案
+     * - 后续轮次：AI 根据语义生成精准的搜索关键词
+     *
+     * 注意：此方法使用 reasoningChatModel（deepseek-reasoner），因为需要思考能力
      */
     private String executeReActLoop(List<org.springframework.ai.chat.messages.Message> historyMsgs,
                                      String userInput) {
@@ -311,28 +323,63 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         messages.addAll(historyMsgs);
         messages.add(new UserMessage(userInput));
 
-        for (int i = 0; i < MAX_REACT_ITERATIONS; i++) {
-            // Think + Plan
+        logger.info("使用 deepseek-reasoner 模型进行 ReAct 推理");
+        logger.info("第1轮：使用用户原始问题进行搜索");
+
+        // 第1轮：直接用用户的问题搜索
+        String firstSearchQuery = optimizeSearchQuery(userInput);
+        logger.info("第1轮搜索: {}", firstSearchQuery);
+        String firstSearchResult = webSearchService.search(firstSearchQuery);
+        logger.info("第1轮搜索结果: {}", truncate(firstSearchResult, 200));
+
+        // 将第1轮搜索结果添加到上下文
+        messages.add(new AssistantMessage("{\"thought\":\"先使用用户原始问题搜索\",\"action\":\"search\",\"input\":\"" + escapeJson(firstSearchQuery) + "\"}"));
+        messages.add(new UserMessage(
+                "Observation: 使用你原始问题的搜索结果如下：\n" + firstSearchResult +
+                "\n\n请分析这些搜索结果和用户的原始问题：" +
+                "\n1. **优先检查问题清晰度**：如果用户的原始问题不清楚、有歧义或缺少关键信息，请使用 action=clarify 向用户询问" +
+                "\n2. 如果结果准确回答了用户问题，请直接给出最终回答(action=answer)" +
+                "\n3. 如果结果不充分或不够准确，请根据语义生成更精准的搜索关键词继续搜索(action=search)"));
+
+        // 后续轮次：AI 决策
+        for (int i = 1; i < MAX_REACT_ITERATIONS; i++) {
             logger.info("ReAct 第{}轮 — Think & Plan", i + 1);
             Prompt prompt = new Prompt(messages);
-            var response = chatModel.call(prompt);
+            var response = reasoningChatModel.call(prompt);
             String aiText = response.getResult().getOutput().getText();
             logger.info("Agent output: {}", truncate(aiText, 200));
 
             AgentAction action = parseAction(aiText);
 
-            // Reply
+            // Clarify：需要向用户询问澄清（优先级最高）
+            if ("clarify".equals(action.action)) {
+                logger.info("AI 需要向用户澄清问题");
+                String clarification = action.input;
+                logger.info("返回澄清问题: {}", truncate(clarification, 100));
+                return clarification;
+            }
+
+            // Answer：直接回答
             if (action == null || "answer".equals(action.action)) {
                 logger.info("Agent 决定直接回答");
                 String result = action != null ? action.input : aiText;
+
+                // 提取纯净的答案（移除 [答案]: 标记前的内容）
+                result = extractCleanAnswer(result);
+
                 logger.info("返回回答内容，长度: {}, 前50字符: {}", result.length(), truncate(result, 50));
                 return result;
             }
 
-            // Plan: search → 执行搜索
+            // Plan: search → 执行搜索（AI 根据语义生成搜索关键词）
             if ("search".equals(action.action)) {
-                logger.info("Agent 执行搜索: {}", action.input);
-                String searchResult = webSearchService.search(action.input);
+                String searchQuery = action.input;
+
+                // 优化搜索关键词：如果询问政治/时事相关且没有明确国家，默认搜索中国
+                searchQuery = optimizeSearchQuery(searchQuery);
+
+                logger.info("Agent 执行搜索: {}", searchQuery);
+                String searchResult = webSearchService.search(searchQuery);
                 logger.info("搜索结果: {}", truncate(searchResult, 200));
 
                 // Reflect: 将搜索结果作为 Observation 加入上下文
@@ -347,16 +394,20 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
         // 超过最大迭代次数，强制回答
         logger.info("达到最大迭代次数 {}，强制回答", MAX_REACT_ITERATIONS);
-        messages.add(new UserMessage("你已经搜索了足够多的信息，请直接给出最终回答。输出 action 为 answer。"));
+        messages.add(new UserMessage("你已经搜索了足够多的信息，请直接给出最终回答。输出 action 为 answer，input 字段必须以 [答案]: 开头。"));
         Prompt finalPrompt = new Prompt(messages);
-        var finalResponse = chatModel.call(finalPrompt);
+        var finalResponse = reasoningChatModel.call(finalPrompt);
         String finalText = finalResponse.getResult().getOutput().getText();
         AgentAction finalAction = parseAction(finalText);
-        return finalAction != null ? finalAction.input : finalText;
+        String finalAnswer = finalAction != null ? finalAction.input : finalText;
+
+        // 提取纯净的答案
+        return extractCleanAnswer(finalAnswer);
     }
 
     /**
      * 普通对话（无搜索）
+     * 注意：此方法使用 chatModel（deepseek-chat），用于快速响应
      */
     private String executeDirectChat(List<org.springframework.ai.chat.messages.Message> historyMsgs,
                                       String userInput) {
@@ -364,6 +415,8 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         messages.add(new SystemMessage(directChatPrompt));
         messages.addAll(historyMsgs);
         messages.add(new UserMessage(userInput));
+
+        logger.info("使用 deepseek-chat 模型进行普通对话");
 
         Prompt prompt = new Prompt(messages);
         var response = chatModel.call(prompt);
@@ -412,14 +465,16 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
     /**
      * 判断是否需要联网搜索
+     *
+     * 注意：已移除关键词匹配判断，始终使用 ReAct 模式让 AI 自己决定是否需要搜索。
+     * 这样可以让 AI 更智能地判断问题是否需要外部信息（如未来事件、实时数据等）。
+     *
+     * @return 始终返回 true，让 AI 模型在 ReAct 循环中自己决定
      */
     private boolean needsSearch(String message) {
-        if (message == null) return false;
-        String lower = message.toLowerCase();
-        return lower.contains("搜索") || lower.contains("查一下") || lower.contains("查找")
-                || lower.contains("最新") || lower.contains("今天") || lower.contains("天气")
-                || lower.contains("新闻") || lower.contains("search") || lower.contains("帮我查")
-                || lower.contains("百度") || lower.contains("谷歌") || lower.contains("上网");
+        // 始终使用 ReAct 模式，让 AI 模型自己决定是否需要搜索
+        // 如果问题不需要搜索，AI 会直接返回 action=answer
+        return true;
     }
 
     /**
@@ -512,6 +567,86 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         if (conversationId == null || conversationId.isEmpty()) return null;
         int colonIndex = conversationId.lastIndexOf(':');
         return colonIndex == -1 ? conversationId : conversationId.substring(0, colonIndex);
+    }
+
+    /**
+     * 提取纯净的答案内容
+     * 从 [答案]: 标记后提取真正的答案，用户不会看到任何思考过程
+     */
+    private String extractCleanAnswer(String rawAnswer) {
+        if (rawAnswer == null || rawAnswer.trim().isEmpty()) {
+            return rawAnswer;
+        }
+
+        // 查找 [答案]: 标记
+        int answerMarkIndex = rawAnswer.indexOf("[答案]:");
+        if (answerMarkIndex != -1) {
+            // 提取 [答案]: 后面的内容
+            String cleanAnswer = rawAnswer.substring(answerMarkIndex + "[答案]:".length()).trim();
+            logger.info("提取纯净答案，原长度: {}, 提取后长度: {}", rawAnswer.length(), cleanAnswer.length());
+            return cleanAnswer;
+        }
+
+        // 如果没有 [答案]: 标记，返回原内容（向后兼容）
+        logger.warn("答案中未找到 [答案]: 标记，返回原内容");
+        return rawAnswer;
+    }
+
+    /**
+     * 优化搜索关键词：对于政治、时事相关查询，如果没有明确指定国家，默认搜索中国
+     */
+    private String optimizeSearchQuery(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return query;
+        }
+
+        String lowerQuery = query.toLowerCase();
+
+        // 检查是否已经明确指定了国家或地区
+        boolean hasCountryMention = false;
+
+        // 明确提到的国家/地区关键词
+        String[] countryKeywords = {
+            "中国", "国内", "美国", "欧洲", "日本", "韩国", "俄罗斯", "英国", "法国", "德国",
+            "国际", "全球", "世界", "海外", "外国", "西方",
+            "联合国", "美联储", "欧盟", "东盟", "北约",
+            "奥运会", "世界杯", "美股", "欧股"
+        };
+
+        for (String keyword : countryKeywords) {
+            if (lowerQuery.contains(keyword)) {
+                hasCountryMention = true;
+                break;
+            }
+        }
+
+        // 如果已经明确提到国家，不修改搜索关键词
+        if (hasCountryMention) {
+            return query;
+        }
+
+        // 检查是否是政治/时事相关的内容
+        boolean isPoliticalOrNews = false;
+        String[] politicalKeywords = {
+            "时事", "新闻", "政策", "政治", "经济", "社会", "政府", "法律",
+            "发布会", "会议", "法案", "规定", "措施", "改革",
+            "2025", "2026", "2027", "最新", "最近", "当前", "今天"
+        };
+
+        for (String keyword : politicalKeywords) {
+            if (lowerQuery.contains(keyword)) {
+                isPoliticalOrNews = true;
+                break;
+            }
+        }
+
+        // 如果是政治/时事相关且没有明确国家，加上"中国"
+        if (isPoliticalOrNews) {
+            logger.info("优化搜索关键词：为政治/时事查询添加'中国'限定");
+            return "中国 " + query;
+        }
+
+        return query;
     }
 
     @Async("chatExecutor")

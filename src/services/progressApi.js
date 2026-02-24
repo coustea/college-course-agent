@@ -8,7 +8,7 @@ api.interceptors.request.use((config) => {
             config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
         }
     } catch (e) {
-        // alert(`读取登录信息失败：${e?.message || e}`)
+        // 静默处理错误
     }
     return config
 })
@@ -26,7 +26,6 @@ export async function getVideoProgress(courseId, chapterIndex) {
         const res = await api.get(`/progress/${encodeURIComponent(courseId)}`)
         return res?.data?.videos?.[chapterIndex] ?? 0
     } catch (e) {
-        // alert(`获取视频进度失败：${e?.message || e}`)
         return 0
     }
 }
@@ -38,7 +37,6 @@ export async function setVideoProgress(courseId, chapterIndex, progress) {
         })
         return res?.data?.overall ?? 0
     } catch (e) {
-        // alert(`设置视频进度失败：${e?.message || e}`)
         return 0
     }
 }
@@ -48,7 +46,6 @@ export async function getOverallProgress(courseId) {
         const res = await api.get(`/progress/${encodeURIComponent(courseId)}`)
         return res?.data?.overall ?? 0
     } catch (e) {
-        // alert(`获取课程总进度失败：${e?.message || e}`)
         return 0
     }
 }
@@ -58,7 +55,6 @@ export async function getAllCoursesSummary() {
         const res = await api.get(`/progress`)
         return Array.isArray(res?.data) ? res.data : []
     } catch (e) {
-        // alert(`获取课程汇总失败：${e?.message || e}`)
         return []
     }
 }
@@ -67,7 +63,7 @@ export async function resetCourseProgress(courseId) {
     try {
         await api.delete(`/progress/${encodeURIComponent(courseId)}`)
     } catch (e) {
-        // alert(`重置课程进度失败：${e?.message || e}`)
+        // 静默处理错误
     }
 }
 
@@ -87,7 +83,7 @@ export async function reportLearningHeartbeat(payload, signal) {
         }
         await api.post(`/progress/course/heartbeat`, body, { signal })
     } catch (e) {
-        // alert(`上报学习心跳失败：${e?.message || e}`)
+        // 静默处理错误
     }
 }
 
@@ -103,7 +99,6 @@ export async function getCourseCompletion(courseId, signal) {
         }
         return 0
     } catch (e) {
-        // alert(`获取课程完成度失败：${e?.message || e}`)
         return 0
     }
 }

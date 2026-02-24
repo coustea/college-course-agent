@@ -9,6 +9,7 @@ import com.ccut.service.MessageService;
 import com.ccut.utils.JWTUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -27,6 +28,47 @@ public class ConversationController {
 
     @Autowired
     private MessageService messageService;
+
+    @Value("${jwt.enabled:true}")
+    private boolean jwtEnabled;
+
+    /**
+     * 从请求中获取用户名（支持 JWT 开关）
+     * 如果 JWT 启用：从 token 中解析
+     * 如果 JWT 禁用：从请求参数/路径/请求体中获取
+     */
+    private String getUsernameFromRequest(HttpServletRequest httpRequest, String pathUsername) {
+        if (jwtEnabled) {
+            // JWT 启用：从 token 中解析
+            String authHeader = httpRequest.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                return JWTUtils.getUsernameFromToken(token);
+            }
+            throw new RuntimeException("未授权访问");
+        } else {
+            // JWT 禁用：使用路径参数中的用户名
+            return pathUsername;
+        }
+    }
+
+    /**
+     * 从请求中获取用户名（用于 POST 请求）
+     */
+    private String getUsernameFromRequest(HttpServletRequest httpRequest) {
+        if (jwtEnabled) {
+            // JWT 启用：从 token 中解析
+            String authHeader = httpRequest.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                return JWTUtils.getUsernameFromToken(token);
+            }
+            throw new RuntimeException("未授权访问");
+        } else {
+            // JWT 禁用：返回默认用户（开发环境）
+            return "dev_user";
+        }
+    }
 
     /**
      * 创建新会话
@@ -77,38 +119,33 @@ public class ConversationController {
     /**
      * 获取用户所有会话
      * GET /api/ai/conversation/list
-     * 从JWT token中获取当前登录用户的用户名
+     * 从JWT token或路径参数中获取用户名
      */
     @GetMapping("/list/{username}")
     public Result<List<Conversation>> getUserConversations(
             @PathVariable String username,
             HttpServletRequest httpRequest) {
         try {
-            // 从JWT token中提取当前登录用户的用户名
-            String authHeader = httpRequest.getHeader("Authorization");
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                return Result.error(401, "未授权访问");
-            }
-            String token = authHeader.substring(7);
-            String tokenUsername = JWTUtils.getUsernameFromToken(token);
+            // 获取用户名（支持 JWT 开关）
+            String actualUsername = getUsernameFromRequest(httpRequest, username);
 
-            if (tokenUsername == null || tokenUsername.trim().isEmpty()) {
+            if (actualUsername == null || actualUsername.trim().isEmpty()) {
                 return Result.error(401, "无法获取用户信息");
             }
 
             System.out.println("========== [Get User Conversations] ==========");
             System.out.println("Path username: " + username);
-            System.out.println("Token username: " + tokenUsername);
+            System.out.println("Actual username: " + actualUsername);
 
-            // 验证路径参数中的用户名是否与token中的用户名一致
-            if (!tokenUsername.equals(username)) {
+            // 如果 JWT 启用，验证路径参数是否与 token 一致
+            if (jwtEnabled && !actualUsername.equals(username)) {
                 System.out.println("ERROR: Username mismatch!");
                 return Result.error(403, "无权访问其他用户的会话");
             }
 
-            // 只返回当前登录用户的会话
-            List<Conversation> conversations = conversationService.getUserConversations(tokenUsername);
-            System.out.println("Found " + conversations.size() + " conversations for user: " + tokenUsername);
+            // 返回用户会话
+            List<Conversation> conversations = conversationService.getUserConversations(actualUsername);
+            System.out.println("Found " + conversations.size() + " conversations for user: " + actualUsername);
             if (!conversations.isEmpty()) {
                 conversations.forEach(conv -> System.out.println("  - " + conv.getConversationId()));
             }

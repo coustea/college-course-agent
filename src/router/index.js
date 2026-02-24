@@ -9,12 +9,6 @@ const studentRoutes = [
         meta: {title: '首页'}
     },
     {
-        path: '/home',
-        name: 'StudentHomeAlt',
-        component: () => import('@/views/student/Home.vue'),
-        meta: {title: '首页'}
-    },
-    {
         path: '/data',
         name: 'LearningData',
         component: () => import('@/views/student/LearningData.vue'),

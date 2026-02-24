@@ -14,8 +14,8 @@ import java.util.Date;
 @Component
 public class JWTUtils {
 
-    // Token 过期时间（2小时）
-    private static final long EXPIRE = 2 * 60 * 60 * 1000;
+    // Token 过期时间（7天）- 开发环境设置较长，避免频繁过期
+    private static final long EXPIRE = 7 * 24 * 60 * 60 * 1000;
 
     // 签名密钥
     private static final String SIGN_KEY = "HSyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9";
