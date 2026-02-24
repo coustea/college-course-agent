@@ -6,17 +6,7 @@
           <el-icon class="title-icon"><ChatDotRound /></el-icon>
           <h2>AI 学习助手</h2>
         </div>
-        <el-button
-          v-if="messages.length > 0"
-          type="danger"
-          plain
-          class="clear-btn"
-          :icon="Delete"
-          @click="clearChatHistory"
-        >
-          清空对话
-        </el-button>
-      </div>
+        </div>
 
       <div class="messages-container" ref="messagesContainer">
         <div v-if="messages.length === 0" class="welcome-screen">
@@ -84,6 +74,16 @@
                 </div>
 
                 <div class="message-body">
+                  <el-button
+                    v-if="msg.role === 'assistant' && msg.content"
+                    class="copy-btn"
+                    circle
+                    size="small"
+                    :icon="CopyDocument"
+                    @click="copyMessage(msg.content)"
+                    title="复制内容"
+                  />
+
                   <div
                     v-if="msg.files && msg.files.length"
                     class="message-attachments"
@@ -124,20 +124,6 @@
 
                   <div v-else-if="msg.role === 'assistant'" class="typing-indicator">
                     <span></span><span></span><span></span>
-                  </div>
-
-                  <div
-                    v-if="msg.role === 'assistant' && msg.content"
-                    class="message-actions"
-                  >
-                    <el-button
-                      text
-                      size="small"
-                      :icon="CopyDocument"
-                      @click="copyMessage(msg.content)"
-                    >
-                      复制
-                    </el-button>
                   </div>
                 </div>
               </div>
@@ -181,9 +167,18 @@
             @drop.prevent="handleDrop"
           >
             <el-button
+              v-if="messages.length > 0"
+              :icon="Delete"
+              circle
+              class="toolbar-btn danger-hover"
+              @click="clearChatHistory"
+              title="清空对话"
+            />
+
+            <el-button
               :icon="Plus"
               circle
-              class="upload-btn"
+              class="toolbar-btn"
               @click="triggerFileUpload"
               title="上传文件或图片"
             />
@@ -243,11 +238,8 @@ import {
 // === 配置 ===
 const getUsername = () => {
   try {
-    // 优先使用 userName（登录时直接设置）
     const userName = localStorage.getItem("userName");
     if (userName) return userName;
-
-    // 降级：从 userInfo 中获取
     const u = JSON.parse(localStorage.getItem("userInfo") || "null");
     return u?.username || u?.name || "student";
   } catch { return "student"; }
@@ -307,19 +299,30 @@ const ensureConversation = async () => {
 
 const loadHistory = async () => {
   try {
-    // 如果没有conversationId，先确保会话存在
     if (!conversationId.value) {
       await ensureConversation();
     }
-
-    // 使用conversationId加载当前会话的历史消息
     const res = await getConversationMessages(conversationId.value);
     if (res?.code === 200 && res.data?.messages) {
-      messages.value = res.data.messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.createdAt
-      }));
+      messages.value = res.data.messages.map((m) => {
+        const msg = {
+          role: m.role,
+          content: m.content,
+          timestamp: m.createdAt
+        };
+
+        // 解析文件信息
+        if (m.files) {
+          try {
+            msg.files = JSON.parse(m.files);
+          } catch (e) {
+            console.error("解析文件信息失败", e);
+            msg.files = [];
+          }
+        }
+
+        return msg;
+      });
       scrollToBottom();
     }
   } catch (e) { console.error("加载历史失败", e); }
@@ -373,7 +376,6 @@ const sendMessage = async () => {
       ElMessage.error("无法创建会话");
       return;
     }
-    console.log('[StudentAIChat] 会话创建成功:', conversationId.value)
   }
 
   messages.value.push({ role: "user", content, files, timestamp: Date.now() });
@@ -382,32 +384,23 @@ const sendMessage = async () => {
   scrollToBottom();
   isLoading.value = true;
 
-  // 关键修复点：推入空对象，然后记录此对象所在的索引位置
   messages.value.push({ role: "assistant", content: "", timestamp: Date.now() });
   const aiMsgIndex = messages.value.length - 1;
-
-  console.log('[StudentAIChat] 开始流式对话...')
 
   sendChatStream(
     conversationId.value,
     content,
     files,
-    // onChunk - 接收到文本片段
     (text) => {
-      // 通过索引访问并修改对象属性，触发 Vue 的依赖收集与视图更新
       messages.value[aiMsgIndex].content += text;
       scrollToBottom();
     },
-    // onError - 发生错误
     (errMsg) => {
-      console.error('[StudentAIChat] 流式对话错误:', errMsg)
       messages.value[aiMsgIndex].content += `\n\n**错误**: ${errMsg}`;
       isLoading.value = false;
       scrollToBottom();
     },
-    // onDone - 对话完成
     () => {
-      console.log('[StudentAIChat] 流式对话完成')
       if (!messages.value[aiMsgIndex].content) {
         messages.value[aiMsgIndex].content = "抱歉，AI 暂时无法回复，请稍后重试。";
       }
@@ -464,11 +457,6 @@ const sendMessage = async () => {
 .title-icon {
   font-size: 22px;
   color: #4f9cf7;
-}
-
-.clear-btn {
-  border-radius: 8px;
-  font-weight: 500;
 }
 
 /* ==================== 聊天记录区 ==================== */
@@ -551,21 +539,49 @@ const sendMessage = async () => {
 
 .user-avatar { background: #e5e7eb; color: #4b5563; }
 
-.message-content { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.message-content { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .message-item.user .message-content { align-items: flex-end; }
 .message-header { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-left: 4px; }
 .message-sender { font-weight: 600; color: #374151; }
 .message-time { color: #9ca3af; }
 
+/* ========== 消息框气泡主体 ========== */
 .message-body {
+  position: relative; /* 为内部复制按钮绝对定位做准备 */
   background: #f3f4f6; color: #1f2937;
-  padding: 14px 18px; border-radius: 18px; border-top-left-radius: 4px;
+  padding: 14px 18px;
+  /* 如果是 AI，右侧多留出一点 padding 以防复制按钮遮挡文字 */
+  padding-right: 44px;
+  border-radius: 18px; border-top-left-radius: 4px;
   font-size: 15px; line-height: 1.6;
+  min-width: 60px;
 }
 
 .message-item.user .message-body {
   background: #e8f4fd; color: #111827;
   border-radius: 18px; border-top-right-radius: 4px;
+  padding-right: 18px; /* 用户消息不需要给复制按钮留空间 */
+}
+
+/* ========== 复制按钮操作区 ========== */
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0; /* 默认隐藏 */
+  transition: opacity 0.2s ease-in-out;
+  border: none;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  color: #6b7280;
+  z-index: 2;
+}
+.message-body:hover .copy-btn {
+  opacity: 1; /* 鼠标悬浮气泡时显示 */
+}
+.copy-btn:hover {
+  background: #ffffff;
+  color: #4f9cf7;
 }
 
 /* 附件 */
@@ -595,6 +611,11 @@ const sendMessage = async () => {
 }
 .message-text :deep(code) { background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; color: #ef4444; }
 .message-text :deep(pre.hljs code) { background: transparent; color: inherit; padding: 0; }
+/* 表格、引用样式增强 */
+.message-text :deep(table) { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.message-text :deep(th), .message-text :deep(td) { border: 1px solid #d1d5db; padding: 8px 12px; }
+.message-text :deep(th) { background-color: #e5e7eb; font-weight: 600; }
+.message-text :deep(blockquote) { margin: 10px 0; padding: 8px 16px; color: #4b5563; background-color: #f8fafc; border-left: 4px solid #4f9cf7; border-radius: 0 8px 8px 0; }
 
 /* ==================== 输入区域 ==================== */
 .input-area-container { padding: 20px 10%; background: #ffffff; border-top: 1px solid #f3f4f6; }
@@ -633,9 +654,11 @@ const sendMessage = async () => {
 .staging-file:hover .remove-file-btn { opacity: 1; }
 
 /* 输入框 */
-.input-wrapper { display: flex; align-items: flex-end; padding: 12px 16px; gap: 12px; }
-.upload-btn { background: #f3f4f6; border: none; color: #4b5563; margin-bottom: 2px; }
-.upload-btn:hover { background: #e5e7eb; color: #111827; }
+.input-wrapper { display: flex; align-items: flex-end; padding: 12px 16px; gap: 10px; }
+.toolbar-btn { background: #f3f4f6; border: none; color: #4b5563; margin-bottom: 2px; transition: all 0.2s; }
+.toolbar-btn:hover { background: #e5e7eb; color: #111827; }
+.toolbar-btn.danger-hover:hover { background: #fee2e2; color: #ef4444; } /* 删除按钮专属 hover 颜色 */
+
 .message-input { flex: 1; }
 .message-input :deep(.el-textarea__inner) {
   background: transparent; border: none; box-shadow: none;
@@ -663,5 +686,6 @@ const sendMessage = async () => {
   .message-wrapper { max-width: 95%; }
   .staging-file { width: 60px; height: 60px; }
   .attachment-image { max-width: 200px; }
+  .copy-btn { opacity: 1; } /* 移动端由于没有hover事件，始终显示复制按钮 */
 }
 </style>

@@ -21,6 +21,8 @@ CCUT 智慧课程系统不仅是一个简单的视频播放平台，它通过 **
 - 📝 **智能错题本**：全自动收集各环节错题，支持智能组卷与掌握度追踪。
 - 📊 **可视化学习洞察**：集成 ECharts 展现学生学习趋势、完成度及知识点掌握情况。
 - 🤝 **协作式学习**：完善的小组管理机制，支持自由组队、审核及协作。
+- 📋 **智能作业管理**：支持教师发布作业、学生分组提交，实现完整的作业流程管理。
+- 🔍 **课程推荐系统**：基于协同过滤和内容推荐算法，为学生推荐适合的课程。
 
 ---
 
@@ -31,8 +33,9 @@ CCUT 智慧课程系统不仅是一个简单的视频播放平台，它通过 **
 - **AI 引擎**: Spring AI (对接 OpenAI/DeepSeek API)
 - **持久层**: MyBatis 3.0.4 + MySQL 8.0.33
 - **高性能缓存**: Redis (Lettuce) + 异步线程池处理
-- **办公自动化**: Apache POI (Excel) + PDFBox (PDF)
+- **办公自动化**: Apache POI (Excel) + Apache Tika (统一文档解析)
 - **认证授权**: JWT (Json Web Token)
+- **日志系统**: SLF4J + Logback
 
 ### 前端 (Web)
 - **核心框架**: Vue 3.5.18 (Composition API)
@@ -40,7 +43,7 @@ CCUT 智慧课程系统不仅是一个简单的视频播放平台，它通过 **
 - **UI 组件库**: Element Plus
 - **状态管理**: Pinia
 - **图表可视化**: ECharts & Chart.js
-- **文档渲染**: PDF.js (vue-pdf-embed) & Mammoth (.docx)
+- **文档渲染**: PDF.js (vue-pdf-embed) & Mammoth (.docx) & Markdown-it
 - **数学公式**: KaTeX
 - **代码高亮**: Highlight.js
 
@@ -54,12 +57,16 @@ CCUT 智慧课程系统不仅是一个简单的视频播放平台，它通过 **
 - **AI 自动化考试**: 基于章节内容一键生成选择、判断题，提交即出分，并附带 AI 解析。
 - **错题复习闭环**: 自动收集考试及学习中的错题，支持“练习模式”与“浏览模式”切换。
 - **个人数据看板**: 统计每日/每周学习时长分布，可视化查看课程完成进度。
+- **智能课程推荐**: 基于学习行为和兴趣偏好，获得个性化课程推荐。
+- **小组协作学习**: 加入学习小组，参与团队作业，促进协作学习。
 
 ### 👩‍🏫 教师端：高效教学管理
 - **课程内容中台**: 自由创建课程、组织章节架构，批量上传视频与教学文档。
 - **全方位学情监控**: 查看班级/个体学生的学习时长、进度及考试成绩趋势。
 - **智能批改系统**: 自动批改客观题，支持对学生提交的作业进行多维度评分与反馈。
 - **数据统计分析**: 高频错题统计、课程平均完成率分析，辅助教学策略调整。
+- **作业发布管理**: 发布个人或小组作业，查看提交情况和评分结果。
+- **学生分组管理**: 创建和管理学生小组，促进协作学习。
 
 ---
 
@@ -68,10 +75,15 @@ CCUT 智慧课程系统不仅是一个简单的视频播放平台，它通过 **
 ### Redis 缓存上报机制 (极致吞吐量)
 系统将高频触发的学习进度上报从“直接写入数据库”优化为“Redis 异步批量同步”：
 - **流程**: 前端上报 → Redis Hash 极速写入 (<5ms) → 定时任务 (每5分钟) → 批量 Upsert 至 MySQL。
-- **成果**: 
+- **成果**:
   - 数据库写入频率降低 **60倍**。
   - 单次接口响应时间从 150ms 降至 **<5ms**。
   - 系统并发处理能力提升 **100倍** 以上。
+
+### 大文件分片上传
+- **支持大文件上传**: 采用分片上传技术，支持GB级别的视频文件上传。
+- **断点续传**: 支持上传中断后从断点继续上传，提高上传成功率。
+- **秒传功能**: 通过文件哈希值去重，已存在文件直接秒传。
 
 > 详情参考: [REDIS_OPTIMIZATION_GUIDE.md](server/REDIS_OPTIMIZATION_GUIDE.md)
 
@@ -87,16 +99,31 @@ CCUT/backend/
 │   │   ├── controller/         # RESTful API 控制器
 │   │   ├── service/            # 业务逻辑 (含 AI 及 Redis 缓存实现)
 │   │   ├── scheduled/          # 定时任务 (进度批量同步)
-│   │   └── mapper/             # MyBatis 数据库映射
-│   └── src/main/resources/     # 配置、SQL脚本、Prompt 模板
-│
+│   │   ├── mapper/             # MyBatis 数据库映射
+│   │   ├── entity/             # 数据库实体类
+│   │   ├── dto/                # 数据传输对象
+│   │   └── utils/              # 工具类 (JWT、文件处理等)
+│   ├── src/main/resources/
+│   │   ├── mapper/*.xml        # MyBatis SQL 映射文件
+│   │   ├── prompts/            # AI Prompt 模板
+│   │   ├── sql/                # 数据库初始化脚本
+│   │   └── application.yml     # 应用配置文件
+│   ├── uploads/                # 上传文件存储目录
+│   ├── pom.xml                 # Maven 依赖配置
+│   └── REBUILD_DATABASE.sql    # 数据库重建脚本
 ├── src/                        # 前端工程 (Vue 3)
-│   ├── views/                  # 视图页面 (分为 Student 和 Teacher 角色)
+│   ├── views/
+│   │   ├── student/            # 学生端视图
+│   │   └── teacher/            # 教师端视图
 │   ├── components/             # 公共组件 (播放器、文档查看器、AI对话框)
 │   ├── services/               # API 接口封装
-│   └── stores/                 # Pinia 全局状态
+│   ├── stores/                 # Pinia 全局状态管理
+│   ├── router/                 # 路由配置
+│   └── utils/                  # 工具函数
 ├── package.json                # 前端依赖与脚本
-└── vite.config.js              # Vite 配置
+├── vite.config.js              # Vite 构建配置
+├── index.html                  # HTML 入口文件
+└── README.md                   # 项目说明文档
 ```
 
 ---
@@ -112,7 +139,7 @@ CCUT/backend/
 
 ### 2. 数据库初始化
 在 MySQL 中创建数据库 `ccut_db`，并执行以下脚本：
-- `REBUILD_DATABASE.sql` (结构与核心数据)
+- `server/src/main/resources/SQL.sql` (结构与核心数据)
 
 ### 3. 后端启动
 ```bash

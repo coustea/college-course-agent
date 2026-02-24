@@ -130,7 +130,19 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
         // 3. 保存用户消息（保存原始输入，不包含解析后的内容）
         logger.info("Saving user message for username: {}", username);
-        messageService.saveUserMessage(conversationId, originalInput, username);
+
+        // 将附件列表转换为JSON字符串
+        String filesJson = null;
+        if (hasAttachments && request.attachments() != null && !request.attachments().isEmpty()) {
+            try {
+                filesJson = JSONUtil.toJsonStr(request.attachments());
+                logger.info("附件信息已转换为JSON，长度: {}", filesJson.length());
+            } catch (Exception e) {
+                logger.error("附件JSON序列化失败: {}", e.getMessage());
+            }
+        }
+
+        messageService.saveUserMessage(conversationId, originalInput, username, filesJson);
 
         // 4. 加载历史消息
         List<Message> history = messageService.loadConversationHistory(conversationId, username);
@@ -195,8 +207,19 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
         // 3. 保存用户消息（保存原始输入，不包含解析后的内容）
         try {
-            messageService.saveUserMessage(conversationId, originalInput, username);
-            logger.info("用户消息已保存（原始输入）");
+            // 将附件列表转换为JSON字符串
+            String filesJson = null;
+            if (hasAttachments && request.attachments() != null && !request.attachments().isEmpty()) {
+                try {
+                    filesJson = JSONUtil.toJsonStr(request.attachments());
+                    logger.info("附件信息已转换为JSON，长度: {}", filesJson.length());
+                } catch (Exception e) {
+                    logger.error("附件JSON序列化失败: {}", e.getMessage());
+                }
+            }
+
+            messageService.saveUserMessage(conversationId, originalInput, username, filesJson);
+            logger.info("用户消息已保存（原始输入 + 附件信息）");
         } catch (Exception e) {
             logger.error("保存用户消息失败: {}", e.getMessage(), e);
             return Flux.just("{\"code\":500,\"message\":\"保存消息失败: " + escapeJson(e.getMessage()) + "\"}");

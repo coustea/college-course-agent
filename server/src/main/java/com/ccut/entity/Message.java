@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * AI 聊天消息实体
@@ -21,4 +22,5 @@ public class Message {
     private Integer sequenceNum; // 消息序号，同一会话内递增，用于排序和上下文
     private LocalDateTime createdAt; // 消息创建时间
     private Integer tokensUsed; // 该消息消耗的token数（用于成本统计）
+    private String files; // 附件信息（JSON字符串，存储文件列表）
 }

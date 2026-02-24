@@ -19,6 +19,16 @@ public interface MessageService {
     Message saveUserMessage(String conversationId, String content, String username);
 
     /**
+     * 保存用户消息（带附件信息）
+     * @param conversationId 会话ID
+     * @param content 消息内容
+     * @param username 用户名（用于Redis key）
+     * @param filesJson 附件信息（JSON字符串）
+     * @return 保存的消息对象
+     */
+    Message saveUserMessage(String conversationId, String content, String username, String filesJson);
+
+    /**
      * 保存AI消息（同步写MySQL + 异步更新Redis）
      * @param conversationId 会话ID
      * @param content 消息内容
