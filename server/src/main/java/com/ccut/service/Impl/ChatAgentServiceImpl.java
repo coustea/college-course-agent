@@ -103,14 +103,28 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         logger.info("ConversationId: {}", conversationId);
         logger.info("User Input: {}", userInput);
 
-        // 1. 异步解析文档附件
-        String docContent = documentAnalysisService.analyzeAllAttachments(request.attachments());
-        if (!docContent.isEmpty()) {
-            userInput += docContent;
-        }
+        // 1. 智能判断：是否有附件需要解析
+        boolean hasAttachments = request.attachments() != null && !request.attachments().isEmpty();
 
-        // 2. 处理图片附件（嵌入 base64 描述）
-        userInput = appendImageDescriptions(userInput, request.attachments());
+        if (hasAttachments) {
+            // 📄 场景1：文档+文字问答 - 解析文档后调用大模型
+            logger.info("检测到附件，开始解析文档内容...");
+
+            // 1.1 解析文档附件
+            String docContent = documentAnalysisService.analyzeAllAttachments(request.attachments());
+            if (!docContent.isEmpty()) {
+                userInput += docContent;
+                logger.info("文档内容已追加，总长度: {}", userInput.length());
+            }
+
+            // 1.2 处理图片附件
+            userInput = appendImageDescriptions(userInput, request.attachments());
+
+            logger.info("文档解析完成，准备调用大模型");
+        } else {
+            // ⚡ 场景2：纯文字问答 - 直接调用大模型（零等待）
+            logger.info("无附件，纯文字问答模式，跳过文档解析");
+        }
 
         // 3. 保存用户消息（使用从JWT token中提取的username）
         logger.info("Saving user message for username: {}", username);
@@ -153,15 +167,28 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         logger.info("User Input: {}", userInput);
         logger.info("Attachments: {}", request.attachments() != null ? request.attachments().size() : 0);
 
-        // 1. 异步解析文档附件
-        String docContent = documentAnalysisService.analyzeAllAttachments(request.attachments());
-        if (!docContent.isEmpty()) {
-            userInput += docContent;
-            logger.info("文档内容已追加，总长度: {}", userInput.length());
-        }
+        // 1. 智能判断：是否有附件需要解析
+        boolean hasAttachments = request.attachments() != null && !request.attachments().isEmpty();
 
-        // 2. 处理图片附件
-        userInput = appendImageDescriptions(userInput, request.attachments());
+        if (hasAttachments) {
+            // 📄 场景1：文档+文字问答 - 解析文档后调用大模型
+            logger.info("检测到附件，开始解析文档内容...");
+
+            // 1.1 解析文档附件
+            String docContent = documentAnalysisService.analyzeAllAttachments(request.attachments());
+            if (!docContent.isEmpty()) {
+                userInput += docContent;
+                logger.info("文档内容已追加，总长度: {}", userInput.length());
+            }
+
+            // 1.2 处理图片附件
+            userInput = appendImageDescriptions(userInput, request.attachments());
+
+            logger.info("文档解析完成，准备调用大模型");
+        } else {
+            // ⚡ 场景2：纯文字问答 - 直接调用大模型（零等待）
+            logger.info("无附件，纯文字问答模式，跳过文档解析");
+        }
 
         // 3. 保存用户消息
         try {
@@ -324,22 +351,45 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         messages.add(new UserMessage(userInput));
 
         logger.info("使用 deepseek-reasoner 模型进行 ReAct 推理");
-        logger.info("第1轮：使用用户原始问题进行搜索");
 
-        // 第1轮：直接用用户的问题搜索
-        String firstSearchQuery = optimizeSearchQuery(userInput);
-        logger.info("第1轮搜索: {}", firstSearchQuery);
-        String firstSearchResult = webSearchService.search(firstSearchQuery);
-        logger.info("第1轮搜索结果: {}", truncate(firstSearchResult, 200));
+        // 🔴 关键修复：检查是否有附件内容
+        boolean hasAttachment = userInput != null && (
+            userInput.contains("[附件内容]") ||
+            userInput.contains("[用户上传了以下图片") ||
+            userInput.contains("[PDF文档内容]") ||
+            userInput.contains("[Word文档内容]") ||
+            userInput.contains("[Excel表格内容]") ||
+            userInput.contains("[PPT") ||
+            userInput.contains("[文本文件内容]"));
 
-        // 将第1轮搜索结果添加到上下文
-        messages.add(new AssistantMessage("{\"thought\":\"先使用用户原始问题搜索\",\"action\":\"search\",\"input\":\"" + escapeJson(firstSearchQuery) + "\"}"));
-        messages.add(new UserMessage(
-                "Observation: 使用你原始问题的搜索结果如下：\n" + firstSearchResult +
-                "\n\n请分析这些搜索结果和用户的原始问题：" +
-                "\n1. **优先检查问题清晰度**：如果用户的原始问题不清楚、有歧义或缺少关键信息，请使用 action=clarify 向用户询问" +
-                "\n2. 如果结果准确回答了用户问题，请直接给出最终回答(action=answer)" +
-                "\n3. 如果结果不充分或不够准确，请根据语义生成更精准的搜索关键词继续搜索(action=search)"));
+        if (hasAttachment) {
+            // 📄 场景1：用户上传了文档 - 跳过第1轮自动搜索，让AI直接基于附件判断
+            logger.info("检测到用户上传了附件，跳过第1轮自动搜索，让AI直接分析附件内容");
+
+            // 直接让AI判断，不进行自动搜索
+            messages.add(new UserMessage(
+                "\n\n重要提示：用户上传了文档，请基于附件内容直接回答，不要联网搜索。" +
+                "\n如果附件内容能够回答用户问题，请使用 action=answer。" +
+                "\n如果附件内容不完整或无法回答，请使用 action=clarify 向用户询问。"));
+        } else {
+            // ⚡ 场景2：纯文字问答 - 进行第1轮搜索
+            logger.info("第1轮：使用用户原始问题进行搜索");
+
+            // 第1轮：直接用用户的问题搜索
+            String firstSearchQuery = optimizeSearchQuery(userInput);
+            logger.info("第1轮搜索: {}", firstSearchQuery);
+            String firstSearchResult = webSearchService.search(firstSearchQuery);
+            logger.info("第1轮搜索结果: {}", truncate(firstSearchResult, 200));
+
+            // 将第1轮搜索结果添加到上下文
+            messages.add(new AssistantMessage("{\"thought\":\"先使用用户原始问题搜索\",\"action\":\"search\",\"input\":\"" + escapeJson(firstSearchQuery) + "\"}"));
+            messages.add(new UserMessage(
+                    "Observation: 使用你原始问题的搜索结果如下：\n" + firstSearchResult +
+                    "\n\n请分析这些搜索结果和用户的原始问题：" +
+                    "\n1. **优先检查问题清晰度**：如果用户的原始问题不清楚、有歧义或缺少关键信息，请使用 action=clarify 向用户询问" +
+                    "\n2. 如果结果准确回答了用户问题，请直接给出最终回答(action=answer)" +
+                    "\n3. 如果结果不充分或不够准确，请根据语义生成更精准的搜索关键词继续搜索(action=search)"));
+        }
 
         // 后续轮次：AI 决策
         for (int i = 1; i < MAX_REACT_ITERATIONS; i++) {
@@ -466,14 +516,20 @@ public class ChatAgentServiceImpl implements ChatAgentService {
     /**
      * 判断是否需要联网搜索
      *
-     * 注意：已移除关键词匹配判断，始终使用 ReAct 模式让 AI 自己决定是否需要搜索。
-     * 这样可以让 AI 更智能地判断问题是否需要外部信息（如未来事件、实时数据等）。
+     * 注意：始终使用 ReAct 模式让 AI 自己决定是否需要搜索。
+     * ReAct 是一种工作模式，不是"搜索模式"。AI 会在 ReAct 循环中智能判断：
+     * - 如果有附件内容 → 应该直接分析附件（action=answer）
+     * - 如果需要实时信息 → 进行搜索（action=search）
+     * - 如果是通用知识 → 直接回答（action=answer）
      *
      * @return 始终返回 true，让 AI 模型在 ReAct 循环中自己决定
      */
     private boolean needsSearch(String message) {
         // 始终使用 ReAct 模式，让 AI 模型自己决定是否需要搜索
-        // 如果问题不需要搜索，AI 会直接返回 action=answer
+        // AI 会根据问题类型和是否有附件来智能判断：
+        // - 有 [附件内容] → action=answer（基于附件回答）
+        // - 无附件 + 需要外部信息 → action=search
+        // - 无附件 + 通用知识 → action=answer
         return true;
     }
 

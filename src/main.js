@@ -7,6 +7,7 @@ import 'element-plus/dist/index.css'
 import App from './App.vue'
 import router from './router'
 import { useSettingsStore } from './stores/settings'
+import request from './utils/request'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -21,6 +22,7 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 }
 
 app.config.globalProperties.$baseUrl = 'http://localhost:9999/api'
+app.config.globalProperties.$request = request
 
 // 初始化全局设置
 const settingsStore = useSettingsStore()

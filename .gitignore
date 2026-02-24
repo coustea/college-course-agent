@@ -63,7 +63,9 @@ out/
 
 *.log
 server.log
-logs/
+# 后端日志目录（保留，但忽略内容）
+logs/*.log
+logs/**/*.log
 
 # ===================
 # 操作系统

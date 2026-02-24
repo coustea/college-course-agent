@@ -21,7 +21,7 @@ import java.util.Map;
 
 /**
  * 学习进度批量刷新定时任务
- * 每隔5分钟将Redis中的进度数据批量写入MySQL
+ * 每隔 5 分钟将 Redis 中的进度数据批量写入 MySQL
  */
 @Slf4j
 @Component
@@ -43,39 +43,46 @@ public class ProgressFlushScheduler {
     private WeeklyStudyTimeMapper weeklyStudyTimeMapper;
 
     /**
-     * 定时刷新进度数据到MySQL
-     * 每5分钟执行一次
+     * 定时刷新进度数据到 MySQL
+     * 每 5 分钟执行一次
      */
-    @Scheduled(fixedRate = 5 * 60 * 1000) // 5分钟
+    @Scheduled(fixedRate = 5 * 60 * 1000) // 5 分钟
     public void flushProgressToMySQL() {
         long startTime = System.currentTimeMillis();
-        log.info("========== 开始批量刷新进度数据到MySQL ==========");
+        log.info("========== 开始批量刷新进度数据到 MySQL (定时任务) ==========");
+        log.debug("定时任务触发时间：{}", new Date(startTime));
 
         try {
             // 1. 获取所有待处理的缓存数据
             Map<Long, List<ProgressCacheItem>> allProgress = progressCacheService.getAllCachedProgress();
 
             if (allProgress.isEmpty()) {
-                log.info("没有待处理的进度数据");
+                log.debug("没有待处理的进度数据，跳过本次执行");
                 return;
             }
 
             int totalStudents = allProgress.size();
             int totalItems = allProgress.values().stream().mapToInt(List::size).sum();
             log.info("待处理数据：{}个学生，{}条进度记录", totalStudents, totalItems);
+            log.debug("学生 ID 列表：{}", allProgress.keySet());
 
             // 2. 按学生逐个处理
             int successCount = 0;
             int failedStudents = 0;
+            int totalProcessedItems = 0;
 
             for (Map.Entry<Long, List<ProgressCacheItem>> entry : allProgress.entrySet()) {
                 Long studentId = entry.getKey();
                 List<ProgressCacheItem> items = entry.getValue();
+                long studentStartTime = System.currentTimeMillis();
 
                 try {
+                    log.debug("开始处理学生{}的进度数据，共{}条记录", studentId, items.size());
+
                     // 处理该学生的所有进度数据
                     processStudentProgress(studentId, items);
                     successCount++;
+                    totalProcessedItems += items.size();
 
                     // 处理成功后删除缓存
                     List<String> cacheKeys = items.stream()
@@ -83,20 +90,26 @@ public class ProgressFlushScheduler {
                         .toList();
                     progressCacheService.removeCachedProgress(studentId, cacheKeys);
 
+                    long studentDuration = System.currentTimeMillis() - studentStartTime;
+                    log.debug("学生{}的进度处理完成，耗时：{}ms", studentId, studentDuration);
+
                 } catch (Exception e) {
                     failedStudents++;
-                    log.error("处理学生{}的进度数据失败: error={}", studentId, e.getMessage(), e);
+                    log.error("处理学生{}的进度数据失败：error={}", studentId, e.getMessage(), e);
                 }
             }
 
             long duration = System.currentTimeMillis() - startTime;
             log.info("========== 批量刷新完成 ==========");
-            log.info("成功: {}/{}, 失败: {}, 耗时: {}ms",
-                successCount, totalStudents, failedStudents, duration);
+            log.info("统计：成功学生数={}/{}, 失败学生数={}, 处理进度条数={}, 总耗时={}ms",
+                successCount, totalStudents, failedStudents, totalProcessedItems, duration);
+            log.info("性能指标：平均每学生耗时={}ms, 平均每条进度耗时={}ms",
+                totalStudents > 0 ? duration / totalStudents : 0,
+                totalProcessedItems > 0 ? duration / totalProcessedItems : 0);
 
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            log.error("批量刷新进度数据异常: error={}, 耗时: {}ms", e.getMessage(), duration, e);
+            log.error("批量刷新进度数据异常：error={}, 耗时：{}ms", e.getMessage(), duration, e);
         }
     }
 
@@ -104,10 +117,12 @@ public class ProgressFlushScheduler {
      * 处理单个学生的所有进度数据
      */
     private void processStudentProgress(Long studentId, List<ProgressCacheItem> items) {
+        log.debug("处理学生{}的{}条进度数据", studentId, items.size());
+
         // 统计每个课程的累计学习时长
         Map<String, CourseProgressSummary> summaryMap = new java.util.HashMap<>();
 
-        // 按资源ID合并重复上报
+        // 按资源 ID 合并重复上报
         Map<String, ProgressCacheItem> mergedItems = new java.util.HashMap<>();
 
         for (ProgressCacheItem item : items) {
@@ -118,6 +133,7 @@ public class ProgressFlushScheduler {
                 ProgressCacheItem existing = mergedItems.get(key);
                 existing.setDeltaSec(existing.getDeltaSec() + item.getDeltaSec());
                 existing.setCompleted(existing.getCompleted() || item.getCompleted());
+                log.trace("合并学生{}的课程{}资源{}的进度上报", studentId, item.getCourseId(), key);
             } else {
                 mergedItems.put(key, item);
             }
@@ -130,10 +146,15 @@ public class ProgressFlushScheduler {
             summaryMap.put(courseKey, summary);
         }
 
+        log.debug("学生{}的进度数据合并完成：原始{}条 -> 合并后{}条", studentId, items.size(), mergedItems.size());
+
         // 批量写入数据库
+        int videoCount = 0;
+        int documentCount = 0;
+
         for (ProgressCacheItem item : mergedItems.values()) {
             try {
-                // 写入video_progress或document_progress
+                // 写入 video_progress 或 document_progress
                 if (item.getVideoId() != null) {
                     videoProgressMapper.upsert(
                         item.getStudentId(),
@@ -142,6 +163,7 @@ public class ProgressFlushScheduler {
                         item.getDeltaSec(),
                         item.getCompleted()
                     );
+                    videoCount++;
                 } else {
                     documentProgressMapper.upsert(
                         item.getStudentId(),
@@ -151,13 +173,17 @@ public class ProgressFlushScheduler {
                         item.getScrollPct(),
                         item.getCompleted()
                     );
+                    documentCount++;
                 }
             } catch (Exception e) {
-                log.error("写入进度失败: studentId={}, courseId={}", studentId, item.getCourseId(), e);
+                log.error("写入进度失败：studentId={}, courseId={}, resourceId={}", 
+                    studentId, item.getCourseId(), 
+                    item.getVideoId() != null ? item.getVideoId() : item.getDocumentId(), e);
             }
         }
 
         // 更新课程进度和每周学习时间
+        int courseUpdateCount = 0;
         for (CourseProgressSummary summary : summaryMap.values()) {
             try {
                 // 更新课程总进度
@@ -190,13 +216,15 @@ public class ProgressFlushScheduler {
                         summary.totalDeltaSec
                     );
                 }
+                courseUpdateCount++;
             } catch (Exception e) {
-                log.error("更新课程进度失败: studentId={}, courseId={}",
+                log.error("更新课程进度失败：studentId={}, courseId={}",
                     summary.studentId, summary.courseId, e);
             }
         }
 
-        log.debug("学生{}的{}条进度已刷新到MySQL", studentId, items.size());
+        log.debug("学生{}的进度已刷新到 MySQL: 视频{}条，文档{}条，课程更新{}个", 
+            studentId, videoCount, documentCount, courseUpdateCount);
     }
 
     /**

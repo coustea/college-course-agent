@@ -359,12 +359,11 @@ import { ref, computed, onMounted, getCurrentInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Plus } from '@element-plus/icons-vue'
-import axios from 'axios'
+import request from '@/utils/request'
 
 const route = useRoute()
 const router = useRouter()
 const { proxy } = getCurrentInstance()
-const BASE_URL = import.meta?.env?.VITE_API_BASE_URL || '/api' // 兼容
 const courseId = ref(Number(route.params.id))
 
 // --- 数据状态 ---
@@ -427,7 +426,7 @@ const goBack = () => router.back()
 // 加载课程详情（覆盖初始数据，确保数据最新）
 const loadCourse = async () => {
   try {
-    const res = await axios.get(`${BASE_URL}/course/detail`, { params: { courseId: courseId.value } })
+    const res = await request.get(`/course/detail`, { params: { courseId: courseId.value } })
     if (res.data.code === 200 && res.data.data) {
       const data = res.data.data
       // 智能合并：如果后端返回了有效值则更新，否则保持现有值（避免覆盖为空）
@@ -444,7 +443,7 @@ const loadCourse = async () => {
 const loadChapterTree = async () => {
   loadingChapters.value = true
   try {
-    const res = await axios.get(`${BASE_URL}/chapter/tree`, { params: { courseId: courseId.value } })
+    const res = await request.get(`/chapter/tree`, { params: { courseId: courseId.value } })
     if (res.data.code === 200) {
       chapterTree.value = res.data.data || []
       // 如果当前有选中的章节，尝试刷新选中状态的数据
@@ -497,7 +496,7 @@ const addChapter = async () => {
     })
     if (!value) return
 
-    const res = await axios.post(`${BASE_URL}/chapter/create`, null, {
+    const res = await request.post(`/chapter/create`, null, {
       params: { courseId: courseId.value, title: value }
     })
     if (res.data.code === 200) {
@@ -517,7 +516,7 @@ const addSection = async (chapter) => {
     })
     if (!value) return
 
-    const res = await axios.post(`${BASE_URL}/chapter/section/create`, null, {
+    const res = await request.post(`/chapter/section/create`, null, {
       params: { parentId: chapter.chapterId, title: value }
     })
     if (res.data.code === 200) {
@@ -544,7 +543,7 @@ const confirmEdit = async (isDialog = true) => {
   }
 
   try {
-    const res = await axios.put(`${BASE_URL}/chapter/update`, null, {
+    const res = await request.put(`/chapter/update`, null, {
       params: { chapterId: targetId, title: targetTitle }
     })
     if (res.data.code === 200) {
@@ -563,7 +562,7 @@ const deleteNode = async (node) => {
       '危险操作',
       { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
     )
-    const res = await axios.delete(`${BASE_URL}/chapter/delete`, { params: { chapterId: node.chapterId } })
+    const res = await request.delete(`/chapter/delete`, { params: { chapterId: node.chapterId } })
     if (res.data.code === 200) {
       ElMessage.success('删除成功')
       if (selectedChapter.value?.chapterId === node.chapterId) selectedChapter.value = null
@@ -635,7 +634,7 @@ const updateCourseInfo = async (showMsg = true) => {
   if (imageFile.value) formData.append('image', imageFile.value)
 
   try {
-    const res = await axios.put(`${BASE_URL}/course/update`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    const res = await request.put(`/course/update`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
     if (res.data.code === 200) {
       if (showMsg) ElMessage.success('课程基本信息已保存')
       imageFile.value = null
@@ -655,9 +654,9 @@ const uploadVideo = async () => {
   formData.append('videoTitle', videoForm.value.videoTitle)
   formData.append('file', videoForm.value.file)
 
-  const uploadRes = await axios.post(`${BASE_URL}/course/video/insert`, formData)
+  const uploadRes = await request.post(`/course/video/insert`, formData)
   if (uploadRes.data.code === 200) {
-    const attachRes = await axios.post(`${BASE_URL}/chapter/attach/video`, null, {
+    const attachRes = await request.post(`/chapter/attach/video`, null, {
       params: { chapterId: selectedChapter.value.chapterId, videoId: uploadRes.data.data.videoId }
     })
     if (attachRes.data.code === 200) {
@@ -675,9 +674,9 @@ const uploadDoc = async () => {
   formData.append('docTitle', documentForm.value.docTitle)
   formData.append('file', documentForm.value.file)
 
-  const uploadRes = await axios.post(`${BASE_URL}/course/document/insert`, formData)
+  const uploadRes = await request.post(`/course/document/insert`, formData)
   if (uploadRes.data.code === 200) {
-    const attachRes = await axios.post(`${BASE_URL}/chapter/attach/document`, null, {
+    const attachRes = await request.post(`/chapter/attach/document`, null, {
       params: { chapterId: selectedChapter.value.chapterId, documentId: uploadRes.data.data.documentId }
     })
     if (attachRes.data.code === 200) {
@@ -694,7 +693,7 @@ const removeContent = async (type) => {
     const paramKey = type === 'video' ? 'videoId' : 'documentId'
     const id = type === 'video' ? selectedChapter.value.video.videoId : selectedChapter.value.document.documentId
     
-    const res = await axios.delete(`${BASE_URL}${apiPath}`, { params: { [paramKey]: id } })
+    const res = await request.delete(`${apiPath}`, { params: { [paramKey]: id } })
     if (res.data.code === 200) {
       ElMessage.success('移除成功')
       loadChapterTree()

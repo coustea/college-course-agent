@@ -94,4 +94,11 @@
 
     </select>
 
+    <!-- 推荐系统需要的辅助方法 -->
+    <select id="findAllStudentIds" resultType="java.lang.Long">
+        SELECT id
+        FROM students
+        ORDER BY id DESC
+    </select>
+
 </mapper>

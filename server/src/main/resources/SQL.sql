@@ -21,6 +21,8 @@ DROP TABLE IF EXISTS ai_exam_questions;
 
 DROP TABLE IF EXISTS ai_exams;
 
+DROP TABLE IF EXISTS recommendation;
+
 DROP TABLE IF EXISTS messages;
 
 DROP TABLE IF EXISTS conversations;
@@ -139,6 +141,7 @@ CREATE TABLE enrollments (
     course_id BIGINT NOT NULL COMMENT '课程ID',
     enrollment_date DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '选课时间',
     status VARCHAR(20) DEFAULT 'active' COMMENT '选课状态(active, dropped, completed)',
+    enrollment_source VARCHAR(20) DEFAULT 'student' COMMENT '选课来源：teacher(教师强制添加/必修) / student(学生自选/选修)',
     FOREIGN KEY (student_id) REFERENCES students (id) ON DELETE CASCADE,
     FOREIGN KEY (course_id) REFERENCES courses (course_id) ON DELETE CASCADE,
     UNIQUE KEY unique_enrollment (student_id, course_id)
@@ -437,7 +440,28 @@ CREATE TABLE ai_exam_answers (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'AI 试卷作答';
 
 -- ================================================
--- 22. AI 会话表
+-- 22.5 课程推荐表
+-- ================================================
+CREATE TABLE recommendation (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '推荐ID',
+    student_id BIGINT NOT NULL COMMENT '学生ID',
+    course_id BIGINT NOT NULL COMMENT '课程ID',
+    reason VARCHAR(500) COMMENT '推荐理由',
+    score DOUBLE NOT NULL COMMENT '推荐分数（0-1）',
+    recommendation_type VARCHAR(50) NOT NULL COMMENT '推荐类型：CONTENT_BASED, COLLABORATIVE, POPULAR',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    has_clicked BOOLEAN DEFAULT FALSE COMMENT '是否已点击',
+    clicked_at DATETIME COMMENT '点击时间',
+    FOREIGN KEY (student_id) REFERENCES students (id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses (course_id) ON DELETE CASCADE,
+    INDEX idx_student_id (student_id),
+    INDEX idx_course_id (course_id),
+    INDEX idx_created_at (created_at),
+    INDEX idx_student_score (student_id, score)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '课程推荐表';
+
+-- ================================================
+-- 23. AI 会话表
 -- ================================================
 CREATE TABLE conversations (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '会话ID',
@@ -503,17 +527,13 @@ CREATE TABLE wrong_question (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '错题本表';
 
 -- ================================================
--- 测试数据
+-- 默认账号数据
 -- ================================================
 
--- 学生账号（密码: 123456）
+-- 学生账号（用户名: student / 密码: 123456）
 INSERT INTO
     users (username, password, role)
-VALUES (
-        '2021001',
-        '123456',
-        'student'
-    );
+VALUES ('student', '123456', 'student');
 
 INSERT INTO
     students (
@@ -531,22 +551,22 @@ INSERT INTO
     )
 VALUES (
         LAST_INSERT_ID(),
-        '2021001',
-        '张三',
-        '计算机21-1班',
-        'zhangsan@example.com',
-        '13800138000',
+        '2024001',
+        '王小明',
+        '计算机24-1班',
+        'wangxiaoming@student.ccut.edu.cn',
+        '13812345678',
         '计算机科学与技术',
-        '2021级',
-        2021,
+        '2024级',
+        2024,
         'IN_SCHOOL',
         'pending'
     );
 
--- 教师账号（密码: 123456）
+-- 教师账号（用户名: teacher / 密码: 123456）
 INSERT INTO
     users (username, password, role)
-VALUES ('T001', '123456', 'teacher');
+VALUES ('teacher', '123456', 'teacher');
 
 INSERT INTO
     teachers (
@@ -561,38 +581,11 @@ INSERT INTO
     )
 VALUES (
         LAST_INSERT_ID(),
-        '李老师',
-        'liteacher@example.com',
-        '13900139000',
-        '计算机学院',
-        '副教授',
+        '张教授',
+        'zhang@teacher.ccut.edu.cn',
+        '13987654321',
+        '计算机科学与技术学院',
+        '教授',
         '系主任',
-        '从事计算机教育多年，研究方向为人工智能与教育。'
-    );
-
--- 管理员账号（密码: 123456）
-INSERT INTO
-    users (username, password, role)
-VALUES ('admin', '123456', 'teacher');
-
-INSERT INTO
-    teachers (
-        id,
-        name,
-        email,
-        phone,
-        department,
-        title,
-        position,
-        bio
-    )
-VALUES (
-        LAST_INSERT_ID(),
-        '系统管理员',
-        'admin@ccut.com',
-        '13800138888',
-        '信息中心',
-        '管理员',
-        '系统管理员',
-        '系统管理员账号，拥有最高权限。'
+        '主要从事人工智能、机器学习等领域的教学与科研工作。'
     );

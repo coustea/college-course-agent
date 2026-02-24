@@ -3,6 +3,7 @@ package com.ccut.controller;
 import com.ccut.entity.CourseVideo;
 import com.ccut.dto.Result;
 import com.ccut.mapper.CourseVideoMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 分片上传控制器
  * 支持大文件分片上传和断点续传
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/chunk")
 public class ChunkUploadController {
@@ -28,7 +30,7 @@ public class ChunkUploadController {
     @Value("${file.upload-dir}")
     private String uploadDir;
 
-    // 临时存储分片信息的Map
+    // 临时存储分片信息的 Map
     private static final Map<String, ChunkInfo> chunkInfoMap = new ConcurrentHashMap<>();
 
     /**
@@ -40,7 +42,10 @@ public class ChunkUploadController {
             @RequestParam("fileSize") Long fileSize,
             @RequestParam("totalChunks") Integer totalChunks
     ) {
+        log.debug("收到初始化分片上传请求：URI=/api/chunk/init, 参数：fileName={}, fileSize={} bytes, totalChunks={}",
+                fileName, fileSize, totalChunks);
         try {
+            log.info("执行初始化分片上传业务：fileName={}, fileSize={} bytes", fileName, fileSize);
             String uploadId = UUID.randomUUID().toString().replace("-", "");
             ChunkInfo info = new ChunkInfo();
             info.setUploadId(uploadId);
@@ -49,16 +54,18 @@ public class ChunkUploadController {
             info.setTotalChunks(totalChunks);
             info.setUploadedChunks(new HashSet<>());
             info.setCreateTime(System.currentTimeMillis());
-            
+
             chunkInfoMap.put(uploadId, info);
-            
+
             Map<String, Object> result = new HashMap<>();
             result.put("uploadId", uploadId);
             result.put("chunkSize", 2 * 1024 * 1024); // 2MB per chunk
-            
+
+            log.debug("初始化分片上传成功：fileName={}, uploadId={}", fileName, uploadId);
             return Result.success(result);
         } catch (Exception e) {
-            return Result.error(500, "初始化上传失败: " + e.getMessage());
+            log.error("初始化分片上传失败：fileName={}, 错误：{}", fileName, e.getMessage(), e);
+            return Result.error(500, "初始化上传失败：" + e.getMessage());
         }
     }
 
@@ -71,10 +78,13 @@ public class ChunkUploadController {
             @RequestParam("chunkIndex") Integer chunkIndex,
             @RequestPart("chunk") MultipartFile chunk
     ) {
+        log.debug("收到上传分片请求：URI=/api/chunk/upload, 参数：uploadId={}, chunkIndex={}, chunkSize={} bytes",
+                uploadId, chunkIndex, chunk.getSize());
         try {
             ChunkInfo info = chunkInfoMap.get(uploadId);
             if (info == null) {
-                return Result.error(400, "无效的uploadId或上传已过期");
+                log.warn("上传分片失败：无效的 uploadId={}", uploadId);
+                return Result.error(400, "无效的 uploadId 或上传已过期");
             }
 
             // 创建临时目录
@@ -89,15 +99,18 @@ public class ChunkUploadController {
 
             // 记录已上传的分片
             info.getUploadedChunks().add(chunkIndex);
-            
+
             Map<String, Object> result = new HashMap<>();
             result.put("uploadedChunks", info.getUploadedChunks().size());
             result.put("totalChunks", info.getTotalChunks());
             result.put("isComplete", info.getUploadedChunks().size() == info.getTotalChunks());
-            
+
+            log.debug("上传分片成功：uploadId={}, chunkIndex={}, 进度={}/{}",
+                    uploadId, chunkIndex, info.getUploadedChunks().size(), info.getTotalChunks());
             return Result.success(result);
         } catch (Exception e) {
-            return Result.error(500, "分片上传失败: " + e.getMessage());
+            log.error("上传分片失败：uploadId={}, chunkIndex={}, 错误：{}", uploadId, chunkIndex, e.getMessage(), e);
+            return Result.error(500, "分片上传失败：" + e.getMessage());
         }
     }
 
@@ -112,16 +125,25 @@ public class ChunkUploadController {
             @RequestParam(value = "videoTitle", required = false) String videoTitle,
             @RequestParam(value = "duration", required = false) Integer duration
     ) {
+        log.debug("收到合并分片请求：URI=/api/chunk/merge, 参数：uploadId={}, courseId={}, videoTitle={}",
+                uploadId, courseId, videoTitle);
         try {
             ChunkInfo info = chunkInfoMap.get(uploadId);
             if (info == null) {
-                return Result.error(400, "无效的uploadId");
+                log.warn("合并分片失败：无效的 uploadId={}", uploadId);
+                return Result.error(400, "无效的 uploadId");
             }
 
             // 检查是否所有分片都已上传
             if (info.getUploadedChunks().size() != info.getTotalChunks()) {
+                log.warn("合并分片失败：还有分片未上传完成，uploadId={}, uploaded={}/{}",
+                        uploadId, info.getUploadedChunks().size(), info.getTotalChunks());
                 return Result.error(400, "还有分片未上传完成");
             }
+
+            log.info("执行合并分片业务：uploadId={}, courseId={}, fileName={}, fileSize={} bytes",
+                    uploadId, courseId, info.getFileName(), info.getFileSize());
+            long startTime = System.currentTimeMillis();
 
             // 创建最终保存目录
             String dateDir = LocalDate.now().toString();
@@ -147,7 +169,7 @@ public class ChunkUploadController {
             // 删除临时分片文件
             deleteDirectory(new File(tempDir));
 
-            // 从map中移除
+            // 从 map 中移除
             chunkInfoMap.remove(uploadId);
 
             // 数据库存储的访问路径
@@ -172,13 +194,19 @@ public class ChunkUploadController {
             v.setUploadDate(new Date());
 
             int n = courseVideoMapper.insert(v);
+            long costTime = System.currentTimeMillis() - startTime;
+            
             if (n > 0) {
+                log.info("合并分片成功：uploadId={}, courseId={}, videoId={}, fileName={}, 耗时={} ms",
+                        uploadId, courseId, v.getVideoId(), finalFileName, costTime);
                 return Result.success(v);
             }
+            log.error("合并分片失败：保存数据库失败，uploadId={}, courseId={}", uploadId, courseId);
             return Result.error(500, "保存数据库失败");
         } catch (Exception e) {
+            log.error("合并分片失败：uploadId={}, courseId={}, 错误：{}", uploadId, courseId, e.getMessage(), e);
             e.printStackTrace();
-            return Result.error(500, "合并分片失败: " + e.getMessage());
+            return Result.error(500, "合并分片失败：" + e.getMessage());
         }
     }
 
@@ -187,9 +215,11 @@ public class ChunkUploadController {
      */
     @GetMapping("/status")
     public Result<Map<String, Object>> checkStatus(@RequestParam("uploadId") String uploadId) {
+        log.debug("收到检查上传状态请求：URI=/api/chunk/status, 参数：uploadId={}", uploadId);
         try {
             ChunkInfo info = chunkInfoMap.get(uploadId);
             if (info == null) {
+                log.warn("检查上传状态失败：未找到上传任务，uploadId={}", uploadId);
                 return Result.error(404, "未找到上传任务");
             }
 
@@ -197,9 +227,11 @@ public class ChunkUploadController {
             result.put("uploadedChunks", new ArrayList<>(info.getUploadedChunks()));
             result.put("totalChunks", info.getTotalChunks());
             result.put("uploadedSize", info.getUploadedChunks().size());
-            
+
+            log.debug("检查上传状态成功：uploadId={}, 进度={}/{}", uploadId, info.getUploadedChunks().size(), info.getTotalChunks());
             return Result.success(result);
         } catch (Exception e) {
+            log.error("检查上传状态失败：uploadId={}, 错误：{}", uploadId, e.getMessage(), e);
             return Result.error(500, e.getMessage());
         }
     }
@@ -209,15 +241,21 @@ public class ChunkUploadController {
      */
     @DeleteMapping("/cancel")
     public Result<String> cancelUpload(@RequestParam("uploadId") String uploadId) {
+        log.debug("收到取消上传请求：URI=/api/chunk/cancel, 参数：uploadId={}", uploadId);
         try {
             ChunkInfo info = chunkInfoMap.remove(uploadId);
             if (info != null) {
+                log.info("执行取消上传业务：uploadId={}, fileName={}", uploadId, info.getFileName());
                 // 删除临时文件
                 String tempDir = uploadDir + "/temp/" + uploadId;
                 deleteDirectory(new File(tempDir));
+                log.debug("取消上传成功：uploadId={}", uploadId);
+            } else {
+                log.warn("取消上传失败：未找到上传任务，uploadId={}", uploadId);
             }
             return Result.success("取消成功");
         } catch (Exception e) {
+            log.error("取消上传失败：uploadId={}, 错误：{}", uploadId, e.getMessage(), e);
             return Result.error(500, e.getMessage());
         }
     }
@@ -267,4 +305,3 @@ public class ChunkUploadController {
         public void setCreateTime(Long createTime) { this.createTime = createTime; }
     }
 }
-

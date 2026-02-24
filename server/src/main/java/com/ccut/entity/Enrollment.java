@@ -14,8 +14,14 @@ public class Enrollment {
     private Student student;
     private Timestamp enrollmentDate;// 选课时间
     private Status status;// 选课状态
+    private String enrollmentSource; // 选课来源：teacher(教师强制/必修) / student(学生自选/选修)
+
     public enum Status {
         active, dropped, completed
+    }
+
+    public enum Source {
+        TEACHER, STUDENT
     }
 }
 

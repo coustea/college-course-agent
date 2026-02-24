@@ -18,5 +18,6 @@ public interface StudentMapper {
     List<Student> selectByGrade(String grade);
     List<Student> selectByClassName(String className);
 
-
+    // 推荐系统需要的辅助方法
+    List<Long> findAllStudentIds();
 }

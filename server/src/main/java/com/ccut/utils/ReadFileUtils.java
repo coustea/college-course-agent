@@ -1,21 +1,7 @@
 package com.ccut.utils;
 
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
-import org.apache.poi.hwpf.HWPFDocument;
-import org.apache.poi.hwpf.extractor.WordExtractor;
-import org.apache.poi.hslf.usermodel.HSLFSlideShow;
-import org.apache.poi.sl.extractor.SlideShowExtractor;
-import org.apache.poi.xslf.usermodel.XMLSlideShow;
-import org.apache.poi.xslf.usermodel.XSLFSlide;
-import org.apache.poi.xslf.usermodel.XSLFShape;
-import org.apache.poi.xslf.usermodel.XSLFTextShape;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
-import org.apache.poi.hssf.usermodel.HSSFRow;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
@@ -27,17 +13,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
-import java.util.List;
+import java.util.Set;
 
 /**
- * 文件读取工具类
- * 用于读取各种文件格式的内容，以便AI理解
+ * 文件读取工具类（使用 Apache Tika）
+ * Apache Tika 是一个统一的内容检测和文本提取框架
+ * 支持数百种文件格式：PDF、Word、Excel、PPT、图片、音频、视频等
  */
 public class ReadFileUtils {
 
     private static final Logger logger = LoggerFactory.getLogger(ReadFileUtils.class);
 
-    private static final java.util.Set<String> IMAGE_EXTENSIONS = java.util.Set.of(
+    private static final Tika tika = new Tika();
+    private static final int MAX_TEXT_LENGTH = 10000;  // 最大文本长度
+    private static final int MAX_IMAGE_SIZE = 100000;   // 最大图片大小（Base64编码前）
+
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of(
             "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"
     );
 
@@ -72,7 +63,7 @@ public class ReadFileUtils {
     }
 
     /**
-     * 读取文件内容
+     * 读取文件内容（使用 Apache Tika）
      * @param filePath 文件路径
      * @param filename 文件名
      * @return 文件内容描述（文本内容或base64编码）
@@ -93,10 +84,7 @@ public class ReadFileUtils {
             // 处理文件路径（去掉URL前缀）
             String actualPath = filePath;
             if (filePath.startsWith("/uploads/")) {
-                // 从URL提取相对路径
                 String relativePath = filePath.replace("/uploads/", "");
-                // 假设文件存储在配置的upload.base-dir目录下
-                // 这里需要根据实际情况调整路径
                 actualPath = "uploads/" + relativePath;
             }
 
@@ -108,60 +96,13 @@ public class ReadFileUtils {
 
             File file = path.toFile();
 
-            // 根据文件类型读取内容
-            switch (extension) {
-                case "pdf":
-                    return readPdfFile(file);
-
-                case "doc":
-                    return readDocFile(file);
-
-                case "docx":
-                    return readDocxFile(file);
-
-                case "xls":
-                case "xlsx":
-                    return readExcelFile(file);
-
-                case "ppt":
-                    return readPptFile(file);
-
-                case "pptx":
-                    return readPptxFile(file);
-
-                case "csv":
-                    return readCsvFile(file);
-
-                case "txt":
-                case "md":
-                case "markdown":
-                case "json":
-                case "xml":
-                case "html":
-                case "css":
-                case "js":
-                case "java":
-                case "py":
-                case "c":
-                case "cpp":
-                case "sql":
-                case "yaml":
-                case "yml":
-                case "properties":
-                case "log":
-                    return readTxtFile(file);
-
-                case "jpg":
-                case "jpeg":
-                case "png":
-                case "gif":
-                case "bmp":
-                case "webp":
-                    return readImageFile(file);
-
-                default:
-                    return "不支持的文件类型: " + extension;
+            // 图片文件特殊处理（返回 Base64）
+            if (isImageFile(extension)) {
+                return readImageFile(file);
             }
+
+            // 使用 Apache Tika 统一处理所有文档类型
+            return readDocumentWithTika(file, filename);
 
         } catch (Exception e) {
             logger.error("Failed to read file: {}, error: {}", filePath, e.getMessage(), e);
@@ -170,136 +111,85 @@ public class ReadFileUtils {
     }
 
     /**
-     * 读取PDF文件内容
+     * 使用 Apache Tika 读取文档内容
+     * 支持：PDF、Word、Excel、PPT、TXT、CSV、HTML、XML、Markdown 等
      */
-    private static String readPdfFile(File file) throws IOException {
-        try (PDDocument document = PDDocument.load(file)) {
-            PDFTextStripper stripper = new PDFTextStripper();
-            String text = stripper.getText(document);
-            // 限制文本长度，避免token过多
-            if (text.length() > 10000) {
-                text = text.substring(0, 10000) + "\n...(内容过长，已截断)";
-            }
-            return "[PDF文档内容]\n" + text;
-        }
-    }
+    private static String readDocumentWithTika(File file, String filename) {
+        try (FileInputStream inputStream = new FileInputStream(file)) {
+            // 使用 Tika 自动检测文件类型并提取文本
+            String mimeType = tika.detect(file);
+            logger.debug("检测到文件类型: {} - {}", filename, mimeType);
 
-    /**
-     * 读取旧版Word文档（.doc）
-     */
-    private static String readDocFile(File file) throws IOException {
-        try (FileInputStream fis = new FileInputStream(file);
-             HWPFDocument document = new HWPFDocument(fis);
-             WordExtractor extractor = new WordExtractor(document)) {
-            String text = extractor.getText();
-            if (text.length() > 10000) {
-                text = text.substring(0, 10000) + "\n...(内容过长，已截断)";
-            }
-            return "[Word文档内容]\n" + text;
-        }
-    }
+            // 提取文本内容
+            String text = tika.parseToString(inputStream);
 
-    /**
-     * 读取新版Word文档（.docx）
-     */
-    private static String readDocxFile(File file) throws IOException {
-        try (FileInputStream fis = new FileInputStream(file);
-             XWPFDocument document = new XWPFDocument(fis)) {
-            StringBuilder text = new StringBuilder();
-            List<XWPFParagraph> paragraphs = document.getParagraphs();
-            for (XWPFParagraph para : paragraphs) {
-                text.append(para.getText()).append("\n");
-            }
-            String content = text.toString();
-            if (content.length() > 10000) {
-                content = content.substring(0, 10000) + "\n...(内容过长，已截断)";
-            }
-            return "[Word文档内容]\n" + content;
-        }
-    }
+            // 检查文本是否为空
+            if (text == null || text.trim().isEmpty()) {
+                logger.warn("文件内容为空: {} (MIME类型: {})", filename, mimeType);
 
-    /**
-     * 读取Excel文件（.xls, .xlsx）
-     */
-    private static String readExcelFile(File file) {
-        try (FileInputStream fis = new FileInputStream(file);
-             Workbook workbook = WorkbookFactory.create(fis)) {
-
-            StringBuilder content = new StringBuilder();
-            content.append("[Excel表格内容]\n");
-
-            int sheetCount = workbook.getNumberOfSheets();
-            for (int s = 0; s < Math.min(sheetCount, 3); s++) { // 最多读取3个sheet
-                Sheet sheet = workbook.getSheetAt(s);
-                content.append("\n工作表").append(s + 1).append(": ").append(sheet.getSheetName()).append("\n");
-
-                int rowCount = sheet.getPhysicalNumberOfRows();
-                for (int r = 0; r < Math.min(rowCount, 50); r++) { // 每个sheet最多读取50行
-                    Row row = sheet.getRow(r);
-                    if (row != null) {
-                        StringBuilder rowText = new StringBuilder();
-                        int cellCount = row.getPhysicalNumberOfCells();
-                        for (int c = 0; c < cellCount; c++) {
-                            Cell cell = row.getCell(c);
-                            String cellValue = getCellValue(cell);
-                            rowText.append(cellValue).append("\t");
-                        }
-                        content.append(rowText).append("\n");
-                    }
-                }
-
-                if (rowCount > 50) {
-                    content.append("...(数据过多，仅显示前50行)\n");
-                }
-            }
-
-            if (sheetCount > 3) {
-                content.append("...(工作表过多，仅显示前3个)\n");
-            }
-
-            return content.toString();
-
-        } catch (Exception e) {
-            logger.error("Failed to read Excel file: {}", e.getMessage(), e);
-            return "Excel文件读取失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 获取单元格值
-     */
-    private static String getCellValue(Cell cell) {
-        if (cell == null) {
-            return "";
-        }
-
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue();
-            case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return cell.getDateCellValue().toString();
+                // 根据文件类型给出提示
+                if (mimeType != null && mimeType.contains("pdf")) {
+                    return "[PDF文档内容]\n⚠️ 警告：此PDF文件无法提取文本内容。\n可能原因：\n1. 这是扫描版PDF（图片格式），没有文本层\n2. PDF文件已加密\n3. PDF文件损坏\n\n建议：\n- 如果是扫描版PDF，请使用OCR工具转换为可搜索的PDF\n- 或者手动复制PDF中的文本内容进行提问";
+                } else if (mimeType != null && (mimeType.contains("word") || mimeType.contains("msword"))) {
+                    return "[Word文档内容]\n⚠️ 警告：无法提取此Word文档的文本内容。\n可能原因：\n1. 文档已加密\n2. 文档格式不兼容\n3. 文档损坏";
+                } else if (mimeType != null && mimeType.contains("sheet")) {
+                    return "[Excel表格内容]\n⚠️ 警告：无法提取此Excel表格的文本内容。\n可能原因：\n1. 表格已加密\n2. 表格格式不兼容\n3. 表格损坏";
+                } else if (mimeType != null && mimeType.contains("presentation")) {
+                    return "[PPT演示文稿内容]\n⚠️ 警告：无法提取此PPT的文本内容。\n可能原因：\n1. 演示文稿已加密\n2. 格式不兼容\n3. 文件损坏";
                 } else {
-                    return String.valueOf(cell.getNumericCellValue());
+                    return "[文档内容]\n⚠️ 警告：无法提取此文件的文本内容。\n文件类型: " + mimeType;
                 }
-            case BOOLEAN:
-                return String.valueOf(cell.getBooleanCellValue());
-            case FORMULA:
-                return cell.getCellFormula();
-            default:
-                return "";
+            }
+
+            // 限制文本长度，避免token过多
+            if (text.length() > MAX_TEXT_LENGTH) {
+                text = text.substring(0, MAX_TEXT_LENGTH) + "\n...(内容过长，已截断至" + MAX_TEXT_LENGTH + "字符)";
+            }
+
+            logger.info("成功读取文件: {}, MIME类型: {}, 文本长度: {}", filename, mimeType, text.length());
+
+            // 根据MIME类型添加标签
+            String tag = getDocumentTag(mimeType);
+            return tag + "\n" + text;
+
+        } catch (IOException e) {
+            logger.error("读取文件失败: {}, error: {}", filename, e.getMessage(), e);
+            return "文件读取失败: " + e.getMessage();
+        } catch (TikaException e) {
+            logger.error("Tika解析文件失败: {}, error: {}", filename, e.getMessage(), e);
+            return "文档解析失败: " + e.getMessage();
         }
     }
 
     /**
-     * 读取纯文本文件
+     * 根据MIME类型返回文档标签
      */
-    private static String readTxtFile(File file) throws IOException {
-        String text = Files.readString(file.toPath());
-        if (text.length() > 10000) {
-            text = text.substring(0, 10000) + "\n...(内容过长，已截断)";
+    private static String getDocumentTag(String mimeType) {
+        if (mimeType == null) {
+            return "[文档内容]";
         }
-        return "[文本文件内容]\n" + text;
+
+        if (mimeType.contains("pdf")) {
+            return "[PDF文档内容]";
+        } else if (mimeType.contains("word") || mimeType.contains("msword")) {
+            return "[Word文档内容]";
+        } else if (mimeType.contains("sheet") || mimeType.contains("excel") || mimeType.contains("spreadsheet")) {
+            return "[Excel表格内容]";
+        } else if (mimeType.contains("powerpoint") || mimeType.contains("presentation")) {
+            return "[PPT演示文稿内容]";
+        } else if (mimeType.contains("text/plain")) {
+            return "[文本文件内容]";
+        } else if (mimeType.contains("csv")) {
+            return "[CSV文件内容]";
+        } else if (mimeType.contains("html")) {
+            return "[HTML文件内容]";
+        } else if (mimeType.contains("xml")) {
+            return "[XML文件内容]";
+        } else if (mimeType.contains("markdown") || mimeType.contains("md")) {
+            return "[Markdown文件内容]";
+        } else {
+            return "[文档内容]";
+        }
     }
 
     /**
@@ -309,7 +199,7 @@ public class ReadFileUtils {
         byte[] imageBytes = Files.readAllBytes(file.toPath());
         String base64 = Base64.getEncoder().encodeToString(imageBytes);
 
-        if (base64.length() > 100000) {
+        if (base64.length() > MAX_IMAGE_SIZE) {
             return "[图片文件]\n文件名: " + file.getName() +
                    "\n大小: " + file.length() + " bytes" +
                    "\n图片过大，建议用户描述图片内容或分段上传";
@@ -318,63 +208,5 @@ public class ReadFileUtils {
         return "[图片文件]\n文件名: " + file.getName() +
                "\n大小: " + file.length() + " bytes" +
                "\nBase64编码: " + base64;
-    }
-
-    /**
-     * 读取旧版PPT文件（.ppt）
-     */
-    private static String readPptFile(File file) throws IOException {
-        try (FileInputStream fis = new FileInputStream(file);
-             HSLFSlideShow ppt = new HSLFSlideShow(fis);
-             SlideShowExtractor<?, ?> extractor = new SlideShowExtractor<>(ppt)) {
-            String text = extractor.getText();
-            if (text.length() > 10000) {
-                text = text.substring(0, 10000) + "\n...(内容过长，已截断)";
-            }
-            return "[PPT演示文稿内容]\n" + text;
-        }
-    }
-
-    /**
-     * 读取新版PPT文件（.pptx）
-     */
-    private static String readPptxFile(File file) throws IOException {
-        try (FileInputStream fis = new FileInputStream(file);
-             XMLSlideShow pptx = new XMLSlideShow(fis)) {
-            StringBuilder text = new StringBuilder();
-            text.append("[PPTX演示文稿内容]\n");
-            List<XSLFSlide> slides = pptx.getSlides();
-            for (int i = 0; i < slides.size(); i++) {
-                text.append("\n--- 第").append(i + 1).append("页 ---\n");
-                XSLFSlide slide = slides.get(i);
-                for (XSLFShape shape : slide.getShapes()) {
-                    if (shape instanceof XSLFTextShape textShape) {
-                        text.append(textShape.getText()).append("\n");
-                    }
-                }
-            }
-            String content = text.toString();
-            if (content.length() > 10000) {
-                content = content.substring(0, 10000) + "\n...(内容过长，已截断)";
-            }
-            return content;
-        }
-    }
-
-    /**
-     * 读取CSV文件
-     */
-    private static String readCsvFile(File file) throws IOException {
-        List<String> lines = Files.readAllLines(file.toPath());
-        StringBuilder content = new StringBuilder();
-        content.append("[CSV文件内容]\n");
-        int maxLines = Math.min(lines.size(), 100);
-        for (int i = 0; i < maxLines; i++) {
-            content.append(lines.get(i)).append("\n");
-        }
-        if (lines.size() > 100) {
-            content.append("...(共").append(lines.size()).append("行，仅显示前100行)\n");
-        }
-        return content.toString();
     }
 }

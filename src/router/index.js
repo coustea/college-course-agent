@@ -9,6 +9,12 @@ const studentRoutes = [
         meta: {title: '首页'}
     },
     {
+        path: '/student/course-center',
+        name: 'CourseCenter',
+        component: () => import('@/views/student/CourseCenter.vue'),
+        meta: {title: '选课中心'}
+    },
+    {
         path: '/data',
         name: 'LearningData',
         component: () => import('@/views/student/LearningData.vue'),

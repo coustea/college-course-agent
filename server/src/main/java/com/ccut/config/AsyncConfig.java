@@ -1,5 +1,6 @@
 package com.ccut.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -11,7 +12,9 @@ import java.util.concurrent.RejectedExecutionHandler;
 
 /**
  * 异步线程池配置
+ * 为不同类型的异步任务提供专用线程池
  */
+@Slf4j
 @Configuration
 @EnableAsync
 public class AsyncConfig {
@@ -38,6 +41,8 @@ public class AsyncConfig {
         // 等待时间（秒）
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();
+        
+        log.info("聊天异步线程池初始化完成：corePoolSize=10, maxPoolSize=20, queueCapacity=100");
         return executor;
     }
 
@@ -56,6 +61,8 @@ public class AsyncConfig {
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();
+        
+        log.info("缓存异步线程池初始化完成：corePoolSize=5, maxPoolSize=10, queueCapacity=50");
         return executor;
     }
 
@@ -63,15 +70,15 @@ public class AsyncConfig {
      * 学习进度上报异步线程池
      * 专门处理学习时长计算和进度上报，避免阻塞主线程
      * 核心配置说明：
-     * - 核心线程数20：应对日常学习时长上报请求
-     * - 最大线程数50：应对高峰期（如上课时间集中学习）
-     * - 队列容量500：缓冲突发请求
+     * - 核心线程数 20：应对日常学习时长上报请求
+     * - 最大线程数 50：应对高峰期（如上课时间集中学习）
+     * - 队列容量 500：缓冲突发请求
      * - 拒绝策略：记录日志并降级处理（不阻塞用户）
      */
     @Bean("progressExecutor")
     public Executor progressExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        // 核心线程数：根据实际并发调整，建议20-50
+        // 核心线程数：根据实际并发调整，建议 20-50
         executor.setCorePoolSize(20);
         // 最大线程数：高峰期扩展能力
         executor.setMaxPoolSize(50);
@@ -84,9 +91,8 @@ public class AsyncConfig {
             @Override
             public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
                 // 记录告警日志
-                org.slf4j.LoggerFactory.getLogger(AsyncConfig.class)
-                    .warn("进度上报线程池队列已满，丢弃进度更新请求。活动线程: {}, 队列大小: {}",
-                        e.getActiveCount(), e.getQueue().size());
+                log.warn("进度上报线程池队列已满，丢弃进度更新请求。活动线程：{}, 队列大小：{}, 核心线程：{}, 最大线程：{}",
+                    e.getActiveCount(), e.getQueue().size(), e.getCorePoolSize(), e.getMaximumPoolSize());
                 // 不抛异常，避免影响主线程
             }
         });
@@ -94,6 +100,8 @@ public class AsyncConfig {
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(120);
         executor.initialize();
+        
+        log.info("学习进度异步线程池初始化完成：corePoolSize=20, maxPoolSize=50, queueCapacity=500");
         return executor;
     }
 
@@ -112,6 +120,8 @@ public class AsyncConfig {
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();
+        
+        log.info("文档分析线程池初始化完成：corePoolSize=4, maxPoolSize=8, queueCapacity=50");
         return executor;
     }
 }

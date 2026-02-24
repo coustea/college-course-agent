@@ -18,14 +18,16 @@ import java.util.Map;
 @Service
 public class WebSearchServiceImpl implements WebSearchService {
 
-    private static final Logger logger = LoggerFactory.getLogger(WebSearchServiceImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(WebSearchServiceImpl.class);
     private static final String SERP_API_KEY = "e0140cf1abc178499670081d6faff25bb5f75583fc10416c75af231efe9c7b44";
     private static final String SERP_API_URL = "https://serpapi.com/search";
 
     @Override
     public String search(String query) {
+        log.debug("执行方法：search, 参数：query={}", query);
+        long startTime = System.currentTimeMillis();
         try {
-            logger.info("WebSearch: query={}", query);
+            log.info("开始联网搜索：query={}", query);
 
             Map<String, Object> params = new HashMap<>();
             params.put("engine", "google");
@@ -34,30 +36,35 @@ public class WebSearchServiceImpl implements WebSearchService {
             params.put("gl", "cn");
             params.put("api_key", SERP_API_KEY);
 
+            log.debug("发送请求到 SerpAPI: url={}, params={}", SERP_API_URL, params.keySet());
             String result = HttpUtil.get(SERP_API_URL, params, 10000);
             JSONObject json = JSONUtil.parseObj(result);
+
+            String searchResult = null;
 
             // 优先：answer_box
             if (json.containsKey("answer_box")) {
                 JSONObject answerBox = json.getJSONObject("answer_box");
                 if (answerBox != null && answerBox.containsKey("answer")) {
-                    return answerBox.getStr("answer");
-                }
-                if (answerBox != null && answerBox.containsKey("snippet")) {
-                    return answerBox.getStr("snippet");
+                    searchResult = answerBox.getStr("answer");
+                    log.info("从 answer_box 获取结果：{}", truncate(searchResult, 50));
+                } else if (answerBox != null && answerBox.containsKey("snippet")) {
+                    searchResult = answerBox.getStr("snippet");
+                    log.info("从 answer_box.snippet 获取结果：{}", truncate(searchResult, 50));
                 }
             }
 
             // 其次：knowledge_graph
-            if (json.containsKey("knowledge_graph")) {
+            if (searchResult == null && json.containsKey("knowledge_graph")) {
                 JSONObject kg = json.getJSONObject("knowledge_graph");
                 if (kg != null && kg.containsKey("description")) {
-                    return kg.getStr("description");
+                    searchResult = kg.getStr("description");
+                    log.info("从 knowledge_graph 获取结果：{}", truncate(searchResult, 50));
                 }
             }
 
-            // 最后：organic_results 前3条
-            if (json.containsKey("organic_results")) {
+            // 最后：organic_results 前 3 条
+            if (searchResult == null && json.containsKey("organic_results")) {
                 JSONArray results = json.getJSONArray("organic_results");
                 if (results != null && !results.isEmpty()) {
                     StringBuilder sb = new StringBuilder();
@@ -68,15 +75,33 @@ public class WebSearchServiceImpl implements WebSearchService {
                           .append(r.getStr("title", "")).append("\n")
                           .append(r.getStr("snippet", "")).append("\n\n");
                     }
-                    return sb.toString();
+                    searchResult = sb.toString();
+                    log.info("从 organic_results 获取结果：共{}条", limit);
                 }
             }
 
-            return "未找到相关搜索结果";
+            if (searchResult == null) {
+                searchResult = "未找到相关搜索结果";
+                log.warn("未找到搜索结果：query={}", query);
+            }
+
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("联网搜索完成：query={}, 耗时={}ms, 结果长度={}", query, duration, searchResult.length());
+            log.debug("方法返回：result length={}", searchResult.length());
+            return searchResult;
 
         } catch (Exception e) {
-            logger.error("WebSearch failed: {}", e.getMessage(), e);
-            return "搜索失败: " + e.getMessage();
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("联网搜索失败：query={}, 耗时={}ms, error={}", query, duration, e.getMessage(), e);
+            return "搜索失败：" + e.getMessage();
         }
+    }
+
+    /**
+     * 截断字符串用于日志显示
+     */
+    private String truncate(String s, int maxLen) {
+        if (s == null) return "null";
+        return s.length() > maxLen ? s.substring(0, maxLen) + "..." : s;
     }
 }

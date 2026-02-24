@@ -8,11 +8,21 @@
 
         <ul class="menu">
           <li class="menu-item">
-            <div class="menu-title" :class="{active: $route.path === '/home'}"
-                 @click="navigateTo('/home')">
+            <div class="menu-title" :class="{active: $route.path === '/student'}"
+                 @click="navigateTo('/student')">
               <div>
                 <i class="fas fa-home"></i>
                 <span>首页</span>
+              </div>
+            </div>
+          </li>
+
+          <li class="menu-item">
+            <div class="menu-title" :class="{active: $route.path === '/student/course-center'}"
+                 @click="navigateTo('/student/course-center')">
+              <div>
+                <i class="fas fa-book-open"></i>
+                <span>选课中心</span>
               </div>
             </div>
           </li>

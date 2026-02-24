@@ -95,7 +95,7 @@ import MistakeExamModal from '@/components/mistake-book/MistakeExamModal.vue';
 import { useMistakeBook } from '@/composables/useMistakeBook';
 
 const router = useRouter();
-const goBack = () => router.push('/student/home');
+const goBack = () => router.push('/student');
 
 const {
   // State

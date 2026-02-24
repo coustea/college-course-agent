@@ -18,6 +18,10 @@ public interface CourseMapper {
             @org.apache.ibatis.annotations.Param("name") String name,
             @org.apache.ibatis.annotations.Param("description") String description);
 
+    // 推荐系统需要的辅助方法
+    Course findById(Long courseId);
+    List<Course> findAll();
+
     // 新增：按教师ID返回课程卡片字段
     List<TeacherCourseCard> listCourseCardsByTeacher(@org.apache.ibatis.annotations.Param("teacherId") Long teacherId);
 

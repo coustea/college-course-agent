@@ -3,8 +3,8 @@
 <mapper namespace="com.ccut.mapper.EnrollmentMapper">
 
     <insert id="upsert">
-        INSERT INTO enrollments(student_id, course_id, status)
-        VALUES (#{studentId}, #{courseId}, 'active')
+        INSERT INTO enrollments(student_id, course_id, status, enrollment_source)
+        VALUES (#{studentId}, #{courseId}, 'active', #{enrollmentSource})
         ON DUPLICATE KEY UPDATE status = VALUES(status), enrollment_date = CURRENT_TIMESTAMP
     </insert>
 
@@ -36,12 +36,33 @@
         <result property="groupStatus" column="group_status"/>
     </resultMap>
 
+    <resultMap id="EnrollmentWithCourseRM" type="com.ccut.entity.Enrollment">
+        <id property="enrollmentId" column="enrollment_id"/>
+        <result property="enrollmentSource" column="enrollment_source"/>
+        <result property="enrollmentDate" column="enrollment_date"/>
+        <result property="status" column="enrollment_status"/>
+        <association property="course" javaType="com.ccut.entity.Course" resultMap="CourseRM"/>
+    </resultMap>
+
     <select id="findCoursesByStudentId" resultMap="CourseRM">
         SELECT c.*
         FROM enrollments e
         JOIN courses c ON c.course_id = e.course_id
         WHERE e.student_id = #{studentId}
         ORDER BY c.vindex DESC, c.course_id DESC
+    </select>
+
+    <select id="findEnrollmentsWithCoursesByStudentId" resultMap="EnrollmentWithCourseRM">
+        SELECT c.*,
+               e.enrollment_id,
+               e.enrollment_source,
+               e.enrollment_date,
+               e.status as enrollment_status
+        FROM enrollments e
+        JOIN courses c ON c.course_id = e.course_id
+        WHERE e.student_id = #{studentId}
+          AND e.status = 'active'
+        ORDER BY e.enrollment_date DESC
     </select>
 
     <select id="findStudentsByCourseId" resultMap="StudentRM">
@@ -72,12 +93,28 @@
 
     <!-- 批量插入选课记录 -->
     <insert id="batchInsert">
-        INSERT IGNORE INTO enrollments(student_id, course_id, status, enrollment_date)
+        INSERT IGNORE INTO enrollments(student_id, course_id, status, enrollment_date, enrollment_source)
         VALUES
         <foreach collection="studentIds" item="studentId" separator=",">
-            (#{studentId}, #{courseId}, 'active', CURRENT_TIMESTAMP)
+            (#{studentId}, #{courseId}, 'active', CURRENT_TIMESTAMP, 'teacher')
         </foreach>
     </insert>
+
+    <!-- 推荐系统需要的辅助方法 -->
+    <select id="findCourseIdsByStudentId" resultType="java.lang.Long">
+        SELECT course_id
+        FROM enrollments
+        WHERE student_id = #{studentId}
+          AND status = 'active'
+        ORDER BY enrollment_date DESC
+    </select>
+
+    <select id="countByCourseId" resultType="int">
+        SELECT COUNT(*)
+        FROM enrollments
+        WHERE course_id = #{courseId}
+          AND status = 'active'
+    </select>
 
 </mapper>
 

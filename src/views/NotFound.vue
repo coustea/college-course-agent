@@ -18,7 +18,7 @@ const goHome = () => {
   if (userRole === 'teacher') {
     router.push('/teacher')
   } else {
-    router.push('/')
+    router.push('/student')
   }
 }
 </script>
