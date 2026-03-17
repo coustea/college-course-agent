@@ -282,7 +282,7 @@ api.interceptors.request.use(config => {
 
 const insertStudent = payload => api.post('/teacher/insert/students', payload)
 const updateStudent = (id, payload) =>
-  api.put('/teacher/update/student', payload, { params: { id } })
+  api.put(`/teacher/update/student/${id}`, payload)
 const deleteStudentById = id =>
   api.delete('/teacher/delete/student', { params: { id } })
 const listCoursesByStudent = studentId => api.get('/teacher/enrollments/courses', { params: { studentId } })

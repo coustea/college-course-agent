@@ -25,7 +25,7 @@ export const getCourseProgress = (studentId, courseId) => api.get('/progress/cou
 // Students
 export const listStudents = () => api.get('/teacher/list/students')
 export const insertStudent = (payload) => api.post('/teacher/insert/students', payload)
-export const updateStudent = (id, payload) => api.put('/teacher/update/student', payload, { params: { id } })
+export const updateStudent = (id, payload) => api.put(`/teacher/update/student/${id}`, payload)
 export const deleteStudentById = (id) => api.delete('/teacher/delete/student', { params: { id } })
 export const importStudents = (file) => { const form = new FormData(); form.append('file', file); return api.post('/teacher/import/students', form) }
 

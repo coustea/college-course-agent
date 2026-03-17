@@ -220,7 +220,7 @@ async function saveEdit() {
     const token = localStorage.getItem('token')
     const userId = localStorage.getItem('userId')
     try {
-        const res = await axios.put(`${BASE_URL}/teacher/update/student?id=${userId}`, { phone, email }, {
+        const res = await axios.put(`${BASE_URL}/teacher/update/student/${userId}`, { phone, email }, {
           headers: { Authorization: `Bearer ${token}` } })
         console.log("修改信息的响应:", res?.data)
         const ok = (res?.data?.code === 200)

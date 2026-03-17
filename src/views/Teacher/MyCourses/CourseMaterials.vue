@@ -176,6 +176,7 @@ export default {
           const form = new FormData()
           const payload = { courseId: course.value.courseId, courseName: course.value.courseName, description: course.value.description, vindex: course.value.vindex }
           form.append('course', JSON.stringify(payload))
+          form.append('courseId', course.value.courseId)
           form.append('image', imageFile.value)
           const res = await axios.put(`${base}/course/update`, form, { headers: getAuthHeaders() })
           const body = res?.data
