@@ -42,6 +42,12 @@ const studentRoutes = [
         component: () => import('../views/student/Profile.vue'),
         meta: {title: '个人中心'}
     },
+    {
+        path: '/ai-chat',
+        name: 'StudentAIChat',
+        component: () => import('@/views/student/AIChat.vue'),
+        meta: {title: 'AI 学习助手'}
+    },
 ]
 
 // 教师端路由

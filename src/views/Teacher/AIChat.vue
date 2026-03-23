@@ -65,8 +65,8 @@
         </div>
 
         <div v-else class="messages-list">
-          <div 
-            v-for="(msg, index) in messages" 
+          <div
+            v-for="(msg, index) in messages"
             :key="index"
             class="message-item"
             :class="msg.role"
@@ -80,7 +80,17 @@
                 </el-avatar>
               </div>
               <div class="message-content">
-                <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
+                <!-- 思考中动画 -->
+                <div v-if="msg.role === 'assistant' && !msg.content" class="thinking-animation">
+                  <div class="thinking-dots">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                  </div>
+                  <div class="thinking-text">AI正在思考中...</div>
+                </div>
+                <!-- 消息内容 -->
+                <div v-else class="message-text" v-html="renderMarkdown(msg.content)"></div>
                 <!-- 附件显示 -->
                 <div v-if="msg.files && msg.files.length" class="message-files">
                   <div v-for="file in msg.files" :key="file.name" class="file-tag">
@@ -92,8 +102,8 @@
               </div>
             </div>
           </div>
-          <!-- 加载中指示器 -->
-          <div v-if="isLoading" class="message-item assistant">
+          <!-- 加载中指示器 - 仅在非流式输出时显示 -->
+          <div v-if="isLoading && messages.length === 0" class="message-item assistant">
             <div class="message-wrapper">
               <div class="message-avatar">
                 <span class="avatar-label">AI 助手</span>
@@ -165,12 +175,13 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted } from 'vue'
-import { 
+import { ref, computed, nextTick, onMounted, onUnmounted, reactive } from 'vue'
+import {
   Plus, Delete, Fold, Expand, Upload, Promotion, Close,
-  ChatDotRound, User, Document, DataAnalysis, QuestionFilled 
+  ChatDotRound, User, Document, DataAnalysis, QuestionFilled
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { sendChatStream } from '@/services/chatApi'
 
 // 获取当前用户ID，用于隔离不同用户的聊天记录
 const getUserId = () => {
@@ -191,6 +202,7 @@ const chatHistory = ref([])
 const currentChatId = ref(null)
 const messagesContainer = ref(null)
 const fileInput = ref(null)
+const cancelStream = ref(null) // 用于取消正在进行的流式请求
 
 // 计算属性
 const canSend = computed(() => {
@@ -251,10 +263,19 @@ const removeFile = (index) => {
 // 发送消息
 const sendMessage = async () => {
   if (!canSend.value) return
-  
+
   const content = inputMessage.value.trim()
   const files = [...uploadedFiles.value]
-  
+
+  // 检查是否有token
+  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+  if (!token) {
+    ElMessage.error('您尚未登录，请先登录后再使用AI聊天功能')
+    return
+  }
+
+  console.log('发送消息:', content, '文件数:', files.length, 'token:', token ? 'exists' : 'missing')
+
   // 添加用户消息
   messages.value.push({
     role: 'user',
@@ -262,21 +283,22 @@ const sendMessage = async () => {
     files: files.map(f => ({ name: f.name, size: f.size })),
     timestamp: Date.now()
   })
-  
+
   inputMessage.value = ''
   uploadedFiles.value = []
   scrollToBottom()
-  
+
   // 开始流式响应
   isLoading.value = true
-  
+
   try {
     await streamResponse(content, files)
   } catch (error) {
     console.error('AI 响应错误:', error)
+    ElMessage.error('AI 响应失败: ' + (error.message || '未知错误'))
     messages.value.push({
       role: 'assistant',
-      content: '抱歉，发生了错误，请稍后重试。',
+      content: '抱歉，发生了错误：' + (error.message || '未知错误') + '\n\n请检查：\n1. 是否已登录\n2. 后端服务是否正常运行\n3. 浏览器控制台是否有详细错误信息',
       timestamp: Date.now()
     })
   } finally {
@@ -286,102 +308,50 @@ const sendMessage = async () => {
   }
 }
 
-// 流式响应模拟（实际项目中替换为真实 API）
+// 流式响应 - 使用真实的后端API
 const streamResponse = async (content, files) => {
   // 创建 AI 消息占位
-  const aiMessage = {
+  const aiMessage = reactive({
     role: 'assistant',
     content: '',
     timestamp: Date.now()
-  }
+  })
   messages.value.push(aiMessage)
-  
-  // 模拟流式输出（实际项目中使用 SSE 或 WebSocket）
-  const mockResponse = generateMockResponse(content, files)
-  
-  for (let i = 0; i < mockResponse.length; i++) {
-    await new Promise(resolve => setTimeout(resolve, 20))
-    aiMessage.content += mockResponse[i]
-    scrollToBottom()
-  }
-}
 
-// 模拟 AI 响应（实际项目中替换为真实 API 调用）
-const generateMockResponse = (content, files) => {
-  const hasFiles = files && files.length > 0
-  
-  if (hasFiles) {
-    return `我已收到您上传的 ${files.length} 个文件。
+  console.log('开始流式响应, conversationId:', currentChatId.value)
 
-**文件列表：**
-${files.map(f => `- ${f.name}`).join('\n')}
-
-我会分析这些文件内容，请问您需要我做什么？
-
-> 提示：在实际部署时，请配置后端 AI 服务（如 OpenAI、Gemini 等）来处理文件分析。`
-  }
-  
-  if (content.includes('学习情况') || content.includes('分析')) {
-    return `## 学生学习情况分析
-
-根据当前数据，我为您整理了以下分析报告：
-
-### 整体概况
-- **课程完成率**：平均 68%
-- **活跃学生比例**：85%
-- **作业提交率**：92%
-
-### 需要关注的问题
-1. 部分学生视频观看进度较慢
-2. 第三章测验正确率偏低（平均 65%）
-3. 有 5 名学生超过一周未登录
-
-### 建议措施
-- 对进度落后的学生进行一对一辅导
-- 针对第三章内容安排答疑课
-- 通过系统发送学习提醒
-
-> 如需更详细的分析，请上传具体的学生数据文件。`
-  }
-  
-  if (content.includes('教案')) {
-    return `## 课程教案模板
-
-### 一、教学目标
-1. 知识目标：掌握本章核心概念
-2. 能力目标：能够独立完成相关练习
-3. 情感目标：培养学习兴趣
-
-### 二、教学重难点
-- **重点**：核心知识点讲解
-- **难点**：实际应用场景
-
-### 三、教学过程
-1. **导入**（5分钟）：回顾上节内容
-2. **新课讲授**（30分钟）：讲解新知识
-3. **练习巩固**（10分钟）：课堂练习
-4. **总结**（5分钟）：归纳要点
-
-### 四、作业布置
-- 完成课后习题 1-5
-- 预习下一章内容
-
-> 请告诉我具体的课程主题，我可以生成更详细的教案。`
-  }
-  
-  return `您好！我是 AI 教学助手，很高兴为您服务。
-
-您的问题是：**${content}**
-
-我可以帮助您：
-- 📊 分析学生学习数据
-- 📝 生成课程教案和教学材料
-- 💡 提供教学方法建议
-- 📁 分析上传的文档内容
-
-请告诉我您具体需要什么帮助？
-
-> 提示：您可以上传文件让我进行分析，支持 PDF、Word、Excel、图片等格式。`
+  // 调用后端流式API
+  cancelStream.value = sendChatStream(
+    {
+      message: content,
+      files: files,
+      conversationId: currentChatId.value
+    },
+    {
+      onMessage: (data) => {
+        console.log('收到流式消息:', data)
+        // 处理流式消息 - 直接修改响应式对象
+        if (data.content) {
+          aiMessage.content += data.content
+          // 强制更新视图
+          nextTick(() => {
+            scrollToBottom()
+          })
+        }
+      },
+      onError: (error) => {
+        console.error('AI 响应错误:', error)
+        ElMessage.error('AI 响应失败: ' + (error.message || '未知错误'))
+        aiMessage.content = '抱歉，发生了错误：' + (error.message || '未知错误')
+      },
+      onComplete: () => {
+        console.log('Stream completed')
+        cancelStream.value = null
+        isLoading.value = false
+        saveChatHistory()
+      }
+    }
+  )
 }
 
 // 快捷提示
@@ -457,6 +427,14 @@ onMounted(() => {
     try {
       chatHistory.value = JSON.parse(saved)
     } catch {}
+  }
+})
+
+// 组件卸载时取消正在进行的请求
+onUnmounted(() => {
+  if (cancelStream.value) {
+    cancelStream.value()
+    cancelStream.value = null
   }
 })
 </script>
@@ -771,6 +749,65 @@ onMounted(() => {
   30% {
     transform: translateY(-8px);
     opacity: 1;
+  }
+}
+
+/* 思考中动画 */
+.thinking-animation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.thinking-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.thinking-dots .dot {
+  width: 10px;
+  height: 10px;
+  background: #409eff;
+  border-radius: 50%;
+  animation: thinking-pulse 1.4s infinite ease-in-out;
+}
+
+.thinking-dots .dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.thinking-dots .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dots .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.thinking-text {
+  color: #606266;
+  font-size: 14px;
+  animation: thinking-blink 1.5s infinite;
+}
+
+@keyframes thinking-pulse {
+  0%, 60%, 100% {
+    transform: scale(0.8);
+    opacity: 0.4;
+  }
+  30% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+@keyframes thinking-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
   }
 }
 
