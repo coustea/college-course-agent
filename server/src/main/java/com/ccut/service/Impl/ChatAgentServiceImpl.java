@@ -1,25 +1,24 @@
 package com.ccut.service.Impl;
 
-import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.ccut.context.UserContext;
 import com.ccut.dto.Attachment;
 import com.ccut.dto.ChatRequest;
 import com.ccut.dto.ChatResponse;
 import com.ccut.entity.Message;
+import com.ccut.entity.Student;
 import com.ccut.service.ChatAgentService;
 import com.ccut.service.DocumentAnalysisService;
 import com.ccut.service.MessageService;
-import com.ccut.service.WebSearchService;
+import com.ccut.service.StudentService;
 import com.ccut.utils.ReadFileUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -32,89 +31,321 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * AI 聊天 Agent 服务实现 — Spring AI Native Function Calling 架构
+ *
+ * <p>核心特性：</p>
+ * <ul>
+ *     <li>动态 System Prompt：根据用户角色（学生/教师）和用户上下文动态构建</li>
+ *     <li>阅读与分析文档 — 通过 DocumentAnalysisService 解析附件，注入 System Prompt</li>
+ *     <li>联网搜索 — 通过 webSearch Tool 原生挂载给大模型</li>
+ *     <li>生成文档 — 通过 generateExcel / generateWord Tool 原生挂载给大模型</li>
+ *     <li>数据库查询 — 通过 6 个 DB Tool 查询学习进度、错题、考试记录等平台数据</li>
+ * </ul>
+ */
 @Service
 public class ChatAgentServiceImpl implements ChatAgentService {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatAgentServiceImpl.class);
     private static final int MAX_HISTORY_MESSAGES = 20;
-    private static final int MAX_REACT_ITERATIONS = 5;
 
-    // 🔴 引入强大的 Jackson ObjectMapper 完美解决 record 类的序列化问题
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final String agentPrompt;
-    private final String directChatPrompt;
+    /** 预构建的 ChatClient（已绑定 Tools，System Prompt 在每次请求时动态设置） */
+    private ChatClient chatClient;
 
-    @Autowired
-    @org.springframework.beans.factory.annotation.Qualifier("chatModel")
-    private ChatModel chatModel;
-
-    @Autowired
-    @org.springframework.beans.factory.annotation.Qualifier("reasoningChatModel")
-    private ChatModel reasoningChatModel;
+    /** 基础系统提示词模板（不含用户上下文） */
+    private final String baseSystemPrompt;
 
     @Autowired
     private MessageService messageService;
 
     @Autowired
-    private WebSearchService webSearchService;
-
-    @Autowired
     private DocumentAnalysisService documentAnalysisService;
 
-    public ChatAgentServiceImpl(
-            @Value("classpath:prompts/react-agent-prompt.md") Resource reactPromptResource,
-            @Value("classpath:prompts/direct-chat-prompt.md") Resource directPromptResource) {
-        String reactPrompt;
-        String directPrompt;
-        try {
-            reactPrompt = reactPromptResource.getContentAsString(StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            reactPrompt = "你是一个智能教学助手\"学小微\"。输出JSON：{\"thought\":\"...\",\"action\":\"answer\",\"input\":\"...\"}";
-        }
-        this.agentPrompt = reactPrompt;
+    @Autowired
+    private StudentService studentService;
 
-        try {
-            directPrompt = directPromptResource.getContentAsString(StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            directPrompt = "你是一位智能教学助手，名字叫\"学小微\"。请直接、友好地回答用户的问题，使用 Markdown 格式。";
+    @Autowired
+    private ChatClient.Builder chatClientBuilder;
+
+    @Autowired(required = false)
+    private List<ToolCallback> toolCallbacks;
+
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        ChatClient.Builder builder = chatClientBuilder;
+        if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
+            builder = builder.defaultToolCallbacks(toolCallbacks.toArray(new ToolCallback[0]));
+            logger.info("ChatClient 初始化完成，已注册 {} 个工具: {}",
+                    toolCallbacks.size(),
+                    toolCallbacks.stream().map(tc -> tc.getToolDefinition().name()).collect(java.util.stream.Collectors.joining(", ")));
+        } else {
+            logger.warn("ChatClient 初始化完成，未注册任何工具");
         }
-        this.directChatPrompt = directPrompt;
+        this.chatClient = builder.build();
     }
 
+    public ChatAgentServiceImpl(
+            @Value("classpath:prompts/system-prompt.md") Resource promptResource) {
+
+        // 加载基础系统提示词模板
+        String prompt;
+        try {
+            prompt = promptResource.getContentAsString(StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            logger.warn("系统提示词文件加载失败，使用默认提示词: {}", e.getMessage());
+            prompt = "你是一位智能教学助手，名字叫\"学小微\"。请详细、专业地回答用户问题。";
+        }
+        this.baseSystemPrompt = prompt;
+    }
+
+    // ======================== 公共 API ========================
+
+    @Override
+    public ChatResponse chat(ChatRequest request, String username, String role) {
+        String conversationId = request.conversationId();
+        String originalInput = request.message();
+
+        logger.info("========== [Chat Start] ==========");
+        logger.debug("conversationId={}, username={}, role={}, message 长度={}, 附件数={}",
+                conversationId, username, role,
+                originalInput != null ? originalInput.length() : 0,
+                request.attachments() != null ? request.attachments().size() : 0);
+
+        // 1. 构建用户 Prompt（含附件上下文）
+        String aiPrompt = buildAIPrompt(originalInput, request.attachments());
+
+        // 2. 保存用户消息
+        String filesJson = serializeAttachments(request.attachments());
+        messageService.saveUserMessage(conversationId, originalInput, username, filesJson);
+
+        // 3. 加载历史消息
+        List<Message> history = messageService.loadConversationHistory(conversationId, username);
+        List<org.springframework.ai.chat.messages.Message> historyMsgs = buildHistoryMessages(history);
+
+        // 4. 构建动态 System Prompt
+        String dynamicPrompt = buildDynamicSystemPrompt(username, role);
+
+        // 5. 调用 ChatClient（Spring AI 自动处理 Tool Call 循环）
+        String aiText;
+        try {
+            aiText = chatClient.prompt()
+                    .system(dynamicPrompt)
+                    .messages(historyMsgs)
+                    .user(aiPrompt)
+                    .call()
+                    .content();
+        } catch (Exception e) {
+            logger.error("ChatClient 调用失败: conversationId={}, error={}", conversationId, e.getMessage(), e);
+            aiText = "抱歉，AI 服务暂时出现问题，请稍后重试。错误信息：" + e.getMessage();
+        }
+
+        if (aiText == null || aiText.isBlank()) {
+            aiText = "抱歉，未能获取到有效回复，请重新提问。";
+        }
+
+        logger.debug("AI 回复完成: conversationId={}, 回复长度={}", conversationId, aiText.length());
+
+        // 6. 保存 AI 消息并刷新缓存
+        Message aiMessage = messageService.saveAIMessage(conversationId, aiText, username);
+        refreshCacheAsync(conversationId, username);
+
+        ChatResponse response = new ChatResponse();
+        response.setAiMessage(aiMessage);
+        response.setConversationId(conversationId);
+        return response;
+    }
+
+    @Override
+    public Flux<String> chatStream(ChatRequest request, String username, String role) {
+        String conversationId = request.conversationId();
+        String originalInput = request.message();
+
+        logger.info("========== [Stream Chat Start] ==========");
+        logger.debug("conversationId={}, username={}, role={}, message 长度={}, 附件数={}",
+                conversationId, username, role,
+                originalInput != null ? originalInput.length() : 0,
+                request.attachments() != null ? request.attachments().size() : 0);
+
+        // 1. 构建用户 Prompt（含附件上下文）
+        String aiPrompt = buildAIPrompt(originalInput, request.attachments());
+
+        // 2. 保存用户消息
+        try {
+            String filesJson = serializeAttachments(request.attachments());
+            messageService.saveUserMessage(conversationId, originalInput, username, filesJson);
+        } catch (Exception e) {
+            logger.error("保存用户消息失败: {}", e.getMessage(), e);
+            return Flux.just("{\"code\":500,\"message\":\"保存消息失败\"}");
+        }
+
+        // 3. 加载历史消息
+        List<Message> history;
+        try {
+            history = messageService.loadConversationHistory(conversationId, username);
+        } catch (Exception e) {
+            logger.warn("加载历史消息失败，使用空历史: {}", e.getMessage());
+            history = List.of();
+        }
+        List<org.springframework.ai.chat.messages.Message> historyMsgs = buildHistoryMessages(history);
+
+        // 4. 构建动态 System Prompt
+        String dynamicPrompt = buildDynamicSystemPrompt(username, role);
+
+        // 5. 同步调用 ChatClient（Tool Call 循环在此完成，ThreadLocal 可用）
+        String aiText;
+        try {
+            aiText = chatClient.prompt()
+                    .system(dynamicPrompt)
+                    .messages(historyMsgs)
+                    .user(aiPrompt)
+                    .call()
+                    .content();
+        } catch (Exception e) {
+            logger.error("流式 ChatClient 调用失败: conversationId={}, error={}", conversationId, e.getMessage(), e);
+            return Flux.just("{\"code\":500,\"message\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}");
+        }
+
+        if (aiText == null || aiText.isBlank()) {
+            aiText = "抱歉，未能获取到有效回复，请重新提问。";
+        }
+
+        logger.debug("流式 AI 回复完成: conversationId={}, 回复长度={}", conversationId, aiText.length());
+
+        // 6. 保存 AI 消息并刷新缓存
+        try {
+            messageService.saveAIMessage(conversationId, aiText, username);
+            refreshCacheAsync(conversationId, username);
+        } catch (Exception e) {
+            logger.error("保存 AI 消息失败: {}", e.getMessage(), e);
+        }
+
+        // 7. 返回纯分块 Flux（不需要 ThreadLocal，仅负责分块推送已计算好的结果）
+        final String chunkText = aiText;
+        return Flux.create(sink -> {
+            int chunkSize = 4;
+            for (int i = 0; i < chunkText.length(); i += chunkSize) {
+                int end = Math.min(i + chunkSize, chunkText.length());
+                String chunk = chunkText.substring(i, end);
+                sink.next(formatSseChunk(chunk));
+                try {
+                    Thread.sleep(15);
+                } catch (InterruptedException e) {
+                    sink.complete();
+                    return;
+                }
+            }
+            sink.complete();
+        });
+    }
+
+    // ======================== 动态 System Prompt ========================
+
+    /**
+     * 构建动态 System Prompt：基础 prompt + 用户上下文 + 角色差异化指引
+     *
+     * <p>根据当前用户身份动态注入上下文信息，使 Agent 能够区分学生和教师角色，
+     * 并在 DB 工具调用时正确获取当前用户数据。</p>
+     */
+    private String buildDynamicSystemPrompt(String username, String role) {
+        StringBuilder sb = new StringBuilder(baseSystemPrompt);
+
+        // 构建用户上下文块
+        sb.append("\n\n## 当前用户上下文\n\n");
+        sb.append("用户名：").append(username).append("\n");
+        sb.append("角色：").append(role).append("\n");
+
+        // 如果是学生，查询并注入学生 profile
+        UserContext.Context ctx = UserContext.get();
+        if ("student".equalsIgnoreCase(role) && ctx != null && ctx.userId() != null) {
+            try {
+                Student student = studentService.selectById(ctx.userId());
+                if (student != null) {
+                    sb.append("姓名：").append(student.getName() != null ? student.getName() : "").append("\n");
+                    sb.append("学号：").append(student.getStudentNumber() != null ? student.getStudentNumber() : "").append("\n");
+                    sb.append("班级：").append(student.getClassName() != null ? student.getClassName() : "").append("\n");
+                    sb.append("专业：").append(student.getMajor() != null ? student.getMajor() : "").append("\n");
+                    sb.append("年级：").append(student.getGrade() != null ? student.getGrade() : "").append("\n");
+                }
+            } catch (Exception e) {
+                logger.warn("查询学生信息失败（不影响对话）: {}", e.getMessage());
+            }
+        }
+
+        // 角色差异化行为指引
+        if ("teacher".equalsIgnoreCase(role)) {
+            sb.append("\n### 教师角色行为指引\n");
+            sb.append("当前用户是**教师**，你的回答应侧重于：\n");
+            sb.append("- 教学设计建议（教案优化、课堂互动方案、教学方法改进）\n");
+            sb.append("- 学情分析和学生数据解读\n");
+            sb.append("- 课程资源规划和教学内容推荐\n");
+            sb.append("- 试卷命题和教学评估\n");
+            sb.append("- 学生管理建议\n");
+        } else {
+            sb.append("\n### 学生角色行为指引\n");
+            sb.append("当前用户是**学生**，你的回答应侧重于：\n");
+            sb.append("- 学习指导和知识点讲解\n");
+            sb.append("- 学习进度跟踪和学习建议\n");
+            sb.append("- 错题分析和薄弱环节诊断\n");
+            sb.append("- 考试备考策略和练习建议\n");
+            sb.append("- 激励式引导和学法建议\n");
+        }
+
+        return sb.toString();
+    }
+
+    // ======================== Prompt 构建 ========================
+
+    /**
+     * 构建带附件上下文的 AI 输入 Prompt
+     *
+     * <p>当用户上传了文档或图片时，将解析出的文本/图片信息注入到
+     * {@code <文档上下文>} 和 {@code <图片上下文>} 标签中。</p>
+     */
     private String buildAIPrompt(String originalInput, List<Attachment> attachments) {
         if (attachments == null || attachments.isEmpty()) {
-            return originalInput != null ? originalInput : "请分析附件";
+            return originalInput != null ? originalInput : "";
         }
 
         StringBuilder aiPromptBuilder = new StringBuilder();
         boolean hasContent = false;
 
+        // 解析文档附件内容
         String docContent = documentAnalysisService.analyzeAllAttachments(attachments);
         if (docContent != null && !docContent.isEmpty()) {
             aiPromptBuilder.append("<文档上下文>\n").append(docContent).append("\n</文档上下文>\n\n");
             hasContent = true;
         }
 
+        // 解析图片附件内容（Base64 编码）
         String imageContext = buildImageDescriptions(attachments);
         if (imageContext != null && !imageContext.isEmpty()) {
             aiPromptBuilder.append("<图片上下文>\n").append(imageContext).append("\n</图片上下文>\n\n");
             hasContent = true;
         }
 
+        // 无内容时直接返回原始输入
         if (!hasContent) {
-            return originalInput != null ? originalInput : "请分析附件";
+            return originalInput != null ? originalInput : "";
         }
 
-        String query = (originalInput != null && !originalInput.trim().isEmpty()) ? originalInput : "请帮我分析上述提供的文件和图片内容，提取核心信息并进行总结。";
+        // 构建用户提问
+        String query = (originalInput != null && !originalInput.trim().isEmpty())
+                ? originalInput
+                : "请帮我分析上述提供的文件和图片内容，提取核心信息并进行总结。";
+
         aiPromptBuilder.append("<用户提问>\n").append(query).append("\n</用户提问>\n\n");
-        aiPromptBuilder.append("【系统规则】请严格基于上述<文档上下文>和<图片上下文>的内容回答用户的提问。如果资料中找不到答案，请说明。切勿在回答中大段重复照抄上下文的原文。");
+        aiPromptBuilder.append("【系统规则】请严格基于上述<文档上下文>和<图片上下文>的内容回答用户的提问。" +
+                "如果资料中找不到答案，请说明。切勿在回答中大段重复照抄上下文的原文。");
 
         return aiPromptBuilder.toString();
     }
 
+    /**
+     * 构建图片附件的描述文本（Base64 编码）
+     */
     private String buildImageDescriptions(List<Attachment> attachments) {
         if (attachments == null || attachments.isEmpty()) return "";
         List<Attachment> images = documentAnalysisService.getImageAttachments(attachments);
@@ -140,232 +371,14 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         return sb.toString();
     }
 
-    @Override
-    public ChatResponse chat(ChatRequest request, String username) {
-        String conversationId = request.conversationId();
-        String originalInput = request.message();
+    // ======================== 历史消息构建 ========================
 
-        logger.info("========== [Chat Start] ==========");
-
-        String aiPrompt = buildAIPrompt(originalInput, request.attachments());
-        boolean hasAttachments = request.attachments() != null && !request.attachments().isEmpty();
-
-        String filesJson = null;
-        if (hasAttachments) {
-            try {
-                // 🔴 修复：使用 Jackson 将 Record 正确序列化为 JSON 字符串
-                filesJson = objectMapper.writeValueAsString(request.attachments());
-            } catch (Exception e) {
-                logger.error("附件JSON序列化失败: {}", e.getMessage());
-            }
-        }
-        messageService.saveUserMessage(conversationId, originalInput, username, filesJson);
-
-        List<Message> history = messageService.loadConversationHistory(conversationId, username);
-        List<org.springframework.ai.chat.messages.Message> historyMsgs = buildHistoryMessages(history);
-
-        String aiText;
-        if (needsSearch(aiPrompt)) {
-            aiText = executeReActLoop(historyMsgs, aiPrompt);
-        } else {
-            aiText = executeDirectChat(historyMsgs, aiPrompt);
-        }
-
-        Message aiMessage = messageService.saveAIMessage(conversationId, aiText, username);
-        refreshCacheAsync(conversationId, username);
-
-        ChatResponse response = new ChatResponse();
-        response.setAiMessage(aiMessage);
-        response.setConversationId(conversationId);
-        return response;
-    }
-
-    @Override
-    public Flux<String> chatStream(ChatRequest request, String username) {
-        String conversationId = request.conversationId();
-        String originalInput = request.message();
-        boolean hasAttachments = request.attachments() != null && !request.attachments().isEmpty();
-
-        logger.info("========== [Stream Chat Start] ==========");
-
-        String aiPrompt = buildAIPrompt(originalInput, request.attachments());
-
-        try {
-            String filesJson = null;
-            if (hasAttachments) {
-                // 🔴 修复：使用 Jackson 将 Record 正确序列化为 JSON 字符串
-                filesJson = objectMapper.writeValueAsString(request.attachments());
-            }
-            messageService.saveUserMessage(conversationId, originalInput, username, filesJson);
-        } catch (Exception e) {
-            logger.error("保存用户消息失败: {}", e.getMessage(), e);
-            return Flux.just("{\"code\":500,\"message\":\"保存消息失败\"}");
-        }
-
-        List<Message> history;
-        try {
-            history = messageService.loadConversationHistory(conversationId, username);
-        } catch (Exception e) {
-            history = List.of();
-        }
-        List<org.springframework.ai.chat.messages.Message> historyMsgs = buildHistoryMessages(history);
-
-        StringBuilder fullResponse = new StringBuilder();
-
-        if (needsSearch(aiPrompt)) {
-            final String finalInput = aiPrompt;
-            return Flux.create(sink -> {
-                new Thread(() -> {
-                    try {
-                        String answer = executeReActLoop(historyMsgs, finalInput);
-                        int chunkSize = 4;
-                        for (int i = 0; i < answer.length(); i += chunkSize) {
-                            int end = Math.min(i + chunkSize, answer.length());
-                            String chunk = answer.substring(i, end);
-                            fullResponse.append(chunk);
-                            sink.next("{\"content\":\"" + escapeJson(chunk) + "\"}");
-                            Thread.sleep(15);
-                        }
-                        messageService.saveAIMessage(conversationId, answer, username);
-                        refreshCacheAsync(conversationId, username);
-                        sink.complete();
-                    } catch (Exception e) {
-                        sink.error(e);
-                    }
-                }, "react-agent-stream").start();
-            });
-        } else {
-            List<org.springframework.ai.chat.messages.Message> allMessages = new ArrayList<>();
-            allMessages.add(new SystemMessage(directChatPrompt));
-            allMessages.addAll(historyMsgs);
-            allMessages.add(new UserMessage(aiPrompt));
-
-            Prompt prompt = new Prompt(allMessages);
-            AtomicReference<StringBuilder> atomicResponse = new AtomicReference<>(new StringBuilder());
-
-            return chatModel.stream(prompt)
-                    .map(response -> {
-                        String text = null;
-                        if (response != null && response.getResult() != null && response.getResult().getOutput() != null) {
-                            text = response.getResult().getOutput().getText();
-                        }
-                        if (text != null && !text.isEmpty()) {
-                            atomicResponse.get().append(text);
-                        }
-                        return "{\"content\":\"" + escapeJson(text != null ? text : "") + "\"}";
-                    })
-                    .doOnComplete(() -> {
-                        String completeText = atomicResponse.get().toString();
-                        if (!completeText.isEmpty()) {
-                            try {
-                                messageService.saveAIMessage(conversationId, completeText, username);
-                            } catch (Exception e) {
-                                logger.error("保存AI消息失败: {}", e.getMessage(), e);
-                            }
-                        }
-                        refreshCacheAsync(conversationId, username);
-                    });
-        }
-    }
-
-    private String executeReActLoop(List<org.springframework.ai.chat.messages.Message> historyMsgs, String aiPrompt) {
-        List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(agentPrompt));
-        messages.addAll(historyMsgs);
-        messages.add(new UserMessage(aiPrompt));
-
-        boolean hasAttachment = aiPrompt != null && (
-                aiPrompt.contains("<文档上下文>") || aiPrompt.contains("<图片上下文>"));
-
-        if (hasAttachment) {
-            logger.info("检测到用户上传了附件，直接让AI分析附件内容");
-            messages.add(new UserMessage(
-                    "\n\n重要提示：用户提供了文档或图片资料，请优先严格基于上方提供的<文档上下文>和<图片上下文>回答，不要盲目联网搜索。" +
-                            "\n如果上下文内容足够解答，请使用 action=answer。"));
-        } else {
-            String firstSearchQuery = optimizeSearchQuery(aiPrompt);
-            String firstSearchResult = webSearchService.search(firstSearchQuery);
-            messages.add(new AssistantMessage("{\"thought\":\"先使用用户原始问题搜索\",\"action\":\"search\",\"input\":\"" + escapeJson(firstSearchQuery) + "\"}"));
-            messages.add(new UserMessage(
-                    "Observation: 使用你原始问题的搜索结果如下：\n" + firstSearchResult +
-                            "\n\n请分析这些搜索结果和用户的原始问题，决定(answer/search/clarify)"));
-        }
-
-        for (int i = 1; i < MAX_REACT_ITERATIONS; i++) {
-            Prompt prompt = new Prompt(messages);
-            var response = reasoningChatModel.call(prompt);
-            String aiText = response.getResult().getOutput().getText();
-            AgentAction action = parseAction(aiText);
-
-            if (action == null || "clarify".equals(action.action)) {
-                return action != null ? action.input : aiText;
-            }
-
-            if ("answer".equals(action.action)) {
-                return extractCleanAnswer(action.input);
-            }
-
-            if ("search".equals(action.action)) {
-                String searchQuery = optimizeSearchQuery(action.input);
-                String searchResult = webSearchService.search(searchQuery);
-                messages.add(new AssistantMessage(aiText));
-                messages.add(new UserMessage(
-                        "Observation: 搜索结果如下：\n" + searchResult +
-                                "\n\n判断信息是否充分。充分请answer；不足请继续search。"));
-            }
-        }
-
-        messages.add(new UserMessage("你已经搜索了足够多的信息，请直接给出最终回答。输出 action 为 answer。"));
-        var finalResponse = reasoningChatModel.call(new Prompt(messages));
-        AgentAction finalAction = parseAction(finalResponse.getResult().getOutput().getText());
-        return extractCleanAnswer(finalAction != null ? finalAction.input : finalResponse.getResult().getOutput().getText());
-    }
-
-    private String executeDirectChat(List<org.springframework.ai.chat.messages.Message> historyMsgs, String aiPrompt) {
-        List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(directChatPrompt));
-        messages.addAll(historyMsgs);
-        messages.add(new UserMessage(aiPrompt));
-        Prompt prompt = new Prompt(messages);
-        return chatModel.call(prompt).getResult().getOutput().getText();
-    }
-
-    private boolean needsSearch(String message) {
-        return true;
-    }
-
-    private AgentAction parseAction(String text) {
-        if (text == null || text.isBlank()) return null;
-        try {
-            String json = text.trim();
-            if (json.contains("```json")) {
-                int start = json.indexOf("```json") + 7;
-                int end = json.indexOf("```", start);
-                if (end > start) json = json.substring(start, end).trim();
-            } else if (json.contains("```")) {
-                int start = json.indexOf("```") + 3;
-                int end = json.indexOf("```", start);
-                if (end > start) json = json.substring(start, end).trim();
-            }
-            int braceStart = json.indexOf('{');
-            int braceEnd = json.lastIndexOf('}');
-            if (braceStart >= 0 && braceEnd > braceStart) {
-                json = json.substring(braceStart, braceEnd + 1);
-            }
-            JSONObject obj = JSONUtil.parseObj(json);
-            AgentAction action = new AgentAction();
-            action.thought = obj.getStr("thought", "");
-            action.action = obj.getStr("action", "answer");
-            action.input = obj.getStr("input", "");
-            return action;
-        } catch (Exception e) {
-            AgentAction action = new AgentAction();
-            action.action = "answer";
-            action.input = text;
-            return action;
-        }
-    }
-
+    /**
+     * 将数据库中的消息记录转换为 Spring AI 的 Message 列表
+     *
+     * <p>跳过最后一条用户消息（因为当前请求会作为新的用户消息添加）。
+     * 如果历史消息包含附件信息，会重新解析附件内容作为上下文。</p>
+     */
     private List<org.springframework.ai.chat.messages.Message> buildHistoryMessages(List<Message> history) {
         List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
         int start = Math.max(0, history.size() - MAX_HISTORY_MESSAGES);
@@ -373,15 +386,18 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         for (int i = start; i < history.size(); i++) {
             Message msg = history.get(i);
 
-            if (i == history.size() - 1 && "user".equals(msg.getRole())) continue;
+            // 跳过最后一条用户消息（当前请求的新消息会单独添加）
+            if (i == history.size() - 1 && "user".equals(msg.getRole())) {
+                continue;
+            }
 
             if ("user".equals(msg.getRole())) {
                 String historyContent = msg.getContent();
 
+                // 如果历史消息包含附件，重新解析附件内容作为上下文
                 if (msg.getFiles() != null && !msg.getFiles().trim().isEmpty()
                         && !msg.getFiles().equals("[]") && !msg.getFiles().equals("null")) {
                     try {
-                        // 🔴 修复：同样使用 Jackson 来反序列化，支持 record 还原
                         List<Attachment> historyAttachments = objectMapper.readValue(
                                 msg.getFiles(),
                                 new TypeReference<List<Attachment>>() {}
@@ -408,46 +424,55 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         return messages;
     }
 
+    // ======================== 工具方法 ========================
+
+    /**
+     * 将附件列表序列化为 JSON 字符串（用于持久化到 Message.files 字段）
+     */
+    private String serializeAttachments(List<Attachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) return null;
+        try {
+            return objectMapper.writeValueAsString(attachments);
+        } catch (Exception e) {
+            logger.error("附件JSON序列化失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 将文件 URL 路径转换为本地文件系统路径
+     */
     private String resolveFilePath(String url) {
         if (url == null) return "";
         if (url.startsWith("/uploads/")) return url.replace("/uploads/", "uploads/");
         return url;
     }
 
+    /**
+     * 获取文件扩展名（小写）
+     */
     private String getExtension(String filename) {
         if (filename == null) return "";
         int dot = filename.lastIndexOf('.');
         return dot >= 0 ? filename.substring(dot + 1).toLowerCase() : "";
     }
 
-    private String escapeJson(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+    /**
+     * 将文本块格式化为 SSE JSON 格式（保持前端兼容）
+     */
+    private String formatSseChunk(String text) {
+        String escaped = text
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
+        return "{\"content\":\"" + escaped + "\"}";
     }
 
-    private String extractCleanAnswer(String rawAnswer) {
-        if (rawAnswer == null || rawAnswer.trim().isEmpty()) return rawAnswer;
-        int answerMarkIndex = rawAnswer.indexOf("[答案]:");
-        if (answerMarkIndex != -1) {
-            return rawAnswer.substring(answerMarkIndex + "[答案]:".length()).trim();
-        }
-        return rawAnswer;
-    }
-
-    private String optimizeSearchQuery(String query) {
-        if (query == null || query.trim().isEmpty()) return query;
-        String lowerQuery = query.toLowerCase();
-        String[] countryKeywords = {"中国", "国内", "美国", "欧洲", "日本", "韩国", "俄罗斯", "英国", "法国", "德国", "国际", "全球", "世界"};
-        for (String keyword : countryKeywords) {
-            if (lowerQuery.contains(keyword)) return query;
-        }
-        String[] politicalKeywords = {"时事", "新闻", "政策", "政治", "经济", "社会", "政府", "法律", "发布会", "最新"};
-        for (String keyword : politicalKeywords) {
-            if (lowerQuery.contains(keyword)) return "中国 " + query;
-        }
-        return query;
-    }
-
+    /**
+     * 异步刷新会话缓存（不阻塞主流程）
+     */
     @Async("chatExecutor")
     protected void refreshCacheAsync(String conversationId, String username) {
         try {
@@ -455,11 +480,5 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         } catch (Exception e) {
             logger.error("刷新缓存失败: {}", e.getMessage(), e);
         }
-    }
-
-    private static class AgentAction {
-        String thought;
-        String action;
-        String input;
     }
 }

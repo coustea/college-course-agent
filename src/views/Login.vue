@@ -98,6 +98,7 @@ import { useRouter } from 'vue-router'
 import { User, Lock, School, Monitor, Reading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+import { setAuthSession } from '../services/auth'
 
 const router = useRouter()
 const { proxy } = getCurrentInstance()
@@ -150,109 +151,110 @@ onBeforeUnmount(() => {
 const handleLogin = async () => {
   if (!loginFormRef.value) return
 
-  await loginFormRef.value.validate(async (valid) => {
-    if (valid) {
-      loading.value = true
-      try {
-        const res = await axios.post(`${BASE_URL}/auth/login`, {
-          username: loginForm.username,
-          password: loginForm.password,
-          role: loginForm.role
-        })
+  try {
+    const valid = await loginFormRef.value.validate()
+    if (!valid) return
+  } catch {
+    return
+  }
 
-        if (res.data.code === 200) {
-          const { userId, username, token, role, profile } = res.data.data
+  loading.value = true
+  try {
+    const res = await axios.post(`${BASE_URL}/auth/login`, {
+      username: loginForm.username,
+      password: loginForm.password,
+      role: loginForm.role
+    })
 
-          // 统一存储用户信息到 localStorage
-          localStorage.setItem("userId", userId)
-          localStorage.setItem("userName", username)
-          localStorage.setItem("token", token)
-          localStorage.setItem("userRole", role)
+    if (res.data.code === 200) {
+      const { userId, username, token, role, profile } = res.data.data
 
-          // 统一设置 userInfo，包含 username 字段
-          const userInfo = {
-            id: userId,
-            username: username,  // 确保 username 字段存在
-            role: role,
-            ...profile  // 包含角色的详细信息
-          }
-          localStorage.setItem('userInfo', JSON.stringify(userInfo))
-
-          ElMessage.success('登录成功')
-
-          // 根据后端返回的 role 判断，而不是前端表单选择的 loginForm.role
-          if (role === 'teacher') {
-            // 教师登录：尝试拉取详细信息并缓存
-            try {
-               const infoResp = await axios.get(`${BASE_URL}/teacher/${userId}`, {
-                  headers: { Authorization: `Bearer ${token}` }
-               })
-               if (infoResp.data.data) {
-                 // 更新 userInfo，保留 username 字段
-                 const updatedUserInfo = {
-                   ...userInfo,
-                   ...infoResp.data.data
-                 }
-                 localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo))
-
-                 const tId = infoResp.data.data.id
-                 if (tId) localStorage.setItem('teacherId', String(tId))
-
-                 const currentUser = {
-                   id: tId || userId,
-                   username: username,  // 确保 username 字段
-                   name: infoResp.data.data.name || username,
-                   teacherId: tId || userId
-                 }
-                 localStorage.setItem('currentUser', JSON.stringify(currentUser))
-               }
-            } catch (e) {
-               // 降级处理：使用已存储的 userInfo
-               localStorage.setItem('teacherId', String(userId))
-            }
-            router.push('/teacher')
-          } else if (role === 'student') {
-            // 学生登录：尝试拉取详细信息并缓存
-            try {
-               const infoResp = await axios.get(`${BASE_URL}/student/${userId}`, {
-                  headers: { Authorization: `Bearer ${token}` }
-               })
-               if (infoResp.data.data) {
-                 // 更新 userInfo，保留 username 字段
-                 const updatedUserInfo = {
-                   ...userInfo,
-                   ...infoResp.data.data
-                 }
-                 localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo))
-
-                 const sId = infoResp.data.data.id
-                 if (sId) localStorage.setItem('studentId', String(sId))
-
-                 const currentUser = {
-                   id: sId || userId,
-                   username: username,  // 确保 username 字段
-                   name: infoResp.data.data.name || username,
-                   studentId: sId || userId
-                 }
-                 localStorage.setItem('currentUser', JSON.stringify(currentUser))
-               }
-            } catch (e) {
-               // 降级处理：使用已存储的 userInfo
-               console.error('获取学生详细信息失败:', e)
-            }
-            router.push('/student')
-          }
-        } else {
-          ElMessage.error(res.data.msg || res.data.message || '登录失败，请检查账号密码')
-        }
-      } catch (error) {
-        console.error(error)
-        ElMessage.error(error.response?.data?.message || '登录服务异常，请稍后重试')
-      } finally {
-        loading.value = false
+      // 使用统一的会话管理，自动设置 axios 全局 Authorization 头
+      const payload = { userId, username, token, role, profile }
+      if (profile?.id) {
+        payload.teacherId = profile.id
+        payload.studentId = profile.id
       }
+      setAuthSession(payload)
+
+      // 统一存储 userInfo
+      const userInfo = {
+        id: userId,
+        username: username,
+        role: role,
+        ...profile
+      }
+      localStorage.setItem('userInfo', JSON.stringify(userInfo))
+
+      ElMessage.success('登录成功')
+
+      // 根据后端返回的 role 判断
+      if (role === 'teacher') {
+        // 教师登录：尝试拉取详细信息并缓存
+        try {
+           const infoResp = await axios.get(`${BASE_URL}/teacher/${userId}`, {
+              headers: { Authorization: `Bearer ${token}` }
+           })
+           if (infoResp.data.data) {
+             const updatedUserInfo = {
+               ...userInfo,
+               ...infoResp.data.data
+             }
+             localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo))
+
+             const tId = infoResp.data.data.id
+             if (tId) localStorage.setItem('teacherId', String(tId))
+
+             const currentUser = {
+               id: tId || userId,
+               username: username,
+               name: infoResp.data.data.name || username,
+               teacherId: tId || userId
+             }
+             localStorage.setItem('currentUser', JSON.stringify(currentUser))
+           }
+        } catch (e) {
+           localStorage.setItem('teacherId', String(userId))
+        }
+        router.push('/teacher')
+      } else if (role === 'student') {
+        // 学生登录：尝试拉取详细信息并缓存
+        try {
+           const infoResp = await axios.get(`${BASE_URL}/student/${userId}`, {
+              headers: { Authorization: `Bearer ${token}` }
+           })
+           if (infoResp.data.data) {
+             const updatedUserInfo = {
+               ...userInfo,
+               ...infoResp.data.data
+             }
+             localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo))
+
+             const sId = infoResp.data.data.id
+             if (sId) localStorage.setItem('studentId', String(sId))
+
+             const currentUser = {
+               id: sId || userId,
+               username: username,
+               name: infoResp.data.data.name || username,
+               studentId: sId || userId
+             }
+             localStorage.setItem('currentUser', JSON.stringify(currentUser))
+           }
+        } catch (e) {
+           console.error('获取学生详细信息失败:', e)
+        }
+        router.push('/student')
+      }
+    } else {
+      ElMessage.error(res.data.msg || res.data.message || '登录失败，请检查账号密码')
     }
-  })
+  } catch (error) {
+    console.error(error)
+    ElMessage.error(error.response?.data?.message || '登录服务异常，请稍后重试')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

@@ -1,13 +1,16 @@
 package com.ccut.controller;
 
+import com.ccut.context.UserContext;
 import com.ccut.dto.Attachment;
 import com.ccut.dto.ChatRequest;
 import com.ccut.dto.ChatResponse;
 import com.ccut.dto.Result;
 import com.ccut.entity.Message;
+import com.ccut.entity.User;
 import com.ccut.service.ChatAgentService;
 import com.ccut.service.FileStorageService;
 import com.ccut.service.MessageService;
+import com.ccut.service.UserService;
 import com.ccut.utils.JWTUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +42,9 @@ public class ChatController {
     @Autowired
     private FileStorageService fileStorageService;
 
+    @Autowired
+    private UserService userService;
+
     /**
      * 同步聊天（支持可选文件上传）
      */
@@ -61,32 +67,29 @@ public class ChatController {
         }
 
         try {
-            // 从 JWT token 中提取当前登录用户的用户名
-            String authHeader = request.getHeader("Authorization");
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                log.warn("AI 聊天未授权访问：conversationId={}", conversationId);
-                return Result.error(401, "未授权访问");
-            }
-            String token = authHeader.substring(7);
-            String username = JWTUtils.getUsernameFromToken(token);
-
-            if (username == null || username.trim().isEmpty()) {
-                log.warn("AI 聊天无法获取用户信息：conversationId={}", conversationId);
+            // 从 JWT token 中提取当前登录用户信息，并设置 UserContext
+            User user = resolveUser(request);
+            if (user == null) {
                 return Result.error(401, "无法获取用户信息");
             }
 
-            log.info("执行 AI 聊天业务 (同步)：username={}, conversationId={}, message 长度={}", username, conversationId, message.length());
+            try {
+                log.info("执行 AI 聊天业务 (同步)：username={}, role={}, conversationId={}, message 长度={}",
+                        user.getUsername(), user.getRole(), conversationId, message.length());
 
-            List<Attachment> attachments = saveFiles(files);
-            if (attachments != null && !attachments.isEmpty()) {
-                log.debug("保存附件：count={}", attachments.size());
+                List<Attachment> attachments = saveFiles(files);
+                if (attachments != null && !attachments.isEmpty()) {
+                    log.debug("保存附件：count={}", attachments.size());
+                }
+
+                ChatRequest chatRequest = new ChatRequest(conversationId, message, attachments);
+                ChatResponse chatResponse = chatAgentService.chat(chatRequest, user.getUsername(), user.getRole().name());
+                log.debug("AI 聊天成功 (同步)：username={}, conversationId={}, response 长度={}",
+                        user.getUsername(), conversationId, chatResponse.getAiMessage() != null ? chatResponse.getAiMessage().getContent().length() : 0);
+                return Result.success(chatResponse);
+            } finally {
+                UserContext.clear();
             }
-
-            ChatRequest chatRequest = new ChatRequest(conversationId, message, attachments);
-            ChatResponse chatResponse = chatAgentService.chat(chatRequest, username);
-            log.debug("AI 聊天成功 (同步)：username={}, conversationId={}, response 长度={}",
-                    username, conversationId, chatResponse.getAiMessage() != null ? chatResponse.getAiMessage().getContent().length() : 0);
-            return Result.success(chatResponse);
         } catch (Exception e) {
             log.error("AI 聊天失败 (同步)：conversationId={}, 错误：{}", conversationId, e.getMessage(), e);
             e.printStackTrace();
@@ -117,40 +120,41 @@ public class ChatController {
         }
 
         try {
-            // 从 JWT token 中提取当前登录用户的用户名
-            String authHeader = request.getHeader("Authorization");
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                log.warn("AI 流式聊天未授权访问：conversationId={}", conversationId);
-                return Flux.just("{\"code\": 401, \"message\": \"未授权访问\"}");
-            }
-            String token = authHeader.substring(7);
-            String username = JWTUtils.getUsernameFromToken(token);
-
-            if (username == null || username.trim().isEmpty()) {
-                log.warn("AI 流式聊天无法获取用户信息：conversationId={}", conversationId);
+            // 从 JWT token 中提取当前登录用户信息，并设置 UserContext
+            User user = resolveUser(request);
+            if (user == null) {
                 return Flux.just("{\"code\": 401, \"message\": \"无法获取用户信息\"}");
             }
 
-            log.info("执行 AI 聊天业务 (流式)：username={}, conversationId={}, message 长度={}", username, conversationId, message.length());
+            try {
+                log.info("执行 AI 聊天业务 (流式)：username={}, role={}, conversationId={}, message 长度={}",
+                        user.getUsername(), user.getRole(), conversationId, message.length());
 
-            List<Attachment> attachments = saveFiles(files);
-            if (attachments != null && !attachments.isEmpty()) {
-                log.debug("保存附件：count={}", attachments.size());
+                List<Attachment> attachments = saveFiles(files);
+                if (attachments != null && !attachments.isEmpty()) {
+                    log.debug("保存附件：count={}", attachments.size());
+                }
+
+                ChatRequest chatRequest = new ChatRequest(conversationId, message, attachments);
+                log.info("开始流式响应：username={}, role={}, conversationId={}", user.getUsername(), user.getRole(), conversationId);
+
+                // 注意：chatStream 内部会同步调用 ChatClient，此时 UserContext 仍在线程上
+                // 因此必须在此 try 块内调用（UserContext.clear() 在 finally 中）
+                return chatAgentService.chatStream(chatRequest, user.getUsername(), user.getRole().name())
+                        .doOnNext(chunk -> {
+                            log.debug("发送 SSE chunk: 长度={}", chunk.length());
+                        })
+                        .onErrorResume(e -> {
+                            log.error("流式响应错误：username={}, conversationId={}, 错误：{}", user.getUsername(), conversationId, e.getMessage());
+                            return Flux.just("{\"code\": 500, \"message\": \"" + e.getMessage() + "\"}");
+                        })
+                        .doOnComplete(() -> {
+                            log.info("SSE 流发送完成：username={}, conversationId={}", user.getUsername(), conversationId);
+                        });
+            } finally {
+                // 流式场景下，chatStream 已同步完成 ChatClient 调用，可以安全清理
+                UserContext.clear();
             }
-
-            ChatRequest chatRequest = new ChatRequest(conversationId, message, attachments);
-            log.info("开始流式响应：username={}, conversationId={}", username, conversationId);
-            return chatAgentService.chatStream(chatRequest, username)
-                    .doOnNext(chunk -> {
-                        log.debug("发送 SSE chunk: 长度={}", chunk.length());
-                    })
-                    .onErrorResume(e -> {
-                        log.error("流式响应错误：username={}, conversationId={}, 错误：{}", username, conversationId, e.getMessage());
-                        return Flux.just("{\"code\": 500, \"message\": \"" + e.getMessage() + "\"}");
-                    })
-                    .doOnComplete(() -> {
-                        log.info("SSE 流发送完成：username={}, conversationId={}", username, conversationId);
-                    });
         } catch (Exception e) {
             log.error("AI 流式聊天请求处理失败：conversationId={}, 错误：{}", conversationId, e.getMessage());
             return Flux.just("{\"code\": 500, \"message\": \"聊天失败：" + e.getMessage() + "\"}");
@@ -164,7 +168,6 @@ public class ChatController {
     public Result<List<Message>> getChatHistory(HttpServletRequest request) {
         log.debug("收到获取聊天记录请求：URI=/api/ai/chat/history");
         try {
-            // 从 JWT token 中提取当前登录用户的用户名
             String authHeader = request.getHeader("Authorization");
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 log.warn("获取聊天记录未授权访问");
@@ -196,7 +199,6 @@ public class ChatController {
     public Result<String> deleteChat(HttpServletRequest request) {
         log.debug("收到删除聊天记录请求：URI=/api/ai/chat/delete");
         try {
-            // 从 JWT token 中提取当前登录用户的用户名
             String authHeader = request.getHeader("Authorization");
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 log.warn("删除聊天记录未授权访问");
@@ -235,30 +237,43 @@ public class ChatController {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 从 JWT token 中提取用户名用于测试
             String authHeader = request.getHeader("Authorization");
-            String username = "test_user"; // 默认测试用户
+            String username = "test_user";
+            String role = "student";
 
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
                 String tokenUsername = JWTUtils.getUsernameFromToken(token);
                 if (tokenUsername != null && !tokenUsername.trim().isEmpty()) {
                     username = tokenUsername;
+                    User user = userService.getByUsername(username);
+                    if (user != null) {
+                        role = user.getRole().name();
+                    }
                 }
             }
 
-            log.info("执行测试 AI 连接业务：username={}", username);
-            // 测试同步调用
-            ChatRequest testRequest = new ChatRequest("test", "你好，请简短回复", null);
-            ChatResponse chatResponse = chatAgentService.chat(testRequest, username);
+            // 设置 UserContext 供 Agent 工具使用
+            User user = userService.getByUsername(username);
+            if (user != null) {
+                UserContext.set(user.getId(), username, user.getRole());
+            }
 
-            result.put("status", "success");
-            result.put("message", "AI 服务正常");
-            result.put("response", chatResponse.getAiMessage() != null ? chatResponse.getAiMessage().getContent() : "无响应");
-            result.put("username", username);
+            try {
+                log.info("执行测试 AI 连接业务：username={}, role={}", username, role);
+                ChatRequest testRequest = new ChatRequest("test", "你好，请简短回复", null);
+                ChatResponse chatResponse = chatAgentService.chat(testRequest, username, role);
 
-            log.debug("测试 AI 连接成功：username={}", username);
-            return Result.success(result);
+                result.put("status", "success");
+                result.put("message", "AI 服务正常");
+                result.put("response", chatResponse.getAiMessage() != null ? chatResponse.getAiMessage().getContent() : "无响应");
+                result.put("username", username);
+
+                log.debug("测试 AI 连接成功：username={}", username);
+                return Result.success(result);
+            } finally {
+                UserContext.clear();
+            }
         } catch (Exception e) {
             log.error("测试 AI 连接失败：错误：{}", e.getMessage(), e);
             result.put("status", "error");
@@ -268,6 +283,38 @@ public class ChatController {
 
             return Result.error(500, "AI 测试失败：" + e.getMessage());
         }
+    }
+
+    // ======================== 私有方法 ========================
+
+    /**
+     * 从 HttpServletRequest 中解析当前用户，设置 UserContext，并返回 User 对象。
+     * 如果解析失败返回 null。
+     */
+    private User resolveUser(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.warn("AI 聊天未授权访问");
+            return null;
+        }
+        String token = authHeader.substring(7);
+        String username = JWTUtils.getUsernameFromToken(token);
+
+        if (username == null || username.trim().isEmpty()) {
+            log.warn("AI 聊天无法获取用户信息");
+            return null;
+        }
+
+        // 查询完整用户信息（含 id 和 role）
+        User user = userService.getByUsername(username);
+        if (user == null) {
+            log.warn("AI 聊天用户不存在：username={}", username);
+            return null;
+        }
+
+        // 设置 ThreadLocal 用户上下文（供 Agent DB 工具使用）
+        UserContext.set(user.getId(), user.getUsername(), user.getRole());
+        return user;
     }
 
     /**
