@@ -2,12 +2,10 @@ package com.ccut.controller;
 
 import com.ccut.entity.Exam;
 import com.ccut.dto.Result;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,7 +14,6 @@ import java.util.Map;
 /**
  * AI 生成试卷控制器
  */
-@Slf4j
 @RestController
 @RequestMapping("/api/ai")
 public class AiController {
@@ -56,26 +53,15 @@ public class AiController {
     public Result<Exam> generateExam(@RequestParam String topic,
                                      @RequestParam(defaultValue = "0") Integer judge,
                                      @RequestParam(defaultValue = "1") Integer choice) {
-        log.debug("收到生成 AI 试卷请求：URI=/api/ai/generate-exam, 参数：topic={}, judge={}, choice={}", topic, judge, choice);
-        try {
-            log.info("执行生成 AI 试卷业务：topic={}, judge={}, choice={}", topic, judge, choice);
-            long startTime = System.currentTimeMillis();
-            
-            PromptTemplate template = new PromptTemplate(PROMPT_TEMPLATE);
-            Prompt prompt = template.create(Map.of("topic", topic,
-                    "judge", judge,
-                    "choice", choice,
-                    "format", format));
-            var response = chatModel.call(prompt);
-            String content = response.getResult().getOutput().getText();
-            Exam exam = converter.convert(content);
-            
-            long costTime = System.currentTimeMillis() - startTime;
-            log.debug("生成 AI 试卷成功：topic={}, judge={}, choice={}, 耗时={} ms", topic, judge, choice, costTime);
-            return Result.success(exam);
-        } catch (Exception e) {
-            log.error("生成 AI 试卷失败：topic={}, judge={}, choice={}, 错误：{}", topic, judge, choice, e.getMessage(), e);
-            return Result.error(500, "生成试卷失败：" + e.getMessage());
-        }
+        PromptTemplate template = new PromptTemplate(PROMPT_TEMPLATE);
+        Prompt prompt = template.create(Map.of("topic", topic,
+                "judge", judge,
+                "choice", choice,
+                "format", format));
+        var response = chatModel.call(prompt);
+        String content = response.getResult().getOutput().getText();
+        Exam exam = converter.convert(content);
+
+        return Result.success(exam);
     }
 }

@@ -7,6 +7,7 @@ import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.security.SignatureException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -114,6 +115,25 @@ public class JWTUtils {
             log.warn("无法从 Token 中解析用户名：{}", e.getMessage());
             throw new RuntimeException("无法从令牌中解析用户名", e);
         }
+    }
+
+    /**
+     * 从 HttpServletRequest 中解析当前用户名
+     * @param request HTTP 请求
+     * @return 用户名
+     * @throws IllegalArgumentException 当 Authorization 头缺失或格式错误时
+     */
+    public static String resolveUsername(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("未授权访问");
+        }
+        String token = authHeader.substring(7);
+        String username = getUsernameFromToken(token);
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("无法获取用户信息");
+        }
+        return username;
     }
 
     /**
