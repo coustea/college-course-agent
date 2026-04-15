@@ -19,7 +19,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true
     username: root
-    password: Aa123456
+    password: ${DB_PASSWORD:123456}
     hikari:
       maximum-pool-size: 30 # 最大连接数
       minimum-idle: 10 # 最小空闲连接数
@@ -39,7 +39,7 @@ spring:
 
   ai:
     openai:
-      api-key: sk-eb6f314b76cf4570a81f4e35df8b9874
+      api-key: ${AI_API_KEY:sk-281ded8922af433583273727e735f79a}
       base-url: https://api.deepseek.com
       chat:
         options:
@@ -67,11 +67,17 @@ logging:
     com.ccut.mapper: debug # 打印SQL语句
 
 file:
-  # 文件上传目录 - 按日期分文件夹存储在 resources/upload 目录下
-  # 示例结构：resources/upload/2024-01-31/uuid-filename.jpg
-  # 使用绝对路径，避免 Tomcat 运行时相对路径解析错误
   upload-dir: /home/couseta/develop/CCUT/backend/server/src/main/resources/upload
 
 # JWT认证开关（开发环境设为false，生产环境设为true）
 jwt:
   enabled: true
+  secret-key: ${JWT_SECRET_KEY:CCUT_JWT_SECRET_KEY_2024_HS512_ALGORITHM_MUST_BE_AT_LEAST_64_BYTES_LONG_FOR_SECURITY}
+
+# SerpAPI配置
+serp:
+  api-key: ${SERP_API_KEY:}
+
+# CORS配置
+cors:
+  allowed-origins: ${CORS_ORIGINS:http://localhost:5173}

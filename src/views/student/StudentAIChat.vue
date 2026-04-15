@@ -100,7 +100,60 @@
                   </div>
 
                   <div v-if="msg.content" class="message-text" v-html="renderMarkdown(msg.content)"></div>
-                  <div v-else-if="msg.role === 'assistant'" class="typing-indicator">
+
+                  <div v-if="msg.generatedFiles && msg.generatedFiles.length" class="doc-preview-cards">
+                    <div v-for="doc in msg.generatedFiles" :key="doc.url" class="doc-card" :style="{ borderColor: getFileTypeColor(doc.type), background: getFileTypeBgColor(doc.type) }">
+                      <div class="doc-card-icon" :style="{ background: getFileTypeColor(doc.type) }">
+                        <el-icon :size="24" color="#fff"><Document /></el-icon>
+                      </div>
+                      <div class="doc-card-info">
+                        <span class="doc-card-name">{{ doc.name }}</span>
+                        <span class="doc-card-type" :style="{ color: getFileTypeColor(doc.type) }">{{ getFileTypeLabel(doc.type) }} 文件</span>
+                        <span v-if="doc.description" class="doc-card-desc">{{ doc.description }}</span>
+                      </div>
+                      <div class="doc-card-actions">
+                        <el-button size="small" type="primary" @click="previewFile(doc.url, doc.type)">预览</el-button>
+                        <el-button size="small" @click="downloadFile(doc.url, doc.name)">下载</el-button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-else-if="msg.content && parseDocumentLinks(msg.content).length" class="doc-preview-cards">
+                    <div v-for="doc in parseDocumentLinks(msg.content)" :key="doc.url" class="doc-card" :style="{ borderColor: getFileTypeColor(doc.type), background: getFileTypeBgColor(doc.type) }">
+                      <div class="doc-card-icon" :style="{ background: getFileTypeColor(doc.type) }">
+                        <el-icon :size="24" color="#fff"><Document /></el-icon>
+                      </div>
+                      <div class="doc-card-info">
+                        <span class="doc-card-name">{{ doc.filename }}</span>
+                        <span class="doc-card-type" :style="{ color: getFileTypeColor(doc.type) }">{{ getFileTypeLabel(doc.type) }} 文件</span>
+                      </div>
+                      <div class="doc-card-actions">
+                        <el-button size="small" type="primary" @click="previewFile(doc.url, doc.type)">预览</el-button>
+                        <el-button size="small" @click="downloadFile(doc.url, doc.filename)">下载</el-button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="msg.content && parseEntityLinks(msg.content).length" class="entity-preview-cards">
+                    <div v-for="entity in parseEntityLinks(msg.content)" :key="entity.id" class="entity-card">
+                      <div class="entity-card-icon">
+                        <el-icon :size="32"><Reading /></el-icon>
+                      </div>
+                      <div class="entity-card-info">
+                        <span class="entity-card-name">{{ entity.name }}</span>
+                        <span class="entity-card-desc">{{ entity.description }}</span>
+                        <div class="entity-card-meta">
+                          <el-tag size="small" type="info">教师: {{ entity.teacher }}</el-tag>
+                          <el-tag size="small" type="success">学分: {{ entity.credits }}</el-tag>
+                        </div>
+                      </div>
+                      <div class="entity-card-actions">
+                        <el-button size="small" type="primary" @click="window.open(`/course/${entity.id}`, '_blank')">查看课程</el-button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="!msg.content && msg.role === 'assistant'" class="typing-indicator">
                     <span></span><span></span><span></span>
                   </div>
                 </div>
@@ -176,175 +229,68 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted } from "vue";
-import { Plus, Delete, Promotion, Close, ChatDotRound, User, Document, DataAnalysis, QuestionFilled, CopyDocument } from "@element-plus/icons-vue";
-import { ElMessage, ElMessageBox } from "element-plus";
-import MarkdownIt from "markdown-it";
-import hljs from "highlight.js";
-import "highlight.js/styles/github.css";
-import { getUserConversations, createConversation, getConversationMessages, deleteChat, sendChatStream } from "@/services/chatApi";
+import { Plus, Delete, Promotion, Close, ChatDotRound, User, Document, DataAnalysis, QuestionFilled, CopyDocument, Reading } from "@element-plus/icons-vue";
+import { useChat } from "@/composables/useChat";
 
-const getUsername = () => {
-  try {
-    const userName = localStorage.getItem("userName");
-    if (userName) return userName;
-    const u = JSON.parse(localStorage.getItem("userInfo") || "null");
-    return u?.username || u?.name || "student";
-  } catch { return "student"; }
-};
-
-const messages = ref([]);
-const inputMessage = ref("");
-const isLoading = ref(false);
-const uploadedFiles = ref([]);
-const messagesContainer = ref(null);
-const fileInput = ref(null);
-const isDragOver = ref(false);
-const conversationId = ref("");
-const username = ref(getUsername());
-
-const canSend = computed(() => (inputMessage.value.trim() || uploadedFiles.value.length) && !isLoading.value);
-
-const formatTime = (ts) => {
-  if (!ts) return "";
-  return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-};
-const formatFileSize = (b) => {
-  if (b < 1024) return b + " B";
-  if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
-  return (b / 1048576).toFixed(1) + " MB";
-};
-
-const md = new MarkdownIt({
-  html: true, linkify: true, typographer: true, breaks: true,
-  highlight(str, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      try { return '<pre class="hljs"><code>' + hljs.highlight(str, { language: lang, ignoreIllegals: true }).value + "</code></pre>"; } catch {}
-    }
-    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + "</code></pre>";
-  },
+// Use the shared chat composable with student-specific configuration
+const {
+  messages,
+  inputMessage,
+  isLoading,
+  uploadedFiles,
+  messagesContainer,
+  fileInput,
+  isDragOver,
+  canSend,
+  formatTime,
+  formatFileSize,
+  renderMarkdown,
+  parseDocumentLinks,
+  parseEntityLinks,
+  getFileTypeColor,
+  getFileTypeBgColor,
+  getFileTypeLabel,
+  downloadFile,
+  previewFile,
+  clearChatHistory,
+  copyMessage,
+  sendQuickPrompt,
+  handleDragOver,
+  handleDragLeave,
+  handleDrop,
+  removeFile,
+  triggerFileUpload,
+  handleFileUpload,
+  handleKeydown,
+  sendMessage,
+} = useChat({
+  conversationTitle: "AI 学习助手",
+  defaultUsername: "student",
 });
-const renderMarkdown = (text) => text ? md.render(text) : "";
-const scrollToBottom = () => nextTick(() => { if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight; });
-
-onMounted(async () => { await ensureConversation(); await loadHistory(); });
-
-const ensureConversation = async () => {
-  try {
-    const res = await getUserConversations(username.value);
-    if (res?.code === 200 && res.data?.length > 0) { conversationId.value = res.data[0].conversationId; return; }
-  } catch {}
-  try {
-    const res = await createConversation("AI 学习助手");
-    if (res?.code === 200) conversationId.value = res.data.conversationId;
-  } catch (e) { console.error("创建会话失败", e); }
-};
-
-const loadHistory = async () => {
-  try {
-    if (!conversationId.value) {
-      await ensureConversation();
-    }
-    const res = await getConversationMessages(conversationId.value);
-    if (res?.code === 200 && res.data?.messages) {
-      messages.value = res.data.messages.map((m) => {
-        let parsedFiles = [];
-        if (m.files) {
-          try {
-            // 兼容性解析后端 JSON 附件字段
-            const backendFiles = typeof m.files === 'string' ? JSON.parse(m.files) : m.files;
-            parsedFiles = backendFiles.map(f => {
-              const getFileName = f.fileName || f.filename || f.name || f.originalFilename || '未命名文件';
-              const getFileUrl = f.url || f.fileUrl || f.path || '';
-              const getFileSize = f.size || f.fileSize || f.length || 0;
-              const isImg = f.isImage !== undefined ? f.isImage : !!getFileName.match(/\.(jpeg|jpg|gif|png|webp)$/i);
-              return {
-                name: getFileName,
-                url: getFileUrl,
-                isImage: isImg,
-                size: getFileSize
-              };
-            });
-          } catch (e) {
-            console.error("解析历史文件记录失败", e);
-          }
-        }
-        return {
-          role: m.role,
-          content: m.content,
-          files: parsedFiles,
-          timestamp: m.createdAt
-        };
-      });
-      scrollToBottom();
-    }
-  } catch (e) { console.error("加载历史失败", e); }
-};
-
-const processFiles = (list) => {
-  list.forEach((file) => {
-    if (file.size > 20 * 1024 * 1024) { ElMessage.warning(`文件 ${file.name} 超过 20MB`); return; }
-    const isImage = file.type.startsWith("image/");
-    uploadedFiles.value.push({ file, url: isImage ? URL.createObjectURL(file) : null, name: file.name, size: file.size, isImage });
-  });
-};
-const triggerFileUpload = () => fileInput.value?.click();
-const handleFileUpload = (e) => { processFiles(Array.from(e.target.files || [])); e.target.value = ""; };
-const handleDragOver = () => (isDragOver.value = true);
-const handleDragLeave = () => (isDragOver.value = false);
-const handleDrop = (e) => { isDragOver.value = false; processFiles(Array.from(e.dataTransfer.files || [])); };
-const removeFile = (i) => { const f = uploadedFiles.value[i]; if (f.url) URL.revokeObjectURL(f.url); uploadedFiles.value.splice(i, 1); };
-
-const clearChatHistory = async () => {
-  try {
-    await ElMessageBox.confirm("确定要清空所有聊天记录吗？此操作将无法恢复。", "清空对话",
-      { confirmButtonText: "确定清空", cancelButtonText: "取消", type: "warning", confirmButtonClass: "el-button--danger" });
-    isLoading.value = true;
-    await deleteChat();
-    messages.value = [];
-    ElMessage.success("聊天记录已清空");
-  } catch (err) { if (err !== "cancel") ElMessage.error("清空失败"); }
-  finally { isLoading.value = false; }
-};
-
-const copyMessage = (c) => navigator.clipboard.writeText(c).then(() => ElMessage.success("已复制到剪贴板"));
-const sendQuickPrompt = (p) => { inputMessage.value = p; sendMessage(); };
-const handleKeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
-
-const sendMessage = async () => {
-  if (!canSend.value) return;
-  const content = inputMessage.value.trim();
-  const files = [...uploadedFiles.value];
-
-  if (!conversationId.value) {
-    await ensureConversation();
-    if (!conversationId.value) { ElMessage.error("无法创建会话"); return; }
-  }
-
-  messages.value.push({ role: "user", content, files, timestamp: Date.now() });
-  inputMessage.value = "";
-  uploadedFiles.value = [];
-  scrollToBottom();
-  isLoading.value = true;
-
-  messages.value.push({ role: "assistant", content: "", timestamp: Date.now() });
-  const aiMsgIndex = messages.value.length - 1;
-
-  sendChatStream(
-    conversationId.value,
-    content,
-    files,
-    (text) => { messages.value[aiMsgIndex].content += text; scrollToBottom(); },
-    (errMsg) => { messages.value[aiMsgIndex].content += `\n\n**错误**: ${errMsg}`; isLoading.value = false; scrollToBottom(); },
-    () => {
-      if (!messages.value[aiMsgIndex].content) { messages.value[aiMsgIndex].content = "抱歉，AI 暂时无法回复，请稍后重试。"; }
-      isLoading.value = false; scrollToBottom();
-    }
-  );
-};
 </script>
 
 <style scoped>
+.doc-preview-cards { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+.doc-card { display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 12px; background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: all 0.3s ease; border-right: 1px solid #f3f4f6; border-top: 1px solid #f3f4f6; border-bottom: 1px solid #f3f4f6; width: 100%; max-width: 450px; }
+.doc-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.08); }
+.doc-card-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05); }
+.doc-card-info { flex: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+.doc-card-name { font-weight: 600; font-size: 15px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-card-type { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.doc-card-desc { font-size: 12px; color: #6b7280; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.doc-card-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; width: 85px; }
+.doc-card-actions .el-button { margin-left: 0 !important; width: 100%; }
+
+.entity-preview-cards { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.entity-card { display: flex; align-items: flex-start; gap: 16px; padding: 16px; background: #fff; border-radius: 12px; border: 1px solid #e4e7ed; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.2s; }
+.entity-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.entity-card-icon { width: 48px; height: 48px; background: #ecf5ff; color: #409eff; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.entity-card-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.entity-card-name { font-weight: 600; font-size: 16px; color: #303133; }
+.entity-card-desc { font-size: 13px; color: #606266; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.entity-card-meta { display: flex; gap: 8px; margin-top: 4px; }
+.entity-card-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+
 .ai-chat-container { display: flex; height: 100vh; background: #ffffff; box-sizing: border-box; }
 .chat-main { display: flex; flex-direction: column; width: 100%; height: 100%; background: #ffffff; overflow: hidden; }
 .chat-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #f3f4f6; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); z-index: 10; }
@@ -370,20 +316,21 @@ const sendMessage = async () => {
 .message-wrapper {
   display: flex;
   gap: 16px;
-  max-width: 75%; /* 比例控制 */
+  max-width: 50%;
 }
 @media (min-width: 1024px) {
   .message-wrapper {
-    max-width: 750px; /* 物理宽度限制 */
+    max-width: 50%;
   }
 }
 
 .message-item.user { justify-content: flex-end; }
 .message-item.user .message-wrapper { flex-direction: row-reverse; }
+.message-item.assistant .message-wrapper { flex-direction: row; }
 .message-avatar { flex-shrink: 0; }
 .ai-avatar { width: 36px; height: 36px; background: linear-gradient(135deg, #4f9cf7 0%, #6366f1 100%); color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
 .user-avatar { background: #e5e7eb; color: #4b5563; }
-.message-content { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.message-content { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; flex: 1; }
 .message-item.user .message-content { align-items: flex-end; }
 .message-header { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-left: 4px; }
 .message-sender { font-weight: 600; color: #374151; }
@@ -405,7 +352,7 @@ const sendMessage = async () => {
 }
 
 .message-item.assistant .message-body {
-  padding-right: 44px; /* 为内部复制按钮留出位置 */
+  padding-right: 44px;
 }
 
 .message-item.user .message-body {
@@ -413,7 +360,7 @@ const sendMessage = async () => {
   color: #111827;
   border-radius: 16px;
   border-top-right-radius: 2px;
-  padding-right: 16px; /* 覆盖AI右侧留白 */
+  padding-right: 16px;
 }
 
 .copy-btn { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 0.2s ease-in-out; border: none; background: rgba(255, 255, 255, 0.7); box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #6b7280; z-index: 2; }

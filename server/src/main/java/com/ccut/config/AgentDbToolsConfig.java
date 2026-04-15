@@ -21,15 +21,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * Agent 数据库查询工具注册配置类
- *
- * <p>将 6 个数据库查询能力注册为 Spring AI 标准的 Function Tool，
- * 供 ChatClient 通过 .defaultTools(...) 挂载给大模型自动调用。</p>
- *
- * <p>所有工具均为只读查询，通过 {@link UserContext} 获取当前用户身份。
- * 出错时返回 JSON 错误信息而不抛异常，防止中断 ChatClient 的 tool call 循环。</p>
- */
 @Configuration
 public class AgentDbToolsConfig {
 

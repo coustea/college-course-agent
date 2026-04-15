@@ -38,6 +38,16 @@ public interface MessageService {
     Message saveAIMessage(String conversationId, String content, String username);
 
     /**
+     * 保存 AI 消息（带结构化文件信息）
+     * @param conversationId 会话ID
+     * @param content 消息内容
+     * @param username 用户名
+     * @param filesJson 文件信息（JSON字符串）
+     * @return 保存的消息对象
+     */
+    Message saveAIMessage(String conversationId, String content, String username, String filesJson);
+
+    /**
      * 从缓存加载会话历史（如果缓存没有，从MySQL加载）
      * @param conversationId 会话ID
      * @param username 用户名（用于Redis key）

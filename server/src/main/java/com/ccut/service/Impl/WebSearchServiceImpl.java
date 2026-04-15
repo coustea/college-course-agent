@@ -7,6 +7,7 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -19,8 +20,10 @@ import java.util.Map;
 public class WebSearchServiceImpl implements WebSearchService {
 
     private static final Logger log = LoggerFactory.getLogger(WebSearchServiceImpl.class);
-    private static final String SERP_API_KEY = "e0140cf1abc178499670081d6faff25bb5f75583fc10416c75af231efe9c7b44";
     private static final String SERP_API_URL = "https://serpapi.com/search";
+
+    @Value("${serp.api-key:}")
+    private String serpApiKey;
 
     @Override
     public String search(String query) {
@@ -34,7 +37,7 @@ public class WebSearchServiceImpl implements WebSearchService {
             params.put("q", query);
             params.put("hl", "zh-cn");
             params.put("gl", "cn");
-            params.put("api_key", SERP_API_KEY);
+            params.put("api_key", serpApiKey);
 
             log.debug("发送请求到 SerpAPI: url={}, params={}", SERP_API_URL, params.keySet());
             String result = HttpUtil.get(SERP_API_URL, params, 10000);

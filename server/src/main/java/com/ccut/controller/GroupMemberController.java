@@ -24,7 +24,7 @@ public class GroupMemberController {
 
     @PostMapping("/getById")
     public Result<GroupMember> getGroupMember(@RequestParam Long studentId) {
-        System.out.println(studentId);
+        log.debug("Getting group member for studentId: {}", studentId);
         if(studentId == null){
             throw new IllegalArgumentException("参数错误");
         }

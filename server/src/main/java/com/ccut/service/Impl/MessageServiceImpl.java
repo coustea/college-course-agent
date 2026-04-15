@@ -62,6 +62,11 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public Message saveAIMessage(String conversationId, String content, String username) {
+        return saveAIMessage(conversationId, content, username, null);
+    }
+
+    @Override
+    public Message saveAIMessage(String conversationId, String content, String username, String filesJson) {
         // 获取该会话的下一个消息序号
         int nextSequenceNum = messageMapper.getNextSequenceNum(conversationId);
 
@@ -74,6 +79,7 @@ public class MessageServiceImpl implements MessageService {
         message.setSequenceNum(nextSequenceNum);
         message.setCreatedAt(LocalDateTime.now());
         message.setTokensUsed(0);
+        message.setFiles(filesJson);
 
         // 同步保存到MySQL（确保数据持久化）
         messageMapper.insert(message);

@@ -24,8 +24,7 @@ public interface LearningProgressMapper {
                               @Param("courseId") Long courseId);
 
     /**
-     * 获取指定教师的所有已发布课程的统计数据（包含平均完成率）
-     * 只统计选课了该课程的学生数据
+     * 获取指定教师的所有课程的统计数据（包含平均完成率）
      * @param teacherId 教师ID
      * @return 课程统计数据列表
      */

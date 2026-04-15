@@ -4,13 +4,16 @@ import com.ccut.context.UserContext;
 import com.ccut.dto.Attachment;
 import com.ccut.dto.ChatRequest;
 import com.ccut.dto.ChatResponse;
+import com.ccut.dto.GeneratedFileInfo;
 import com.ccut.entity.Message;
 import com.ccut.entity.Student;
+import com.ccut.plugin.ChatToolContext;
 import com.ccut.service.ChatAgentService;
 import com.ccut.service.DocumentAnalysisService;
 import com.ccut.service.MessageService;
 import com.ccut.service.StudentService;
 import com.ccut.utils.ReadFileUtils;
+import com.ccut.plugin.ChatPluginManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.slf4j.Logger;
@@ -31,17 +34,17 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * AI 聊天 Agent 服务实现 — Spring AI Native Function Calling 架构
  *
  * <p>核心特性：</p>
  * <ul>
+ *     <li>插件化架构：动态加载 {@link com.ccut.plugin.ToolPlugin}，工具故障不影响基础会话</li>
+ *     <li>动态技能：通过 {@link com.ccut.plugin.ChatSkill} 注入 System Prompt 指令段落</li>
  *     <li>动态 System Prompt：根据用户角色（学生/教师）和用户上下文动态构建</li>
- *     <li>阅读与分析文档 — 通过 DocumentAnalysisService 解析附件，注入 System Prompt</li>
- *     <li>联网搜索 — 通过 webSearch Tool 原生挂载给大模型</li>
- *     <li>生成文档 — 通过 generateExcel / generateWord Tool 原生挂载给大模型</li>
- *     <li>数据库查询 — 通过 6 个 DB Tool 查询学习进度、错题、考试记录等平台数据</li>
+ *     <li>混合工具集：支持传统静态 Function 工具和新型插件化工具</li>
  * </ul>
  */
 @Service
@@ -52,7 +55,7 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    /** 预构建的 ChatClient（已绑定 Tools，System Prompt 在每次请求时动态设置） */
+    /** 预构建的 ChatClient (System Prompt 和 Tools 在每次请求时动态设置) */
     private ChatClient chatClient;
 
     /** 基础系统提示词模板（不含用户上下文） */
@@ -70,21 +73,18 @@ public class ChatAgentServiceImpl implements ChatAgentService {
     @Autowired
     private ChatClient.Builder chatClientBuilder;
 
+    @Autowired
+    private ChatPluginManager pluginManager;
+
+    /** 传统静态注册的 ToolCallbacks (Spring Context 中的 Function beans) */
     @Autowired(required = false)
-    private List<ToolCallback> toolCallbacks;
+    private List<ToolCallback> staticToolCallbacks;
 
     @jakarta.annotation.PostConstruct
     public void init() {
-        ChatClient.Builder builder = chatClientBuilder;
-        if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
-            builder = builder.defaultToolCallbacks(toolCallbacks.toArray(new ToolCallback[0]));
-            logger.info("ChatClient 初始化完成，已注册 {} 个工具: {}",
-                    toolCallbacks.size(),
-                    toolCallbacks.stream().map(tc -> tc.getToolDefinition().name()).collect(java.util.stream.Collectors.joining(", ")));
-        } else {
-            logger.warn("ChatClient 初始化完成，未注册任何工具");
-        }
-        this.chatClient = builder.build();
+        // 不再在 builder 中设置默认工具，改为在每次请求时动态注入
+        this.chatClient = chatClientBuilder.build();
+        logger.info("ChatClient 初始化完成，将使用动态工具注入模式");
     }
 
     public ChatAgentServiceImpl(
@@ -109,10 +109,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         String originalInput = request.message();
 
         logger.info("========== [Chat Start] ==========");
-        logger.debug("conversationId={}, username={}, role={}, message 长度={}, 附件数={}",
-                conversationId, username, role,
-                originalInput != null ? originalInput.length() : 0,
-                request.attachments() != null ? request.attachments().size() : 0);
 
         // 1. 构建用户 Prompt（含附件上下文）
         String aiPrompt = buildAIPrompt(originalInput, request.attachments());
@@ -125,36 +121,51 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         List<Message> history = messageService.loadConversationHistory(conversationId, username);
         List<org.springframework.ai.chat.messages.Message> historyMsgs = buildHistoryMessages(history);
 
-        // 4. 构建动态 System Prompt
+        // 4. 构建动态 System Prompt (包含插件指令)
         String dynamicPrompt = buildDynamicSystemPrompt(username, role);
 
-        // 5. 调用 ChatClient（Spring AI 自动处理 Tool Call 循环）
+        // 5. 聚合所有可用工具 (静态工具 + 插件工具)
+        List<ToolCallback> allTools = gatherAllTools();
+
+        // 6. 调用 ChatClient
         String aiText;
+        List<GeneratedFileInfo> generatedFiles;
+        ChatToolContext.startRequest();
         try {
             aiText = chatClient.prompt()
                     .system(dynamicPrompt)
                     .messages(historyMsgs)
                     .user(aiPrompt)
+                    .toolCallbacks(allTools.toArray(new ToolCallback[0])) // 动态注入工具回调
                     .call()
                     .content();
+            generatedFiles = ChatToolContext.snapshotGeneratedFiles();
         } catch (Exception e) {
             logger.error("ChatClient 调用失败: conversationId={}, error={}", conversationId, e.getMessage(), e);
             aiText = "抱歉，AI 服务暂时出现问题，请稍后重试。错误信息：" + e.getMessage();
+            generatedFiles = List.of();
+        } finally {
+            ChatToolContext.clear();
         }
 
         if (aiText == null || aiText.isBlank()) {
             aiText = "抱歉，未能获取到有效回复，请重新提问。";
         }
+        aiText = normalizeAssistantContent(aiText, generatedFiles);
 
-        logger.debug("AI 回复完成: conversationId={}, 回复长度={}", conversationId, aiText.length());
-
-        // 6. 保存 AI 消息并刷新缓存
-        Message aiMessage = messageService.saveAIMessage(conversationId, aiText, username);
+        // 7. 保存 AI 消息并刷新缓存
+        Message aiMessage = messageService.saveAIMessage(
+                conversationId,
+                aiText,
+                username,
+                serializeGeneratedFiles(generatedFiles)
+        );
         refreshCacheAsync(conversationId, username);
 
         ChatResponse response = new ChatResponse();
         response.setAiMessage(aiMessage);
         response.setConversationId(conversationId);
+        response.setGeneratedFiles(generatedFiles);
         return response;
     }
 
@@ -164,12 +175,8 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         String originalInput = request.message();
 
         logger.info("========== [Stream Chat Start] ==========");
-        logger.debug("conversationId={}, username={}, role={}, message 长度={}, 附件数={}",
-                conversationId, username, role,
-                originalInput != null ? originalInput.length() : 0,
-                request.attachments() != null ? request.attachments().size() : 0);
 
-        // 1. 构建用户 Prompt（含附件上下文）
+        // 1. 构建用户 Prompt
         String aiPrompt = buildAIPrompt(originalInput, request.attachments());
 
         // 2. 保存用户消息
@@ -186,7 +193,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         try {
             history = messageService.loadConversationHistory(conversationId, username);
         } catch (Exception e) {
-            logger.warn("加载历史消息失败，使用空历史: {}", e.getMessage());
             history = List.of();
         }
         List<org.springframework.ai.chat.messages.Message> historyMsgs = buildHistoryMessages(history);
@@ -194,35 +200,48 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         // 4. 构建动态 System Prompt
         String dynamicPrompt = buildDynamicSystemPrompt(username, role);
 
-        // 5. 同步调用 ChatClient（Tool Call 循环在此完成，ThreadLocal 可用）
+        // 5. 聚合所有可用工具
+        List<ToolCallback> allTools = gatherAllTools();
+
+        // 6. 调用 ChatClient (同步获取结果再分块，以确保 Tool Call 完整执行)
         String aiText;
+        List<GeneratedFileInfo> generatedFiles;
+        ChatToolContext.startRequest();
         try {
             aiText = chatClient.prompt()
                     .system(dynamicPrompt)
                     .messages(historyMsgs)
                     .user(aiPrompt)
+                    .toolCallbacks(allTools.toArray(new ToolCallback[0])) // 动态注入工具回调
                     .call()
                     .content();
+            generatedFiles = ChatToolContext.snapshotGeneratedFiles();
         } catch (Exception e) {
-            logger.error("流式 ChatClient 调用失败: conversationId={}, error={}", conversationId, e.getMessage(), e);
+            logger.error("流式 ChatClient 调用失败: {}", e.getMessage(), e);
             return Flux.just("{\"code\":500,\"message\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}");
+        } finally {
+            ChatToolContext.clear();
         }
 
         if (aiText == null || aiText.isBlank()) {
             aiText = "抱歉，未能获取到有效回复，请重新提问。";
         }
+        aiText = normalizeAssistantContent(aiText, generatedFiles);
 
-        logger.debug("流式 AI 回复完成: conversationId={}, 回复长度={}", conversationId, aiText.length());
-
-        // 6. 保存 AI 消息并刷新缓存
+        // 7. 保存 AI 消息并刷新缓存
         try {
-            messageService.saveAIMessage(conversationId, aiText, username);
+            messageService.saveAIMessage(
+                    conversationId,
+                    aiText,
+                    username,
+                    serializeGeneratedFiles(generatedFiles)
+            );
             refreshCacheAsync(conversationId, username);
         } catch (Exception e) {
             logger.error("保存 AI 消息失败: {}", e.getMessage(), e);
         }
 
-        // 7. 返回纯分块 Flux（不需要 ThreadLocal，仅负责分块推送已计算好的结果）
+        // 8. 返回 SSE 分块
         final String chunkText = aiText;
         return Flux.create(sink -> {
             int chunkSize = 4;
@@ -237,20 +256,45 @@ public class ChatAgentServiceImpl implements ChatAgentService {
                     return;
                 }
             }
+            if (generatedFiles != null && !generatedFiles.isEmpty()) {
+                sink.next(formatSseFiles(generatedFiles));
+            }
             sink.complete();
         });
+    }
+
+    /**
+     * 聚合所有可用工具：包含 Spring Context 中静态定义的 Function Tools 和 插件系统加载的 Tools。
+     */
+    private List<ToolCallback> gatherAllTools() {
+        List<ToolCallback> tools = new ArrayList<>();
+        // 1. 添加静态工具
+        if (staticToolCallbacks != null) {
+            tools.addAll(staticToolCallbacks);
+        }
+        // 2. 添加插件工具
+        tools.addAll(pluginManager.getActiveToolCallbacks());
+        return tools;
     }
 
     // ======================== 动态 System Prompt ========================
 
     /**
-     * 构建动态 System Prompt：基础 prompt + 用户上下文 + 角色差异化指引
-     *
-     * <p>根据当前用户身份动态注入上下文信息，使 Agent 能够区分学生和教师角色，
-     * 并在 DB 工具调用时正确获取当前用户数据。</p>
+     * 构建动态 System Prompt：基础 prompt + 插件指令 + 用户上下文 + 角色差异化指引
      */
     private String buildDynamicSystemPrompt(String username, String role) {
         StringBuilder sb = new StringBuilder(baseSystemPrompt);
+
+        String capabilityCatalog = pluginManager.getCapabilityCatalog();
+        if (!capabilityCatalog.isBlank()) {
+            sb.append(capabilityCatalog);
+        }
+
+        // 注入插件系统提供的动态指令（例如 Skill 定义的规则）
+        String pluginInstructions = pluginManager.getDynamicInstructions();
+        if (!pluginInstructions.isBlank()) {
+            sb.append(pluginInstructions);
+        }
 
         // 构建用户上下文块
         sb.append("\n\n## 当前用户上下文\n\n");
@@ -300,9 +344,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
     /**
      * 构建带附件上下文的 AI 输入 Prompt
-     *
-     * <p>当用户上传了文档或图片时，将解析出的文本/图片信息注入到
-     * {@code <文档上下文>} 和 {@code <图片上下文>} 标签中。</p>
      */
     private String buildAIPrompt(String originalInput, List<Attachment> attachments) {
         if (attachments == null || attachments.isEmpty()) {
@@ -375,9 +416,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
     /**
      * 将数据库中的消息记录转换为 Spring AI 的 Message 列表
-     *
-     * <p>跳过最后一条用户消息（因为当前请求会作为新的用户消息添加）。
-     * 如果历史消息包含附件信息，会重新解析附件内容作为上下文。</p>
      */
     private List<org.springframework.ai.chat.messages.Message> buildHistoryMessages(List<Message> history) {
         List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
@@ -426,9 +464,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
     // ======================== 工具方法 ========================
 
-    /**
-     * 将附件列表序列化为 JSON 字符串（用于持久化到 Message.files 字段）
-     */
     private String serializeAttachments(List<Attachment> attachments) {
         if (attachments == null || attachments.isEmpty()) return null;
         try {
@@ -439,27 +474,18 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         }
     }
 
-    /**
-     * 将文件 URL 路径转换为本地文件系统路径
-     */
     private String resolveFilePath(String url) {
         if (url == null) return "";
         if (url.startsWith("/uploads/")) return url.replace("/uploads/", "uploads/");
         return url;
     }
 
-    /**
-     * 获取文件扩展名（小写）
-     */
     private String getExtension(String filename) {
         if (filename == null) return "";
         int dot = filename.lastIndexOf('.');
         return dot >= 0 ? filename.substring(dot + 1).toLowerCase() : "";
     }
 
-    /**
-     * 将文本块格式化为 SSE JSON 格式（保持前端兼容）
-     */
     private String formatSseChunk(String text) {
         String escaped = text
                 .replace("\\", "\\\\")
@@ -470,9 +496,41 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         return "{\"content\":\"" + escaped + "\"}";
     }
 
-    /**
-     * 异步刷新会话缓存（不阻塞主流程）
-     */
+    private String formatSseFiles(List<GeneratedFileInfo> generatedFiles) {
+        try {
+            return objectMapper.writeValueAsString(Map.of("files", generatedFiles));
+        } catch (Exception e) {
+            logger.error("SSE 文件元数据序列化失败: {}", e.getMessage(), e);
+            return "{\"files\":[]}";
+        }
+    }
+
+    private String serializeGeneratedFiles(List<GeneratedFileInfo> generatedFiles) {
+        if (generatedFiles == null || generatedFiles.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(generatedFiles);
+        } catch (Exception e) {
+            logger.error("生成文件元数据序列化失败: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private String normalizeAssistantContent(String aiText, List<GeneratedFileInfo> generatedFiles) {
+        String normalized = aiText == null ? "" : aiText.replaceAll("\\[document:[^\\]]+\\]", "").trim();
+        if (generatedFiles == null || generatedFiles.isEmpty()) {
+            return normalized;
+        }
+        if (normalized.isBlank()) {
+            return "已根据你的要求生成文件，见下方文件卡片。";
+        }
+        if (normalized.length() > 240) {
+            return normalized.substring(0, 240).trim() + "\n\n已生成文件，见下方文件卡片。";
+        }
+        return normalized;
+    }
+
     @Async("chatExecutor")
     protected void refreshCacheAsync(String conversationId, String username) {
         try {

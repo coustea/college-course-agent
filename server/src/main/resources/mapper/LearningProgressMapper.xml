@@ -157,10 +157,9 @@
                 END,
             0.0) AS average_completion
         FROM courses c
-        INNER JOIN enrollments e ON e.course_id = c.course_id AND e.status = 'active'
+        LEFT JOIN enrollments e ON e.course_id = c.course_id AND e.status = 'active'
         LEFT JOIN learning_progress lp ON lp.student_id = e.student_id AND lp.course_id = c.course_id
         WHERE c.teacher_id = #{teacherId}
-          AND c.publish_status = 'published'
         GROUP BY c.course_id, c.course_name
         ORDER BY c.course_id
     </select>

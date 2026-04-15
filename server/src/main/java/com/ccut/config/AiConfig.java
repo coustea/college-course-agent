@@ -21,11 +21,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
-/**
- * Spring AI 配置类
- * 手动构建 OpenAiChatModel（通过 OpenAI 兼容接口连接 DeepSeek）
- * 配置自定义 SSL 以解决 SSL 握手问题
- */
 @Configuration
 public class AiConfig {
 

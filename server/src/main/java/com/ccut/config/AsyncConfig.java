@@ -10,10 +10,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 
-/**
- * 异步线程池配置
- * 为不同类型的异步任务提供专用线程池
- */
+
 @Slf4j
 @Configuration
 @EnableAsync

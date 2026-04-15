@@ -53,7 +53,7 @@ public class RecommendationServiceImpl implements RecommendationService {
             log.info("获取学生已选课程：studentId={}, count={}", studentId, enrolledCourseIds.size());
 
             // 2. 获取所有可用课程
-            List<Course> allCourses = courseMapper.findAll();
+            List<Course> allCourses = courseMapper.selectAll();
             List<Course> candidateCourses = allCourses.stream()
                     .filter(course -> !enrolledCourseIds.contains(course.getCourseId()))
                     .collect(Collectors.toList());
@@ -304,7 +304,7 @@ public class RecommendationServiceImpl implements RecommendationService {
     private Set<String> getEnrolledCategories(List<Long> enrolledCourseIds) {
         Set<String> categories = new HashSet<>();
         for (Long courseId : enrolledCourseIds) {
-            Course course = courseMapper.findById(courseId);
+            Course course = courseMapper.selectById(courseId);
             if (course != null && course.getCourseCode() != null) {
                 categories.add(course.getCourseCode());
             }

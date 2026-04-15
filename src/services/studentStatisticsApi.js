@@ -1,6 +1,4 @@
-import axios from 'axios'
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+import request from '@/utils/request'
 
 /**
  * 获取学生统计数据
@@ -8,11 +6,8 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
  * @returns {Promise} 返回学生统计数据
  */
 export const fetchStudentStatistics = async (studentId) => {
-  const response = await axios.get(`${BASE_URL}/progress/student/statistics`, {
-    params: { studentId },
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    }
+  const response = await request.get('/progress/student/statistics', {
+    params: { studentId }
   })
   return response.data.data
 }

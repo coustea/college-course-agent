@@ -104,4 +104,59 @@ const router = createRouter({
   routes: [ ...studentRoutes, ...teacherRoutes, ...publicRoutes ]
 })
 
+// Public routes that don't require authentication
+const publicRoutePaths = ['/', '/login', '/404', '/not-found']
+
+// Router authentication guard
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token')
+  const userRole = localStorage.getItem('userRole')
+
+  // Allow public routes without auth check
+  if (publicRoutePaths.includes(to.path)) {
+    // If user is already logged in and tries to access login page, redirect based on role
+    if (to.path === '/login' && token) {
+      if (userRole === 'teacher') {
+        next('/teacher')
+      } else {
+        next('/student')
+      }
+    } else {
+      next()
+    }
+    return
+  }
+
+  // For all other routes, check if token exists
+  if (!token) {
+    // No token, redirect to login
+    next('/login')
+    return
+  }
+
+  // Token exists, perform role-based access control
+  const isTeacherPath = to.path.startsWith('/teacher')
+  const isStudentPath = to.path.startsWith('/student') ||
+                        to.path.startsWith('/group') ||
+                        to.path.startsWith('/data') ||
+                        to.path.startsWith('/work') ||
+                        to.path.startsWith('/profile')
+
+  // Check role permissions
+  if (isTeacherPath && userRole !== 'teacher') {
+    // Non-teacher trying to access teacher routes
+    next('/student')
+    return
+  }
+
+  if (isStudentPath && userRole === 'teacher') {
+    // Teacher trying to access student routes
+    next('/teacher')
+    return
+  }
+
+  // Allow navigation
+  next()
+})
+
 export default router

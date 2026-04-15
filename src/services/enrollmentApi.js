@@ -1,17 +1,6 @@
-import axios from 'axios'
+import request from '@/utils/request'
 
-const fallbackBase = 'http://localhost:9999/api'
-
-export const api = axios.create({
-  baseURL: import.meta?.env?.VITE_API_BASE_URL || fallbackBase,
-  timeout: 15000
-})
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
-  if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
-  return config
-})
+const api = request
 
 // 学生选课
 export const enrollCourse = (studentId, courseId) =>

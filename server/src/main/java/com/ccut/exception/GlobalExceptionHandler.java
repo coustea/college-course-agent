@@ -139,7 +139,7 @@ public class GlobalExceptionHandler {
         log.error("异常类型：{}", e.getClass().getName());
         log.error("异常消息：{}", e.getMessage());
         log.error("完整堆栈:", e);
-        
-        return Result.error(ErrorCode.INTERNAL_ERROR.getCode(), "服务器内部错误：" + e.getMessage());
+
+        return Result.error(ErrorCode.INTERNAL_ERROR.getCode(), "服务器内部错误");
     }
 }

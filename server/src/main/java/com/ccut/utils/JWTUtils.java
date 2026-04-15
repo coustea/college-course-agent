@@ -7,8 +7,10 @@ import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.security.SignatureException;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -25,9 +27,21 @@ public class JWTUtils {
     // Token 过期时间（7 天）- 开发环境设置较长，避免频繁过期
     private static final long EXPIRE = 7 * 24 * 60 * 60 * 1000;
 
-    // 签名密钥 (至少 64 字节以满足 HS512 算法要求)
-    private static final String SIGN_KEY = "CCUT_JWT_SECRET_KEY_2024_HS512_ALGORITHM_MUST_BE_AT_LEAST_64_BYTES_LONG_FOR_SECURITY";
-    private static final byte[] SECRET_KEY = SIGN_KEY.getBytes(StandardCharsets.UTF_8);
+    // 签名密钥 (从环境变量注入，通过@PostConstruct初始化静态字段)
+    @Value("${jwt.secret-key:CCUT_JWT_SECRET_KEY_2024_HS512_ALGORITHM_MUST_BE_AT_LEAST_64_BYTES_LONG_FOR_SECURITY}")
+    private String injectedSignKey;
+
+    private static String SIGN_KEY = "CCUT_JWT_SECRET_KEY_2024_HS512_ALGORITHM_MUST_BE_AT_LEAST_64_BYTES_LONG_FOR_SECURITY";
+    private static byte[] SECRET_KEY;
+
+    @PostConstruct
+    public void init() {
+        if (injectedSignKey != null && !injectedSignKey.isEmpty()) {
+            SIGN_KEY = injectedSignKey;
+        }
+        SECRET_KEY = SIGN_KEY.getBytes(StandardCharsets.UTF_8);
+        log.info("JWT密钥已初始化，长度: {} 字符", SIGN_KEY.length());
+    }
 
     /**
      * 生成 Token（只使用用户名）

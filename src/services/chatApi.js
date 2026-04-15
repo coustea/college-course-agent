@@ -1,47 +1,40 @@
-import axios from 'axios'
-import { getAuthHeaders } from './auth'
+import request from '@/utils/request'
 
-const API_BASE = import.meta?.env?.VITE_API_BASE_URL || '/api'
+// request 的 baseURL 已包含 /api，所以 axios 请求不需要再加前缀
+const CHAT_PATH = '/ai/chat'
+const CONV_PATH = '/ai/conversation'
+// 原生 fetch 需要 /api 前缀（不走 axios baseURL）
+const FETCH_API_BASE = '/api'
 
 // ======================== 会话管理 ========================
 
 /** 创建新会话 */
 export async function createConversation(title = '新对话') {
-  const res = await axios.post(`${API_BASE}/ai/conversation/create`, { title }, {
-    headers: getAuthHeaders()
-  })
+  const res = await request.post(`${CONV_PATH}/create`, { title })
   return res.data
 }
 
 /** 获取用户所有会话列表 */
 export async function getUserConversations(username) {
-  const res = await axios.get(`${API_BASE}/ai/conversation/list/${username}`, {
-    headers: getAuthHeaders()
-  })
+  const res = await request.get(`${CONV_PATH}/list/${username}`)
   return res.data
 }
 
 /** 获取会话历史消息 */
 export async function getConversationMessages(conversationId) {
-  const res = await axios.get(`${API_BASE}/ai/conversation/${conversationId}/messages`, {
-    headers: getAuthHeaders()
-  })
+  const res = await request.get(`${CONV_PATH}/${conversationId}/messages`)
   return res.data
 }
 
 /** 删除会话 */
 export async function deleteConversation(conversationId) {
-  const res = await axios.delete(`${API_BASE}/ai/conversation/${conversationId}`, {
-    headers: getAuthHeaders()
-  })
+  const res = await request.delete(`${CONV_PATH}/${conversationId}`)
   return res.data
 }
 
 /** 更新会话标题 */
 export async function updateConversationTitle(conversationId, title) {
-  const res = await axios.put(`${API_BASE}/ai/conversation/${conversationId}/title`, { title }, {
-    headers: getAuthHeaders()
-  })
+  const res = await request.put(`${CONV_PATH}/${conversationId}/title`, { title })
   return res.data
 }
 
@@ -49,17 +42,13 @@ export async function updateConversationTitle(conversationId, title) {
 
 /** 获取聊天历史 */
 export async function getChatHistory() {
-  const res = await axios.get(`${API_BASE}/ai/chat/history`, {
-    headers: getAuthHeaders()
-  })
+  const res = await request.get(`${CHAT_PATH}/history`)
   return res.data
 }
 
 /** 删除聊天记录 */
 export async function deleteChat() {
-  const res = await axios.delete(`${API_BASE}/ai/chat/delete`, {
-    headers: getAuthHeaders()
-  })
+  const res = await request.delete(`${CHAT_PATH}/delete`)
   return res.data
 }
 
@@ -71,9 +60,10 @@ export async function deleteChat() {
  * @param {Function} onChunk - 每收到一个文本片段时的回调 (text: string) => void
  * @param {Function} onError - 出错回调 (error: string) => void
  * @param {Function} onDone - 完成回调 () => void
+ * @param {Function} onFiles - 文件元数据回调 (files: Array) => void
  * @returns {AbortController} 用于外部中断流式请求
  */
-export function sendChatStream(conversationId, message, files, onChunk, onError, onDone) {
+export function sendChatStream(conversationId, message, files, onChunk, onError, onDone, onFiles) {
   const controller = new AbortController()
 
   const fd = new FormData()
@@ -83,11 +73,15 @@ export function sendChatStream(conversationId, message, files, onChunk, onError,
     files.forEach((f) => { if (f.file) fd.append('files', f.file) })
   }
 
-  const headers = { ...getAuthHeaders(), 'Accept': 'text/event-stream' }
+  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
+  const headers = { 'Accept': 'text/event-stream' }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
 
   console.log('[ChatStream] 发送流式请求:', { conversationId, message, fileCount: files?.length || 0 })
 
-  fetch(`${API_BASE}/ai/chat/stream`, {
+  fetch(`${FETCH_API_BASE}/ai/chat/stream`, {
     method: 'POST',
     headers,
     body: fd,
@@ -122,6 +116,8 @@ export function sendChatStream(conversationId, message, files, onChunk, onError,
             if (obj.code && obj.code !== 200) {
               console.error('[ChatStream] 服务器错误:', obj)
               onError(obj.message || '服务器错误')
+            } else if (Array.isArray(obj.files)) {
+              onFiles?.(obj.files)
             } else if (obj.content !== undefined && obj.content !== null) {
               chunkCount++
               onChunk(String(obj.content))

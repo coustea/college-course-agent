@@ -1,14 +1,7 @@
-import axios from 'axios'
+import request from '@/utils/request'
 
-const fallbackBase = 'http://localhost:9999/api'
-
-export const api = axios.create({ baseURL: import.meta?.env?.VITE_API_BASE_URL || fallbackBase, timeout: 15000 })
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token') || localStorage.getItem('userToken')
-  if (token) config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` }
-  return config
-})
+// Re-export api for backward compatibility with homeCoursesApi.js
+export const api = request
 
 // Courses
 export const listAllCourses = () => api.get('/course/list')
@@ -44,5 +37,3 @@ export const insertStudent = (payload) => api.post('/teacher/insert/students', p
 export const updateStudent = (id, payload) => api.put('/teacher/update/student', payload, { params: { id } })
 export const deleteStudentById = (id) => api.delete('/teacher/delete/student', { params: { id } })
 export const importStudents = (file) => { const form = new FormData(); form.append('file', file); return api.post('/teacher/import/students', form) }
-
-
