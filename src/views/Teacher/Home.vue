@@ -245,10 +245,12 @@ const router = useRouter()
 
 // 状态
 const teacherName = ref('')
+const teacherId = ref(null)
 const stats = ref({ courseCount: 0, studentCount: 0, completionRate: 0, assignmentCount: 0 })
 const recentCourses = ref([])
 const todos = ref([])
-const courseStats = ref([])
+const courseStats = ref([])   // 图表展示用 [{ courseName, completionRate }]
+const allStatsRaw = ref([])   // 完整后端统计数据 [{ courseId, courseName, totalStudents, averageCompletion, ... }]
 const pendingApplicationsCount = ref(0)
 const loading = ref({ recentCourses: false, courseStats: false })
 
@@ -280,75 +282,57 @@ const loadCurrentTeacher = () => {
   try {
     const saved = JSON.parse(localStorage.getItem('userInfo') || localStorage.getItem('currentUser') || 'null')
     let name = saved?.name || saved?.username || '老师'
-    // 去除可能存在的"老师"后缀（包括带空格和不带空格的情况）
     if (name && name !== '老师') {
       name = name.replace(/\s*老师\s*$/, '').trim()
     }
     teacherName.value = name
+    
+    // 获取正确的 teacherId
+    const localTid = localStorage.getItem('teacherId')
+    teacherId.value = localTid ? Number(localTid) : (saved?.teacherId || saved?.id || saved?.userId || null)
   } catch { teacherName.value = '老师' }
 }
 
 const fetchStats = async () => {
   try {
-    const [coursesRes, groupsRes] = await Promise.all([
-      api.get('/course/list'),
-      api.post('/student-group/approvalStatus')
+    const [coursesRes, groupsRes, studentsRes] = await Promise.all([
+      api.get(teacherId.value ? `/course/teacher/${teacherId.value}/all` : '/course/list'),
+      api.post('/student-group/approvalStatus'),
+      api.get('/teacher/list/students')
     ])
 
     const allCourses = coursesRes?.data?.data || []
     const groups = groupsRes?.data?.data || []
-
-    // 简单计算：实际项目中建议后端提供聚合接口以提高性能
-    // 这里为了演示效果，沿用前端计算逻辑但简化异常处理
-    const courseIds = allCourses.map(c => c.courseId || c.id)
-    // 模拟计算... 实际开发中应调用后端 /stats 接口
-    // 为保持页面响应速度，这里仅更新基础数据，详细进度由 fetchCourseStats 异步更新
+    const students = studentsRes?.data?.data || []
 
     stats.value.courseCount = allCourses.length
     stats.value.assignmentCount = groups.length
-    // studentCount 和 completionRate 在 fetchRecentCourses 中会进一步修正或保持默认
+    stats.value.studentCount = students.length
   } catch (e) { console.error('Stats error', e) }
 }
 
 const fetchRecentCourses = async () => {
   loading.value.recentCourses = true
   try {
-    const res = await api.get('/course/list')
+    const res = await api.get(teacherId.value ? `/course/teacher/${teacherId.value}/all` : '/course/list')
     const all = res?.data?.data || []
 
-    // 取前6个课程并并发获取详情
-    const targets = all.slice(0, 6)
-    const enriched = await Promise.all(targets.map(async (c) => {
-      const cid = c.courseId || c.id
-      let sCount = 0, rate = 0
-      try {
-        const sRes = await api.get('/teacher/enrollments/students', { params: { courseId: cid } })
-        const studs = sRes?.data?.data || []
-        sCount = studs.length
-        // 简化的进度逻辑：随机生成演示数据或真实计算
-        // 真实环境请解除下方注释
-        /*
-        if (studs.length) {
-           const pArr = await Promise.all(studs.map(s => api.get('/progress/course', { params: { studentId: s.id, courseId: cid } }).catch(()=>({}))))
-           const total = pArr.reduce((acc, r) => acc + (r?.data?.data?.completionPercentage || 0), 0)
-           rate = Math.round((total * 100) / studs.length)
-        }
-        */
-      } catch {}
+    // 用统计数据构建 courseId -> stat 的映射
+    const statMap = new Map(allStatsRaw.value.map(s => [s.courseId, s]))
 
+    // 取前6个课程，用后端统计数据补充学生数和完成率
+    const targets = all.slice(0, 6)
+    recentCourses.value = targets.map(c => {
+      const cid = c.courseId || c.id
+      const stat = statMap.get(cid)
       return {
         id: cid,
         title: c.courseName || c.title || '未命名课程',
         coverUrl: c.image || c.cover || c.resourceUrl,
-        studentCount: sCount,
-        completionRate: rate // 默认为0，待后端完善
+        studentCount: stat?.totalStudents || 0,
+        completionRate: Math.round(stat?.averageCompletion || 0)
       }
-    }))
-
-    recentCourses.value = enriched
-
-    // 更新全局统计中的学生总数（简单去重估算）
-    stats.value.studentCount = enriched.reduce((acc, c) => acc + c.studentCount, 0) // 仅作示例
+    })
   } catch { recentCourses.value = [] }
   finally { loading.value.recentCourses = false }
 }
@@ -356,9 +340,18 @@ const fetchRecentCourses = async () => {
 const fetchCourseStats = async () => {
   loading.value.courseStats = true
   try {
-    // 调用新的统计接口，获取真实的课程完成率数据
-    const statsRes = await api.get('/course/stats/all')
+    if (!teacherId.value) {
+      console.warn('fetchCourseStats: teacherId 为空，无法获取统计数据')
+      courseStats.value = []
+      allStatsRaw.value = []
+      return
+    }
+
+    const statsRes = await api.get('/course/stats/all', { params: { teacherId: teacherId.value } })
     const allStats = statsRes?.data?.data || []
+
+    // 保存完整统计数据供其他函数使用
+    allStatsRaw.value = allStats
 
     // 只展示前8个课程的图表
     const displayStats = allStats.slice(0, 8)
@@ -368,20 +361,21 @@ const fetchCourseStats = async () => {
       completionRate: Math.round(stat.averageCompletion || 0)
     }))
 
-    // 计算所有课程的平均完成率用于顶部卡片
+    // 用后端统计数据计算学生总数和平均完成率
     if (allStats.length > 0) {
+      stats.value.studentCount = allStats.reduce((acc, s) => acc + (s.totalStudents || 0), 0)
       const totalAvg = allStats.reduce((acc, s) => acc + (s.averageCompletion || 0), 0)
       stats.value.completionRate = Math.round(totalAvg / allStats.length)
     } else {
+      stats.value.studentCount = 0
       stats.value.completionRate = 0
     }
 
     updateChart()
   } catch (e) {
     console.error('获取课程统计数据失败:', e)
-    // 如果接口调用失败，设置为0
     courseStats.value = []
-    stats.value.completionRate = 0
+    allStatsRaw.value = []
   }
   finally { loading.value.courseStats = false }
 }
@@ -483,12 +477,12 @@ const goToCourseMaterials = (courseId) => {
   router.push(`/teacher/courses/${courseId}/materials`)
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadCurrentTeacher()
   loadTodos()
+  await fetchCourseStats()    // 先加载统计数据，为 fetchRecentCourses 提供数据
   fetchStats()
   fetchRecentCourses()
-  fetchCourseStats()
   fetchPendingCount()
 })
 
