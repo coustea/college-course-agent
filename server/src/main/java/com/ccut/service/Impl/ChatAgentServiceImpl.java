@@ -323,18 +323,16 @@ public class ChatAgentServiceImpl implements ChatAgentService {
             sb.append("\n### 教师角色行为指引\n");
             sb.append("当前用户是**教师**，你的回答应侧重于：\n");
             sb.append("- 教学设计建议（教案优化、课堂互动方案、教学方法改进）\n");
-            sb.append("- 学情分析和学生数据解读\n");
             sb.append("- 课程资源规划和教学内容推荐\n");
             sb.append("- 试卷命题和教学评估\n");
-            sb.append("- 学生管理建议\n");
+            sb.append("- 通用知识问答和学术讨论\n");
         } else {
             sb.append("\n### 学生角色行为指引\n");
             sb.append("当前用户是**学生**，你的回答应侧重于：\n");
             sb.append("- 学习指导和知识点讲解\n");
-            sb.append("- 学习进度跟踪和学习建议\n");
-            sb.append("- 错题分析和薄弱环节诊断\n");
             sb.append("- 考试备考策略和练习建议\n");
             sb.append("- 激励式引导和学法建议\n");
+            sb.append("- 通用知识问答和学术讨论\n");
         }
 
         return sb.toString();
