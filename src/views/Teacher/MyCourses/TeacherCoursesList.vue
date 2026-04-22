@@ -137,7 +137,7 @@
     <!-- 组件：播放器与文档查看器 (保持原逻辑) -->
     <CoursePlayer v-if="activeCourse" v-model="playerVisible" :course-id="activeCourse.id" :title="activeCourse.title" :chapters="activeCourse.chapters || []" :fallback-src="activeCourse.videoUrl || ''" :video-count="(activeCourse.chapters && activeCourse.chapters.length) || activeCourse.videoCount || 0" :enable-questions="false" @progress="onOverallProgress" />
 
-    <DocumentViewer v-model="docVisible" :id="activeDoc?.id" :title="activeDoc?.title || '文档课程'" :file-url="activeDoc?.fileUrl || activeDoc?.url || ''" :html-content="activeDoc?.html || ''" :chapters="activeDoc?.chapters || []" :course-title="activeDoc?.title || ''" :chapter-index="1" :progress="0" :image="activeDoc?.image || ''" :duration="activeDoc?.duration || ''" />
+    <DocumentViewer v-model="docVisible" :course-id="activeDoc?.courseId || activeDoc?.id || null" :id="activeDoc?.id" :title="activeDoc?.title || '文档课程'" :file-url="activeDoc?.fileUrl || activeDoc?.url || ''" :html-content="activeDoc?.html || ''" :chapters="activeDoc?.chapters || []" :course-title="activeDoc?.title || ''" :chapter-index="1" :progress="0" :image="activeDoc?.image || ''" :duration="activeDoc?.duration || ''" />
 
     <!-- 弹窗：学生管理 -->
     <el-dialog

@@ -78,7 +78,7 @@
 
     <!-- 预览弹窗组件 -->
     <CoursePlayer v-model="playerVisible" :course-id="playerCourseId" :title="playerTitle" :chapters="playerChapters" :start-index="playerStartIndex" :fallback-src="playerFallback" :video-count="playerChapters.length" :enable-questions="false" />
-    <DocumentViewer v-model="docVisible" :title="docTitle" :file-url="docFileUrl" :html-content="docHtmlContent" :progress="docProgress" :id="docId" :image="docImage" :duration="docDuration" />
+    <DocumentViewer v-model="docVisible" :course-id="docCourseId" :title="docTitle" :file-url="docFileUrl" :html-content="docHtmlContent" :progress="docProgress" :id="docId" :image="docImage" :duration="docDuration" />
     <el-dialog v-model="videoPickerVisible" :title="videoPickerTitle" width="560px">
       <el-table :data="videoPickerList" style="width: 100%" size="small" height="360">
         <el-table-column label="#" width="60"><template #default="scope">{{ (scope.row.videoIndex ?? scope.$index) + 1 }}</template></el-table-column>
@@ -233,6 +233,7 @@ export default {
     const docHtmlContent = ref('')
     const docProgress = ref(0)
     const docId = ref(null)
+    const docCourseId = ref(null)
     const docImage = ref('')
     const docDuration = ref('')
 
@@ -257,7 +258,7 @@ export default {
     }
     const openVideoAt = async (course, index) => { const cid = course.id || course.courseId; const list = await getCourseVideos(cid); if (!list.length) { ElMessage.info('该课程暂无视频'); return } playerCourseId.value = cid; playerTitle.value = course.title || course.courseName || '课程视频'; playerChapters.value = list.map(v => ({ title: v.videoTitle || `第${(v.videoIndex ?? 0) + 1}节`, videoUrl: normalizeVideoUrl(v.videoUrl || v.url || v.fileUrl || ''), duration: v.duration ? String(v.duration) : '' })); playerStartIndex.value = Math.max(0, Math.min(index || 0, list.length - 1)); const first = playerChapters.value.find(it => it.videoUrl); playerFallback.value = first ? first.videoUrl : ''; videoPickerVisible.value = false; playerVisible.value = true }
 
-    const previewCourseDocs = async (course) => { const cid = course.id || course.courseId; if (!cid) { ElMessage.error('缺少课程ID'); return } const list = await loadCourseDocs(cid); if (!list.length) { ElMessage.info('该课程暂无文档'); const url = (course.resourceUrl || course.image || '').toString(); if (/\.(pdf|docx?|pptx?)(\?.*)?$/i.test(url)) { docTitle.value = course.title || '课程文档'; docFileUrl.value = normalizeUrl(url); docHtmlContent.value = ''; docProgress.value = 0; docId.value = cid; docImage.value = ''; docDuration.value = ''; docVisible.value = true } return } const d = list[0]; docTitle.value = d.title || d.documentTitle || '课程文档'; docFileUrl.value = d.fileUrl ? normalizeUrl(d.fileUrl) : ''; docHtmlContent.value = d.content || ''; docProgress.value = 0; docId.value = d.id || null; docImage.value = ''; docDuration.value = ''; docVisible.value = true }
+    const previewCourseDocs = async (course) => { const cid = course.id || course.courseId; if (!cid) { ElMessage.error('缺少课程ID'); return } const list = await loadCourseDocs(cid); if (!list.length) { ElMessage.info('该课程暂无文档'); const url = (course.resourceUrl || course.image || '').toString(); if (/\.(pdf|docx?|pptx?)(\?.*)?$/i.test(url)) { docTitle.value = course.title || '课程文档'; docFileUrl.value = normalizeUrl(url); docHtmlContent.value = ''; docProgress.value = 0; docId.value = cid; docCourseId.value = cid; docImage.value = ''; docDuration.value = ''; docVisible.value = true } return } const d = list[0]; docTitle.value = d.title || d.documentTitle || '课程文档'; docFileUrl.value = d.fileUrl ? normalizeUrl(d.fileUrl) : ''; docHtmlContent.value = d.content || ''; docProgress.value = 0; docId.value = d.id || null; docCourseId.value = cid; docImage.value = ''; docDuration.value = ''; docVisible.value = true }
 
     const videoPickerVisible = ref(false)
     const videoPickerTitle = ref('选择视频')
@@ -266,7 +267,7 @@ export default {
 
     onMounted(() => { if (!token.value) { ElMessage.error('用户未登录，请先登录'); router.push('/login'); return } loadCourses() })
 
-    return { courses, categories, loading, searchQuery, categoryFilter, statusFilter, currentPage, pageSize, filteredCourses, paginatedCourses, progressColor, navigateToCreate, editCourse, manageMaterials, publishCourse, unpublishCourse, deleteCourse, getCategoryName, formatDate, playerVisible, playerTitle, playerCourseId, playerChapters, playerStartIndex, docVisible, docTitle, docFileUrl, docHtmlContent, docProgress, docId, docImage, docDuration, openVideoPicker, openVideoAt, videoPickerVisible, videoPickerTitle, videoPickerList, videoPickerCourse, previewCourseDocs, viewStudents}
+    return { courses, categories, loading, searchQuery, categoryFilter, statusFilter, currentPage, pageSize, filteredCourses, paginatedCourses, progressColor, navigateToCreate, editCourse, manageMaterials, publishCourse, unpublishCourse, deleteCourse, getCategoryName, formatDate, playerVisible, playerTitle, playerCourseId, playerChapters, playerStartIndex, docVisible, docTitle, docFileUrl, docHtmlContent, docProgress, docId, docCourseId, docImage, docDuration, openVideoPicker, openVideoAt, videoPickerVisible, videoPickerTitle, videoPickerList, videoPickerCourse, previewCourseDocs, viewStudents}
   }
 }
 </script>
@@ -312,5 +313,4 @@ export default {
   .page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
 }
 </style>
-
 

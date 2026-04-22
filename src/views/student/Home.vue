@@ -225,7 +225,7 @@
     <DocumentViewer
       v-model="docVisible"
       :id="activeDoc?.id"
-      :course-id="activeDoc?.id || activeDoc?.courseId"
+      :course-id="activeDoc?.courseId || activeDoc?.id"
       :title="activeDoc?.title || '文档课程'"
       :file-url="activeDoc?.fileUrl || activeDoc?.url || ''"
       :html-content="activeDoc?.html || ''"
