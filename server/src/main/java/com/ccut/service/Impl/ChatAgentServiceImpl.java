@@ -4,7 +4,6 @@ import com.ccut.context.UserContext;
 import com.ccut.dto.Attachment;
 import com.ccut.dto.ChatRequest;
 import com.ccut.dto.ChatResponse;
-import com.ccut.dto.GeneratedFileInfo;
 import com.ccut.entity.Message;
 import com.ccut.entity.Student;
 import com.ccut.plugin.ChatToolContext;
@@ -129,7 +128,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
         // 6. 调用 ChatClient
         String aiText;
-        List<GeneratedFileInfo> generatedFiles;
         ChatToolContext.startRequest();
         try {
             aiText = chatClient.prompt()
@@ -139,11 +137,9 @@ public class ChatAgentServiceImpl implements ChatAgentService {
                     .toolCallbacks(allTools.toArray(new ToolCallback[0])) // 动态注入工具回调
                     .call()
                     .content();
-            generatedFiles = ChatToolContext.snapshotGeneratedFiles();
         } catch (Exception e) {
             logger.error("ChatClient 调用失败: conversationId={}, error={}", conversationId, e.getMessage(), e);
             aiText = "抱歉，AI 服务暂时出现问题，请稍后重试。错误信息：" + e.getMessage();
-            generatedFiles = List.of();
         } finally {
             ChatToolContext.clear();
         }
@@ -151,21 +147,19 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         if (aiText == null || aiText.isBlank()) {
             aiText = "抱歉，未能获取到有效回复，请重新提问。";
         }
-        aiText = normalizeAssistantContent(aiText, generatedFiles);
 
         // 7. 保存 AI 消息并刷新缓存
         Message aiMessage = messageService.saveAIMessage(
                 conversationId,
                 aiText,
                 username,
-                serializeGeneratedFiles(generatedFiles)
+                null
         );
         refreshCacheAsync(conversationId, username);
 
         ChatResponse response = new ChatResponse();
         response.setAiMessage(aiMessage);
         response.setConversationId(conversationId);
-        response.setGeneratedFiles(generatedFiles);
         return response;
     }
 
@@ -205,7 +199,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
 
         // 6. 调用 ChatClient (同步获取结果再分块，以确保 Tool Call 完整执行)
         String aiText;
-        List<GeneratedFileInfo> generatedFiles;
         ChatToolContext.startRequest();
         try {
             aiText = chatClient.prompt()
@@ -215,7 +208,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
                     .toolCallbacks(allTools.toArray(new ToolCallback[0])) // 动态注入工具回调
                     .call()
                     .content();
-            generatedFiles = ChatToolContext.snapshotGeneratedFiles();
         } catch (Exception e) {
             logger.error("流式 ChatClient 调用失败: {}", e.getMessage(), e);
             return Flux.just("{\"code\":500,\"message\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}");
@@ -226,7 +218,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
         if (aiText == null || aiText.isBlank()) {
             aiText = "抱歉，未能获取到有效回复，请重新提问。";
         }
-        aiText = normalizeAssistantContent(aiText, generatedFiles);
 
         // 7. 保存 AI 消息并刷新缓存
         try {
@@ -234,7 +225,7 @@ public class ChatAgentServiceImpl implements ChatAgentService {
                     conversationId,
                     aiText,
                     username,
-                    serializeGeneratedFiles(generatedFiles)
+                    null
             );
             refreshCacheAsync(conversationId, username);
         } catch (Exception e) {
@@ -255,9 +246,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
                     sink.complete();
                     return;
                 }
-            }
-            if (generatedFiles != null && !generatedFiles.isEmpty()) {
-                sink.next(formatSseFiles(generatedFiles));
             }
             sink.complete();
         });
@@ -492,41 +480,6 @@ public class ChatAgentServiceImpl implements ChatAgentService {
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
         return "{\"content\":\"" + escaped + "\"}";
-    }
-
-    private String formatSseFiles(List<GeneratedFileInfo> generatedFiles) {
-        try {
-            return objectMapper.writeValueAsString(Map.of("files", generatedFiles));
-        } catch (Exception e) {
-            logger.error("SSE 文件元数据序列化失败: {}", e.getMessage(), e);
-            return "{\"files\":[]}";
-        }
-    }
-
-    private String serializeGeneratedFiles(List<GeneratedFileInfo> generatedFiles) {
-        if (generatedFiles == null || generatedFiles.isEmpty()) {
-            return null;
-        }
-        try {
-            return objectMapper.writeValueAsString(generatedFiles);
-        } catch (Exception e) {
-            logger.error("生成文件元数据序列化失败: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-
-    private String normalizeAssistantContent(String aiText, List<GeneratedFileInfo> generatedFiles) {
-        String normalized = aiText == null ? "" : aiText.replaceAll("\\[document:[^\\]]+\\]", "").trim();
-        if (generatedFiles == null || generatedFiles.isEmpty()) {
-            return normalized;
-        }
-        if (normalized.isBlank()) {
-            return "已根据你的要求生成文件，见下方文件卡片。";
-        }
-        if (normalized.length() > 240) {
-            return normalized.substring(0, 240).trim() + "\n\n已生成文件，见下方文件卡片。";
-        }
-        return normalized;
     }
 
     @Async("chatExecutor")

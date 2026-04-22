@@ -1,18 +1,13 @@
 package com.ccut.plugin;
 
-import com.ccut.dto.GeneratedFileInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.nio.file.Path;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Shell 命令执行插件 — 允许 AI Agent 执行受限的 Shell 命令
@@ -129,19 +124,6 @@ public class ShellExecutionPlugin implements ToolPlugin {
                 output = output.substring(0, MAX_OUTPUT_LENGTH) + "\n... (输出已截断，共 " + output.length() + " 字符)";
             }
 
-            String generatedFileUrl = extractGeneratedFileUrl(command);
-            if (exitCode == 0 && generatedFileUrl != null) {
-                String fileName = generatedFileUrl.substring(generatedFileUrl.lastIndexOf('/') + 1);
-                String fileType = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase() : "";
-                ChatToolContext.recordGeneratedFile(new GeneratedFileInfo(
-                        fileName,
-                        generatedFileUrl,
-                        fileType,
-                        "由命令行工具生成的文件",
-                        true
-                ));
-            }
-
             return "{\"success\": " + (exitCode == 0) + ", \"exitCode\": " + exitCode + ", \"output\": \"" +
                     escapeJson(output) + "\"}";
 
@@ -156,56 +138,6 @@ public class ShellExecutionPlugin implements ToolPlugin {
         // 去掉路径前缀，只取命令名
         int lastSlash = trimmed.lastIndexOf('/');
         return lastSlash >= 0 ? trimmed.substring(lastSlash + 1) : trimmed;
-    }
-
-    private String extractGeneratedFileUrl(String command) {
-        String directOutputPath = extractOptionValue(command, "-o");
-        if (directOutputPath != null) {
-            return toUploadUrl(directOutputPath);
-        }
-
-        String outDir = extractOptionValue(command, "--outdir");
-        if (outDir != null && command.contains("--convert-to")) {
-            Matcher convertMatcher = Pattern.compile("--convert-to\\s+([a-zA-Z0-9]+)").matcher(command);
-            Matcher sourceMatcher = Pattern.compile("([^\\s\"']+\\.[a-zA-Z0-9]+)\\s*$").matcher(command.trim());
-            if (convertMatcher.find() && sourceMatcher.find()) {
-                String targetExt = convertMatcher.group(1).toLowerCase();
-                String sourceFile = sourceMatcher.group(1);
-                String sourceName = Path.of(sourceFile).getFileName().toString();
-                int dotIndex = sourceName.lastIndexOf('.');
-                String targetName = (dotIndex >= 0 ? sourceName.substring(0, dotIndex) : sourceName) + "." + targetExt;
-                return toUploadUrl(Path.of(outDir, targetName).toString());
-            }
-        }
-        return null;
-    }
-
-    private String extractOptionValue(String command, String option) {
-        Pattern pattern = Pattern.compile(Pattern.quote(option) + "\\s+(?:\"([^\"]+)\"|'([^']+)'|([^\\s]+))");
-        Matcher matcher = pattern.matcher(command);
-        if (!matcher.find()) {
-            return null;
-        }
-        for (int i = 1; i <= 3; i++) {
-            String value = matcher.group(i);
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    private String toUploadUrl(String absolutePath) {
-        if (absolutePath == null || absolutePath.isBlank()) {
-            return null;
-        }
-        Path uploadRoot = Path.of(uploadDir).normalize();
-        Path targetPath = Path.of(absolutePath).normalize();
-        if (!targetPath.startsWith(uploadRoot)) {
-            return null;
-        }
-        String relative = uploadRoot.relativize(targetPath).toString().replace(File.separatorChar, '/');
-        return "/uploads/" + relative;
     }
 
     private String escapeJson(String text) {
