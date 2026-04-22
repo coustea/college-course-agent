@@ -6,6 +6,7 @@ function toUrl(u) {
   if (!u) return ''
   const s = String(u)
   if (/^https?:/i.test(s)) return s
+  // baseURL is http://localhost:9999 (no /api), so add /api prefix
   return `/api/${s.replace(/^\//, '')}`
 }
 

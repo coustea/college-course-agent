@@ -13,7 +13,7 @@ const api = request
 
 export async function getVideoProgress(courseId, chapterIndex) {
   try {
-    const res = await api.get(`/progress/${encodeURIComponent(courseId)}`)
+    const res = await api.get(`/api/progress/${encodeURIComponent(courseId)}`)
     return res?.data?.videos?.[chapterIndex] ?? 0
   } catch (e) {
     return 0
@@ -22,7 +22,7 @@ export async function getVideoProgress(courseId, chapterIndex) {
 
 export async function setVideoProgress(courseId, chapterIndex, progress) {
   try {
-    const res = await api.patch(`/progress/${encodeURIComponent(courseId)}/videos/${encodeURIComponent(chapterIndex)}`, {
+    const res = await api.patch(`/api/progress/${encodeURIComponent(courseId)}/videos/${encodeURIComponent(chapterIndex)}`, {
       progress
     })
     return res?.data?.overall ?? 0
@@ -33,7 +33,7 @@ export async function setVideoProgress(courseId, chapterIndex, progress) {
 
 export async function getOverallProgress(courseId) {
   try {
-    const res = await api.get(`/progress/${encodeURIComponent(courseId)}`)
+    const res = await api.get(`/api/progress/${encodeURIComponent(courseId)}`)
     return res?.data?.overall ?? 0
   } catch (e) {
     return 0
@@ -42,7 +42,7 @@ export async function getOverallProgress(courseId) {
 
 export async function getAllCoursesSummary() {
   try {
-    const res = await api.get(`/progress`)
+    const res = await api.get(`/api/progress`)
     return Array.isArray(res?.data) ? res.data : []
   } catch (e) {
     return []
@@ -51,7 +51,7 @@ export async function getAllCoursesSummary() {
 
 export async function resetCourseProgress(courseId) {
   try {
-    await api.delete(`/progress/${encodeURIComponent(courseId)}`)
+    await api.delete(`/api/progress/${encodeURIComponent(courseId)}`)
   } catch (e) {
     // 静默处理错误
   }
@@ -71,7 +71,7 @@ export async function reportLearningHeartbeat(payload, signal) {
       currentTimeSec: payload.currentTimeSec,
       durationSec: payload.durationSec,
     }
-    await api.post(`/progress/course/heartbeat`, body, { signal })
+    await api.post(`/api/progress/course/heartbeat`, body, { signal })
   } catch (e) {
     // 静默处理错误
   }
@@ -82,7 +82,7 @@ export async function reportLearningHeartbeat(payload, signal) {
  */
 export async function getCourseCompletion(courseId, signal) {
   try {
-    const res = await api.get(`/progress/course`, { params: { courseId }, signal })
+    const res = await api.get(`/api/progress/course`, { params: { courseId }, signal })
     const value = res?.data?.completionPercentage ?? res?.data
     if (typeof value === 'number') {
       return value > 1 ? Math.min(1, Math.max(0, value / 100)) : Math.min(1, Math.max(0, value))
@@ -101,7 +101,7 @@ export async function getCourseCompletion(courseId, signal) {
  */
 export async function getTimeDistribution(range = '7d', signal) {
   try {
-    const res = await api.get(`/progress/time-distribution`, { params: { range }, signal })
+    const res = await api.get(`/api/progress/time-distribution`, { params: { range }, signal })
     const d = res?.data || {}
     if (Array.isArray(d.days) && Array.isArray(d.video) && Array.isArray(d.doc)) {
       return d

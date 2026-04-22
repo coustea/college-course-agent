@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ccut.mapper.TeachingStyleProfileMapper">
+
+    <resultMap id="BaseResultMap" type="com.ccut.entity.TeachingStyleProfile">
+        <id column="id" property="id"/>
+        <result column="teacher_id" property="teacherId"/>
+        <result column="interaction_level" property="interactionLevel"/>
+        <result column="content_depth" property="contentDepth"/>
+        <result column="practicality" property="practicality"/>
+        <result column="innovation" property="innovation"/>
+        <result column="ideology_integration" property="ideologyIntegration"/>
+        <result column="ideology_approach" property="ideologyApproach"/>
+        <result column="main_value_themes" property="mainValueThemes"/>
+        <result column="ideology_resource_count" property="ideologyResourceCount"/>
+        <result column="avg_student_satisfaction" property="avgStudentSatisfaction"/>
+        <result column="avg_engagement_rate" property="avgEngagementRate"/>
+        <result column="style_tag" property="styleTag"/>
+        <result column="last_analyzed_at" property="lastAnalyzedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, teacher_id,
+        interaction_level, content_depth, practicality, innovation, ideology_integration,
+        ideology_approach, main_value_themes, ideology_resource_count,
+        avg_student_satisfaction, avg_engagement_rate,
+        style_tag,
+        last_analyzed_at, created_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.ccut.entity.TeachingStyleProfile" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO teaching_style_profiles (
+            teacher_id,
+            interaction_level, content_depth, practicality, innovation, ideology_integration,
+            ideology_approach, main_value_themes, ideology_resource_count,
+            avg_student_satisfaction, avg_engagement_rate,
+            style_tag,
+            last_analyzed_at, created_at, updated_at
+        ) VALUES (
+            #{teacherId},
+            #{interactionLevel}, #{contentDepth}, #{practicality}, #{innovation}, #{ideologyIntegration},
+            #{ideologyApproach}, #{mainValueThemes}, #{ideologyResourceCount},
+            #{avgStudentSatisfaction}, #{avgEngagementRate},
+            #{styleTag},
+            NOW(), NOW(), NOW()
+        )
+    </insert>
+
+    <update id="updateById" parameterType="com.ccut.entity.TeachingStyleProfile">
+        UPDATE teaching_style_profiles SET
+            interaction_level = #{interactionLevel},
+            content_depth = #{contentDepth},
+            practicality = #{practicality},
+            innovation = #{innovation},
+            ideology_integration = #{ideologyIntegration},
+            ideology_approach = #{ideologyApproach},
+            main_value_themes = #{mainValueThemes},
+            ideology_resource_count = #{ideologyResourceCount},
+            avg_student_satisfaction = #{avgStudentSatisfaction},
+            avg_engagement_rate = #{avgEngagementRate},
+            style_tag = #{styleTag},
+            last_analyzed_at = NOW(),
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="findByTeacherId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM teaching_style_profiles
+        WHERE teacher_id = #{teacherId}
+    </select>
+
+    <insert id="upsert" parameterType="com.ccut.entity.TeachingStyleProfile">
+        INSERT INTO teaching_style_profiles (
+            teacher_id,
+            interaction_level, content_depth, practicality, innovation, ideology_integration,
+            ideology_approach, main_value_themes, ideology_resource_count,
+            avg_student_satisfaction, avg_engagement_rate,
+            style_tag,
+            last_analyzed_at, created_at, updated_at
+        ) VALUES (
+            #{teacherId},
+            #{interactionLevel}, #{contentDepth}, #{practicality}, #{innovation}, #{ideologyIntegration},
+            #{ideologyApproach}, #{mainValueThemes}, #{ideologyResourceCount},
+            #{avgStudentSatisfaction}, #{avgEngagementRate},
+            #{styleTag},
+            NOW(), NOW(), NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+            interaction_level = VALUES(interaction_level),
+            content_depth = VALUES(content_depth),
+            practicality = VALUES(practicality),
+            innovation = VALUES(innovation),
+            ideology_integration = VALUES(ideology_integration),
+            ideology_approach = VALUES(ideology_approach),
+            main_value_themes = VALUES(main_value_themes),
+            ideology_resource_count = VALUES(ideology_resource_count),
+            avg_student_satisfaction = VALUES(avg_student_satisfaction),
+            avg_engagement_rate = VALUES(avg_engagement_rate),
+            style_tag = VALUES(style_tag),
+            last_analyzed_at = NOW(),
+            updated_at = NOW()
+    </insert>
+
+</mapper>

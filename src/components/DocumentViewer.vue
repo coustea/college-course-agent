@@ -26,6 +26,12 @@
                 <span class="dv-aside-text">{{ ch.title || (`第${i + 1}章`) }}</span>
               </div>
             </div>
+            <IdeologyResourcePanel
+              v-if="props.id || currentChapter?.documentId"
+              :course-id="courseIdForIdeology"
+              :document-id="currentChapter?.documentId || props.id"
+              compact
+            />
           </aside>
           <div class="dv-view" ref="viewRef" @scroll="updateReadProgress" @wheel="handleWheel">
             <!-- 加载状态 -->
@@ -239,12 +245,14 @@ import { ElMessage } from 'element-plus'
 import axios from 'axios'
 import VuePdfEmbed from 'vue-pdf-embed'
 import mammoth from 'mammoth'
+import IdeologyResourcePanel from '/src/components/IdeologyResourcePanel.vue'
 
 const props = defineProps({
   modelValue: {type: Boolean, default: false},
   title: {type: String, default: '预览'},
   fileUrl: {type: String, default: ''},
   htmlContent: {type: String, default: ''},
+  courseId: {type: [String, Number], default: null},
   progress: {type: Number, default: 0},
   id: {type: [String, Number], default: null},
   image: {type: String, default: ''},
@@ -344,6 +352,14 @@ const currentChapter = computed(() => flatChapters.value[currentIndex.value] || 
   title: props.title,
   fileUrl: props.fileUrl,
   html: props.htmlContent
+})
+
+const courseIdForIdeology = computed(() => {
+  if (props.courseId) return props.courseId
+  const direct = props.chapters?.find?.(item => item?.courseId)?.courseId
+  if (direct) return direct
+  const nested = props.chapters?.flatMap?.(item => Array.isArray(item?.children) ? item.children : [])?.find?.(item => item?.courseId)?.courseId
+  return nested || null
 })
 
 const effectiveFileUrl = computed(() => currentChapter.value?.fileUrl || '')
@@ -1946,4 +1962,3 @@ async function submitDocumentAnswersAndProgress() {
   background: #a1a1a1;
 }
 </style>
-

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ccut.mapper.ValueAssessmentMapper">
+
+    <resultMap id="BaseResultMap" type="com.ccut.entity.ValueAssessment">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="course_id" property="courseId"/>
+        <result column="patriotism_score" property="patriotismScore"/>
+        <result column="social_responsibility_score" property="socialResponsibilityScore"/>
+        <result column="professional_ethics_score" property="professionalEthicsScore"/>
+        <result column="innovation_score" property="innovationScore"/>
+        <result column="cultural_confidence_score" property="culturalConfidenceScore"/>
+        <result column="total_score" property="totalScore"/>
+        <result column="assessment_level" property="assessmentLevel"/>
+        <result column="previous_score" property="previousScore"/>
+        <result column="trend_direction" property="trendDirection"/>
+        <result column="trend_value" property="trendValue"/>
+        <result column="assessment_basis" property="assessmentBasis"/>
+        <result column="assessment_period" property="assessmentPeriod"/>
+        <result column="assessed_at" property="assessedAt"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, student_id, course_id,
+        patriotism_score, social_responsibility_score, professional_ethics_score,
+        innovation_score, cultural_confidence_score,
+        total_score, assessment_level,
+        previous_score, trend_direction, trend_value,
+        assessment_basis, assessment_period,
+        assessed_at, created_at
+    </sql>
+
+    <insert id="insert" parameterType="com.ccut.entity.ValueAssessment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO value_assessments (
+            student_id, course_id,
+            patriotism_score, social_responsibility_score, professional_ethics_score,
+            innovation_score, cultural_confidence_score,
+            total_score, assessment_level,
+            previous_score, trend_direction, trend_value,
+            assessment_basis, period,
+            assessed_at, created_at
+        ) VALUES (
+            #{studentId}, #{courseId},
+            #{patriotismScore}, #{socialResponsibilityScore}, #{professionalEthicsScore},
+            #{innovationScore}, #{culturalConfidenceScore},
+            #{totalScore}, #{assessmentLevel},
+            #{previousScore}, #{trendDirection}, #{trendValue},
+            #{assessmentBasis}, #{assessmentPeriod},
+            NOW(), NOW()
+        )
+    </insert>
+
+    <select id="findLatestByStudentAndCourse" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM value_assessments
+        WHERE student_id = #{studentId} AND course_id = #{courseId}
+        ORDER BY assessed_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="findByStudentAndCourseAfter" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM value_assessments
+        WHERE student_id = #{studentId}
+        <if test="courseId != null">
+            AND course_id = #{courseId}
+        </if>
+        AND assessed_at >= #{startTime}
+        ORDER BY assessed_at DESC
+    </select>
+
+    <select id="findByCourseId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM value_assessments
+        WHERE course_id = #{courseId}
+        ORDER BY assessed_at DESC
+    </select>
+
+</mapper>

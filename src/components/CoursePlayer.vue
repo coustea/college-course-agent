@@ -153,6 +153,13 @@
               暂无目录
             </div>
           </div>
+
+          <IdeologyResourcePanel
+            v-if="props.courseId"
+            :course-id="props.courseId"
+            :video-id="currentChapter?.videoId ?? currentChapter?.id ?? currentChapter?.videoIndex"
+            compact
+          />
         </div>
       </div>
     </div>
@@ -176,6 +183,7 @@
 import { ref, watch, computed, onMounted, onBeforeUnmount, getCurrentInstance, nextTick } from 'vue'
 import axios from "axios"
 import Question from '/src/components/Question.vue'
+import IdeologyResourcePanel from '/src/components/IdeologyResourcePanel.vue'
 
 const { proxy } = getCurrentInstance()
 const BASE_URL = proxy.$baseUrl
@@ -2281,4 +2289,3 @@ async function submitAnswers() {
 }
 
 </style>
-

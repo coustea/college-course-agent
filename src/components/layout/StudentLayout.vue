@@ -78,6 +78,16 @@
           </li>
 
           <li class="menu-item">
+            <div class="menu-title" :class="{active: $route.path === '/student/ideology-recommendations'}"
+                 @click="navigateTo('/student/ideology-recommendations')">
+              <div>
+                <i class="fas fa-compass"></i>
+                <span>思政推荐</span>
+              </div>
+            </div>
+          </li>
+
+          <li class="menu-item">
             <div class="menu-title" :class="{active: $route.path === '/student/ai-chat'}"
                  @click="navigateTo('/student/ai-chat')">
               <div>

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ccut.mapper.TeachingEvaluationMapper">
+
+    <resultMap id="BaseResultMap" type="com.ccut.entity.TeachingEvaluation">
+        <id column="evaluation_id" property="evaluationId"/>
+        <result column="course_id" property="courseId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="teacher_id" property="teacherId"/>
+        <result column="content_integration_score" property="contentIntegrationScore"/>
+        <result column="interaction_score" property="interactionScore"/>
+        <result column="participation_score" property="participationScore"/>
+        <result column="value_recognition_score" property="valueRecognitionScore"/>
+        <result column="total_score" property="totalScore"/>
+        <result column="evaluation_period" property="evaluationPeriod"/>
+        <result column="evaluation_type" property="evaluationType"/>
+        <result column="remark" property="remark"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        evaluation_id, course_id, student_id, teacher_id,
+        content_integration_score, interaction_score, participation_score, value_recognition_score,
+        total_score, evaluation_period, evaluation_type, remark,
+        created_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.ccut.entity.TeachingEvaluation" useGeneratedKeys="true" keyProperty="evaluationId">
+        INSERT INTO teaching_evaluations (
+            course_id, student_id, teacher_id,
+            content_integration_score, interaction_score, participation_score, value_recognition_score,
+            total_score, evaluation_period, evaluation_type, remark,
+            created_at, updated_at
+        ) VALUES (
+            #{courseId}, #{studentId}, #{teacherId},
+            #{contentIntegrationScore}, #{interactionScore}, #{participationScore}, #{valueRecognitionScore},
+            #{totalScore}, #{evaluationPeriod}, #{evaluationType}, #{remark},
+            NOW(), NOW()
+        )
+    </insert>
+
+    <update id="updateById" parameterType="com.ccut.entity.TeachingEvaluation">
+        UPDATE teaching_evaluations SET
+            content_integration_score = #{contentIntegrationScore},
+            interaction_score = #{interactionScore},
+            participation_score = #{participationScore},
+            value_recognition_score = #{valueRecognitionScore},
+            total_score = #{totalScore},
+            remark = #{remark},
+            updated_at = NOW()
+        WHERE evaluation_id = #{evaluationId}
+    </update>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM teaching_evaluations
+        WHERE evaluation_id = #{evaluationId}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM teaching_evaluations WHERE evaluation_id = #{evaluationId}
+    </delete>
+
+    <select id="selectByCourseId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM teaching_evaluations
+        WHERE course_id = #{courseId}
+        <if test="period != null and period != ''">
+            AND evaluation_period = #{period}
+        </if>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectByStudentId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM teaching_evaluations
+        WHERE student_id = #{studentId}
+        <if test="courseId != null">
+            AND course_id = #{courseId}
+        </if>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectLatestByStudentCourse" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM teaching_evaluations
+        WHERE student_id = #{studentId} AND course_id = #{courseId}
+        ORDER BY created_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectAvgScoreByCourseId" resultType="java.lang.Double">
+        SELECT AVG(total_score)
+        FROM teaching_evaluations
+        WHERE course_id = #{courseId}
+        <if test="period != null and period != ''">
+            AND evaluation_period = #{period}
+        </if>
+    </select>
+
+    <select id="countByCourseId" resultType="int">
+        SELECT COUNT(*)
+        FROM teaching_evaluations
+        WHERE course_id = #{courseId}
+        <if test="period != null and period != ''">
+            AND evaluation_period = #{period}
+        </if>
+    </select>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO teaching_evaluations (
+            course_id, student_id, teacher_id,
+            content_integration_score, interaction_score, participation_score, value_recognition_score,
+            total_score, evaluation_period, evaluation_type, remark,
+            created_at, updated_at
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.courseId}, #{item.studentId}, #{item.teacherId},
+             #{item.contentIntegrationScore}, #{item.interactionScore}, #{item.participationScore}, #{item.valueRecognitionScore},
+             #{item.totalScore}, #{item.evaluationPeriod}, #{item.evaluationType}, #{item.remark},
+             NOW(), NOW())
+        </foreach>
+    </insert>
+
+</mapper>

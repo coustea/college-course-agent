@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ccut.mapper.SentimentRecordMapper">
+
+    <resultMap id="BaseResultMap" type="com.ccut.entity.SentimentRecord">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="course_id" property="courseId"/>
+        <result column="sentiment_type" property="sentimentType"/>
+        <result column="positive_score" property="positiveScore"/>
+        <result column="negative_score" property="negativeScore"/>
+        <result column="neutral_score" property="neutralScore"/>
+        <result column="source_type" property="sourceType"/>
+        <result column="source_content" property="sourceContent"/>
+        <result column="source_id" property="sourceId"/>
+        <result column="ideology_related" property="ideologyRelated"/>
+        <result column="ideology_theme" property="ideologyTheme"/>
+        <result column="analyzed_at" property="analyzedAt"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, student_id, course_id, sentiment_type,
+        positive_score, negative_score, neutral_score,
+        source_type, source_content, source_id,
+        ideology_related, ideology_theme,
+        analyzed_at, created_at
+    </sql>
+
+    <insert id="insert" parameterType="com.ccut.entity.SentimentRecord" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sentiment_records (
+            student_id, course_id, sentiment_type,
+            positive_score, negative_score, neutral_score,
+            source_type, source_content, source_id,
+            ideology_related, ideology_theme,
+            analyzed_at, created_at
+        ) VALUES (
+            #{studentId}, #{courseId}, #{sentimentType},
+            #{positiveScore}, #{negativeScore}, #{neutralScore},
+            #{sourceType}, #{sourceContent}, #{sourceId},
+            #{ideologyRelated}, #{ideologyTheme},
+            NOW(), NOW()
+        )
+    </insert>
+
+    <select id="findByStudentAndCourseAfter" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM sentiment_records
+        WHERE student_id = #{studentId}
+        <if test="courseId != null">
+            AND course_id = #{courseId}
+        </if>
+        AND analyzed_at >= #{startTime}
+        ORDER BY analyzed_at DESC
+    </select>
+
+    <select id="findByCourseId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM sentiment_records
+        WHERE course_id = #{courseId}
+        ORDER BY analyzed_at DESC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+</mapper>

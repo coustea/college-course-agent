@@ -22,7 +22,7 @@ const toUrl = (u) => {
 export async function fetchHomeCourses(signal) {
     try {
         // 使用统一 api 实例与相对路径，便于通过 env/proxy 切换环境
-        const response = await api.get('/course/list', { signal })
+        const response = await api.get('/api/course/list', { signal })
         const payload = response?.data
         console.log('首页课程数据', payload)
         const list = Array.isArray(payload)

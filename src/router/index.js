@@ -54,6 +54,18 @@ const studentRoutes = [
         component: () => import('@/views/student/StudentAIChat.vue'),
         meta: { title: 'AI 学习助手' }
     },
+    {
+        path: '/student/ideology',
+        name: 'IdeologyRecommend',
+        component: () => import('@/views/student/IdeologyRecommend.vue'),
+        meta: { title: '思政学习' }
+    },
+    {
+        path: '/student/ideology-recommendations',
+        name: 'IdeologyRecommendations',
+        component: () => import('@/views/student/IdeologyRecommendations.vue'),
+        meta: { title: '思政资源推荐' }
+    },
 ]
 
 // 教师端路由
@@ -90,6 +102,8 @@ const teacherRoutes = [
   { path: '/teacher/study-time', name: 'TeacherStudyTime', component: () => import('@/views/Teacher/StudentStudyTime.vue'), meta: { requiresAuth: true, role: 'teacher', title: '学生学习时间' } },
   { path: '/teacher/profile', name: 'TeacherProfile', component: () => import('@/views/Teacher/Profile.vue'), meta: { requiresAuth: true, role: 'teacher', title: '个人中心' } },
   { path: '/teacher/ai-chat', name: 'TeacherAIChat', component: () => import('@/views/Teacher/AIChat.vue'), meta: { requiresAuth: true, role: 'teacher', title: 'AI 助手' } },
+  { path: '/teacher/ideology', name: 'TeacherIdeologyResources', component: () => import('@/views/Teacher/Ideology/IdeologyResources.vue'), meta: { requiresAuth: true, role: 'teacher', title: '思政资源管理' } },
+  { path: '/teacher/ideology-dashboard', name: 'TeacherIdeologyDashboard', component: () => import('@/views/Teacher/Ideology/IdeologyDashboard.vue'), meta: { requiresAuth: true, role: 'teacher', title: '思政数据分析' } },
 ]
 
 // 公共路由

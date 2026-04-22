@@ -114,6 +114,34 @@
           </li>
 
           <li class="menu-item">
+            <div class="menu-title"
+                 :class="{active: $route.path.startsWith('/teacher/ideology')}"
+                 @click="toggleSubMenu('ideology')">
+              <div>
+                <i class="fas fa-landmark"></i>
+                <span>思政教学</span>
+              </div>
+              <i class="fas fa-chevron-right arrow"
+                 :class="{active: activeSubMenu === 'ideology'}"></i>
+            </div>
+
+            <ul class="submenu" :class="{open: activeSubMenu === 'ideology'}">
+              <li class="submenu-item"
+                  :class="{active: $route.path === '/teacher/ideology'}"
+                  @click="navigateTo('/teacher/ideology')">
+                <i class="fas fa-folder-open"></i>
+                <span>资源管理</span>
+              </li>
+              <li class="submenu-item"
+                  :class="{active: $route.path === '/teacher/ideology-dashboard'}"
+                  @click="navigateTo('/teacher/ideology-dashboard')">
+                <i class="fas fa-chart-pie"></i>
+                <span>数据分析</span>
+              </li>
+            </ul>
+          </li>
+
+          <li class="menu-item">
             <div class="menu-title" :class="{active: $route.path === '/teacher/ai-chat'}"
                  @click="navigateTo('/teacher/ai-chat')">
               <div>
@@ -212,6 +240,8 @@ const toggleSubMenu = (menu) => {
     navigateTo('/teacher/students/list')
   } else if (menu === 'assignments') {
     navigateTo('/teacher/assignments/list')
+  } else if (menu === 'ideology') {
+    navigateTo('/teacher/ideology')
   }
 }
 
@@ -297,6 +327,8 @@ watch(() => route.path, (newPath) => {
     activeSubMenu.value = 'students'
   } else if (newPath.startsWith('/teacher/assignments')) {
     activeSubMenu.value = 'assignments'
+  } else if (newPath.startsWith('/teacher/ideology')) {
+    activeSubMenu.value = 'ideology'
   } else {
     activeSubMenu.value = ''
   }

@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ccut.mapper.LearningPathRecordMapper">
+
+    <resultMap id="BaseResultMap" type="com.ccut.entity.LearningPathRecord">
+        <id column="record_id" property="recordId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="course_id" property="courseId"/>
+        <result column="resource_type" property="resourceType"/>
+        <result column="resource_id" property="resourceId"/>
+        <result column="resource_title" property="resourceTitle"/>
+        <result column="action_type" property="actionType"/>
+        <result column="duration_seconds" property="durationSeconds"/>
+        <result column="progress_percent" property="progressPercent"/>
+        <result column="previous_resource_id" property="previousResourceId"/>
+        <result column="device_type" property="deviceType"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        record_id, student_id, course_id, resource_type, resource_id, resource_title,
+        action_type, duration_seconds, progress_percent, previous_resource_id,
+        device_type, session_id, created_at
+    </sql>
+
+    <insert id="insert" parameterType="com.ccut.entity.LearningPathRecord" useGeneratedKeys="true" keyProperty="recordId">
+        INSERT INTO learning_path_records (
+            student_id, course_id, resource_type, resource_id, resource_title,
+            action_type, duration_seconds, progress_percent, previous_resource_id,
+            device_type, session_id, created_at
+        ) VALUES (
+            #{studentId}, #{courseId}, #{resourceType}, #{resourceId}, #{resourceTitle},
+            #{actionType}, #{durationSeconds}, #{progressPercent}, #{previousResourceId},
+            #{deviceType}, #{sessionId}, NOW()
+        )
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM learning_path_records
+        WHERE record_id = #{recordId}
+    </select>
+
+    <select id="selectByStudentId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM learning_path_records
+        WHERE student_id = #{studentId}
+        <if test="courseId != null">
+            AND course_id = #{courseId}
+        </if>
+        ORDER BY created_at DESC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <select id="selectRecentByStudentId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM learning_path_records
+        WHERE student_id = #{studentId}
+        ORDER BY created_at DESC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <select id="selectByCourseId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM learning_path_records
+        WHERE course_id = #{courseId}
+        <if test="startTime != null">
+            AND created_at >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND created_at &lt;= #{endTime}
+        </if>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="countByStudentAndResource" resultType="int">
+        SELECT COUNT(*)
+        FROM learning_path_records
+        WHERE student_id = #{studentId}
+        <if test="resourceType != null and resourceType != ''">
+            AND resource_type = #{resourceType}
+        </if>
+        <if test="startTime != null">
+            AND created_at >= #{startTime}
+        </if>
+    </select>
+
+    <select id="sumDurationByStudent" resultType="java.lang.Integer">
+        SELECT COALESCE(SUM(duration_seconds), 0)
+        FROM learning_path_records
+        WHERE student_id = #{studentId}
+        <if test="courseId != null">
+            AND course_id = #{courseId}
+        </if>
+        <if test="startTime != null">
+            AND created_at >= #{startTime}
+        </if>
+    </select>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO learning_path_records (
+            student_id, course_id, resource_type, resource_id, resource_title,
+            action_type, duration_seconds, progress_percent, previous_resource_id,
+            device_type, session_id, created_at
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.studentId}, #{item.courseId}, #{item.resourceType}, #{item.resourceId}, #{item.resourceTitle},
+             #{item.actionType}, #{item.durationSeconds}, #{item.progressPercent}, #{item.previousResourceId},
+             #{item.deviceType}, #{item.sessionId}, NOW())
+        </foreach>
+    </insert>
+
+    <delete id="deleteOldRecords">
+        DELETE FROM learning_path_records WHERE created_at &lt; #{beforeTime}
+    </delete>
+
+</mapper>

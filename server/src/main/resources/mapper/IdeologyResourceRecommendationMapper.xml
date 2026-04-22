@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.IdeologyResourceRecommendationMapper">
+
+    <resultMap id="IdeologyResourceRecommendationRM" type="com.ccut.entity.IdeologyResourceRecommendation">
+        <id property="id" column="id"/>
+        <result property="studentId" column="student_id"/>
+        <result property="resourceId" column="resource_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="reason" column="reason"/>
+        <result property="score" column="score"/>
+        <result property="recommendationType" column="recommendation_type"/>
+        <result property="hasClicked" column="has_clicked"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="clickedAt" column="clicked_at"/>
+        <association property="resource" column="resource_id" select="com.ccut.mapper.IdeologyResourceMapper.selectById"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO ideology_resource_recommendation
+        (student_id, resource_id, course_id, reason, score, recommendation_type, has_clicked, created_at)
+        VALUES
+        (#{studentId}, #{resourceId}, #{courseId}, #{reason}, #{score}, #{recommendationType}, #{hasClicked}, #{createdAt})
+    </insert>
+
+    <select id="findByStudentId" resultMap="IdeologyResourceRecommendationRM">
+        SELECT * FROM ideology_resource_recommendation
+        WHERE student_id = #{studentId}
+        ORDER BY score DESC, created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="markAsClicked">
+        UPDATE ideology_resource_recommendation
+        SET has_clicked = true, clicked_at = #{clickedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteByStudentId">
+        DELETE FROM ideology_resource_recommendation WHERE student_id = #{studentId}
+    </delete>
+</mapper>

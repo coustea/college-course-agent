@@ -158,6 +158,7 @@ coverage/
 
 # 数据库文件
 server/data/
+backend/server/data/
 *.db
 *.sqlite
 *.sqlite3
@@ -170,3 +171,4 @@ server/data/
 !application-example.yml
 !application-example.properties
 !.env.example
+.omx/

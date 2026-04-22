@@ -1,8 +1,9 @@
 import request from '@/utils/request'
 
-// request 的 baseURL 已包含 /api，所以 axios 请求不需要再加前缀
-const CHAT_PATH = '/ai/chat'
-const CONV_PATH = '/ai/conversation'
+// request 的 baseURL 已修改为 http://localhost:9999（不含 /api）
+// 所以所有 axios 请求都需要加 /api 前缀
+const CHAT_PATH = '/api/ai/chat'
+const CONV_PATH = '/api/ai/conversation'
 // 原生 fetch 需要 /api 前缀（不走 axios baseURL）
 const FETCH_API_BASE = '/api'
 

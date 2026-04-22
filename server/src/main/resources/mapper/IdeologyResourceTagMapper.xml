@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.ccut.mapper.IdeologyResourceTagMapper">
+
+    <resultMap id="IdeologyResourceTagRM" type="com.ccut.entity.IdeologyResourceTag">
+        <id property="tagId" column="tag_id"/>
+        <result property="tagName" column="tag_name"/>
+        <result property="tagType" column="tag_type"/>
+        <result property="description" column="description"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insertIgnoreDuplicate" useGeneratedKeys="true" keyProperty="tagId" keyColumn="tag_id">
+        INSERT INTO ideology_resource_tags (tag_name, tag_type, description)
+        VALUES (#{tagName}, #{tagType}, #{description})
+        ON DUPLICATE KEY UPDATE description = COALESCE(VALUES(description), description)
+    </insert>
+
+    <select id="selectByName" resultMap="IdeologyResourceTagRM">
+        SELECT * FROM ideology_resource_tags WHERE tag_name = #{tagName}
+    </select>
+
+    <insert id="attachTag">
+        INSERT IGNORE INTO ideology_resource_tag_rel (resource_id, tag_id)
+        VALUES (#{resourceId}, #{tagId})
+    </insert>
+
+    <delete id="deleteResourceTags">
+        DELETE FROM ideology_resource_tag_rel WHERE resource_id = #{resourceId}
+    </delete>
+
+    <select id="listByResourceId" resultMap="IdeologyResourceTagRM">
+        SELECT t.* FROM ideology_resource_tags t
+        JOIN ideology_resource_tag_rel r ON t.tag_id = r.tag_id
+        WHERE r.resource_id = #{resourceId}
+        ORDER BY t.tag_type, t.tag_name
+    </select>
+</mapper>

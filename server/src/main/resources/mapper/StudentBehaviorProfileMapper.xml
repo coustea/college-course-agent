@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ccut.mapper.StudentBehaviorProfileMapper">
+
+    <resultMap id="BaseResultMap" type="com.ccut.entity.StudentBehaviorProfile">
+        <id column="profile_id" property="profileId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="preferred_study_time" property="preferredStudyTime"/>
+        <result column="morning_ratio" property="morningRatio"/>
+        <result column="afternoon_ratio" property="afternoonRatio"/>
+        <result column="evening_ratio" property="eveningRatio"/>
+        <result column="preferred_resource_type" property="preferredResourceType"/>
+        <result column="video_preference" property="videoPreference"/>
+        <result column="document_preference" property="documentPreference"/>
+        <result column="interactive_preference" property="interactivePreference"/>
+        <result column="avg_session_duration" property="avgSessionDuration"/>
+        <result column="interaction_frequency" property="interactionFrequency"/>
+        <result column="completion_rate" property="completionRate"/>
+        <result column="consistency_score" property="consistencyScore"/>
+        <result column="learning_style_tag" property="learningStyleTag"/>
+        <result column="engagement_level" property="engagementLevel"/>
+        <result column="ideology_click_rate" property="ideologyClickRate"/>
+        <result column="ideology_completion_rate" property="ideologyCompletionRate"/>
+        <result column="last_analyzed_at" property="lastAnalyzedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        profile_id, student_id, preferred_study_time, morning_ratio, afternoon_ratio, evening_ratio,
+        preferred_resource_type, video_preference, document_preference, interactive_preference,
+        avg_session_duration, interaction_frequency, completion_rate, consistency_score,
+        learning_style_tag, engagement_level, ideology_click_rate, ideology_completion_rate,
+        last_analyzed_at, created_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.ccut.entity.StudentBehaviorProfile" useGeneratedKeys="true" keyProperty="profileId">
+        INSERT INTO student_behavior_profiles (
+            student_id, preferred_study_time, morning_ratio, afternoon_ratio, evening_ratio,
+            preferred_resource_type, video_preference, document_preference, interactive_preference,
+            avg_session_duration, interaction_frequency, completion_rate, consistency_score,
+            learning_style_tag, engagement_level, ideology_click_rate, ideology_completion_rate,
+            last_analyzed_at, created_at, updated_at
+        ) VALUES (
+            #{studentId}, #{preferredStudyTime}, #{morningRatio}, #{afternoonRatio}, #{eveningRatio},
+            #{preferredResourceType}, #{videoPreference}, #{documentPreference}, #{interactivePreference},
+            #{avgSessionDuration}, #{interactionFrequency}, #{completionRate}, #{consistencyScore},
+            #{learningStyleTag}, #{engagementLevel}, #{ideologyClickRate}, #{ideologyCompletionRate},
+            #{lastAnalyzedAt}, NOW(), NOW()
+        )
+    </insert>
+
+    <update id="updateById" parameterType="com.ccut.entity.StudentBehaviorProfile">
+        UPDATE student_behavior_profiles SET
+            preferred_study_time = #{preferredStudyTime},
+            morning_ratio = #{morningRatio},
+            afternoon_ratio = #{afternoonRatio},
+            evening_ratio = #{eveningRatio},
+            preferred_resource_type = #{preferredResourceType},
+            video_preference = #{videoPreference},
+            document_preference = #{documentPreference},
+            interactive_preference = #{interactivePreference},
+            avg_session_duration = #{avgSessionDuration},
+            interaction_frequency = #{interactionFrequency},
+            completion_rate = #{completionRate},
+            consistency_score = #{consistencyScore},
+            learning_style_tag = #{learningStyleTag},
+            engagement_level = #{engagementLevel},
+            ideology_click_rate = #{ideologyClickRate},
+            ideology_completion_rate = #{ideologyCompletionRate},
+            last_analyzed_at = #{lastAnalyzedAt},
+            updated_at = NOW()
+        WHERE profile_id = #{profileId}
+    </update>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM student_behavior_profiles
+        WHERE profile_id = #{profileId}
+    </select>
+
+    <select id="selectByStudentId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM student_behavior_profiles
+        WHERE student_id = #{studentId}
+    </select>
+
+    <delete id="deleteByStudentId">
+        DELETE FROM student_behavior_profiles WHERE student_id = #{studentId}
+    </delete>
+
+    <insert id="upsert" parameterType="com.ccut.entity.StudentBehaviorProfile">
+        INSERT INTO student_behavior_profiles (
+            student_id, preferred_study_time, morning_ratio, afternoon_ratio, evening_ratio,
+            preferred_resource_type, video_preference, document_preference, interactive_preference,
+            avg_session_duration, interaction_frequency, completion_rate, consistency_score,
+            learning_style_tag, engagement_level, ideology_click_rate, ideology_completion_rate,
+            last_analyzed_at, created_at, updated_at
+        ) VALUES (
+            #{studentId}, #{preferredStudyTime}, #{morningRatio}, #{afternoonRatio}, #{eveningRatio},
+            #{preferredResourceType}, #{videoPreference}, #{documentPreference}, #{interactivePreference},
+            #{avgSessionDuration}, #{interactionFrequency}, #{completionRate}, #{consistencyScore},
+            #{learningStyleTag}, #{engagementLevel}, #{ideologyClickRate}, #{ideologyCompletionRate},
+            #{lastAnalyzedAt}, NOW(), NOW()
+        ) ON DUPLICATE KEY UPDATE
+            preferred_study_time = VALUES(preferred_study_time),
+            morning_ratio = VALUES(morning_ratio),
+            afternoon_ratio = VALUES(afternoon_ratio),
+            evening_ratio = VALUES(evening_ratio),
+            preferred_resource_type = VALUES(preferred_resource_type),
+            video_preference = VALUES(video_preference),
+            document_preference = VALUES(document_preference),
+            interactive_preference = VALUES(interactive_preference),
+            avg_session_duration = VALUES(avg_session_duration),
+            interaction_frequency = VALUES(interaction_frequency),
+            completion_rate = VALUES(completion_rate),
+            consistency_score = VALUES(consistency_score),
+            learning_style_tag = VALUES(learning_style_tag),
+            engagement_level = VALUES(engagement_level),
+            ideology_click_rate = VALUES(ideology_click_rate),
+            ideology_completion_rate = VALUES(ideology_completion_rate),
+            last_analyzed_at = VALUES(last_analyzed_at),
+            updated_at = NOW()
+    </insert>
+
+</mapper>

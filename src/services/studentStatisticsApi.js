@@ -6,7 +6,7 @@ import request from '@/utils/request'
  * @returns {Promise} 返回学生统计数据
  */
 export const fetchStudentStatistics = async (studentId) => {
-  const response = await request.get('/progress/student/statistics', {
+  const response = await request.get('/api/progress/student/statistics', {
     params: { studentId }
   })
   return response.data.data
