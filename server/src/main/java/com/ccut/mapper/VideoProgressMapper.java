@@ -23,6 +23,9 @@ public interface VideoProgressMapper {
                                      @Param("courseId") Long courseId);
 
     int countVideosByCourse(@Param("courseId") Long courseId);
+
+    java.util.List<com.ccut.entity.VideoProgress> findByStudentAndCourse(@Param("studentId") Long studentId,
+                                                                          @Param("courseId") Long courseId);
 }
 
 

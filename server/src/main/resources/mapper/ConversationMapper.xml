@@ -50,4 +50,12 @@
         WHERE conversation_id = #{conversationId}
     </delete>
 
+    <select id="findByStudentId" resultMap="ConversationResultMap">
+        SELECT c.id, c.conversation_id, c.username, c.sequence_num, c.title, c.created_at, c.updated_at
+        FROM conversations c
+        JOIN users u ON c.username = u.username
+        WHERE u.id = #{studentId}
+        ORDER BY c.updated_at DESC
+    </select>
+
 </mapper>

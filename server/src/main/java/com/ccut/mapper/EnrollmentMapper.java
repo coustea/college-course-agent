@@ -34,6 +34,8 @@ public interface EnrollmentMapper {
     // 推荐系统需要的辅助方法
     List<Long> findCourseIdsByStudentId(@Param("studentId") Long studentId);
     int countByCourseId(@Param("courseId") Long courseId);
+
+    List<Long> findStudentIdsByCourseId(@Param("courseId") Long courseId);
 }
 
 

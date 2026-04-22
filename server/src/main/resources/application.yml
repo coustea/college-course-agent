@@ -30,7 +30,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: none
 
   servlet:
     multipart:
@@ -67,7 +67,7 @@ logging:
     com.ccut.mapper: debug # 打印SQL语句
 
 file:
-  upload-dir: /home/couseta/develop/CCUT/backend/server/src/main/resources/upload
+  upload-dir: ${UPLOAD_DIR:./uploads}
 
 # JWT认证开关（开发环境设为false，生产环境设为true）
 jwt:

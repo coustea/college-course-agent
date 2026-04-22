@@ -89,4 +89,7 @@ public interface WeeklyStudyTimeMapper {
      * @param beforeDate 在此日期之前的记录将被删除
      */
     void deleteBefore(@Param("beforeDate") Date beforeDate);
+
+    List<WeeklyStudyTime> findByStudentAndCourse(@Param("studentId") Long studentId,
+                                                  @Param("courseId") Long courseId);
 }

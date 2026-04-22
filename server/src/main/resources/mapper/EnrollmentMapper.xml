@@ -116,6 +116,13 @@
           AND status = 'active'
     </select>
 
+    <select id="findStudentIdsByCourseId" resultType="java.lang.Long">
+        SELECT student_id
+        FROM enrollments
+        WHERE course_id = #{courseId}
+          AND status = 'active'
+    </select>
+
 </mapper>
 
 

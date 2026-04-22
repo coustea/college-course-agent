@@ -132,4 +132,12 @@
         WHERE week_start_date &lt; #{beforeDate}
     </delete>
 
+    <select id="findByStudentAndCourse" resultType="com.ccut.entity.WeeklyStudyTime">
+        SELECT id, student_id, course_id, week_start_date, total_seconds, last_study_time, created_at, updated_at
+        FROM weekly_study_time
+        WHERE student_id = #{studentId}
+          AND course_id = #{courseId}
+        ORDER BY week_start_date DESC
+    </select>
+
 </mapper>

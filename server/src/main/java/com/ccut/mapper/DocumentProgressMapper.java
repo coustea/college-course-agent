@@ -24,6 +24,9 @@ public interface DocumentProgressMapper {
                                         @Param("courseId") Long courseId);
 
     int countDocumentsByCourse(@Param("courseId") Long courseId);
+
+    java.util.List<com.ccut.entity.DocumentProgress> findByStudentAndCourse(@Param("studentId") Long studentId,
+                                                                             @Param("courseId") Long courseId);
 }
 
 

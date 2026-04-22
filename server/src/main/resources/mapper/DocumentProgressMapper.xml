@@ -63,6 +63,16 @@
         SELECT COUNT(*) FROM course_documents WHERE course_id = #{courseId}
     </select>
 
+    <select id="findByStudentAndCourse" resultMap="DP_RM">
+        SELECT id, student_id, course_id, document_id, time_spent, max_scroll_pct,
+               completed,
+               updated_at,
+               ROUND(COALESCE(max_scroll_pct,0), 2) AS percentage
+        FROM document_progress
+        WHERE student_id = #{studentId} AND course_id = #{courseId}
+        ORDER BY updated_at DESC
+    </select>
+
 </mapper>
 
 

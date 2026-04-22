@@ -43,4 +43,9 @@ public interface ConversationMapper {
      * 根据用户ID查询会话
      */
     Conversation findByUserId(@Param("userId") Long userId);
+
+    /**
+     * 根据学生ID查询会话列表
+     */
+    List<Conversation> findByStudentId(@Param("studentId") Long studentId);
 }

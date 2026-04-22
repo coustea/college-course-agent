@@ -83,6 +83,23 @@
         SELECT COUNT(*) FROM course_videos WHERE course_id = #{courseId}
     </select>
 
+    <select id="findByStudentAndCourse" resultMap="VP_RM">
+        SELECT vp.id, vp.student_id, vp.course_id, vp.video_id, vp.watched_seconds,
+               CASE WHEN (
+                        CASE WHEN cv.duration IS NULL OR cv.duration &lt;= 0 THEN 0
+                             ELSE ROUND((LEAST(vp.watched_seconds, cv.duration) + 0.0) / (cv.duration + 0.0) * 100.0, 2)
+                        END
+                    ) &gt;= 95 OR vp.completed = TRUE THEN TRUE ELSE FALSE END AS completed,
+               vp.updated_at,
+               CASE WHEN cv.duration IS NULL OR cv.duration &lt;= 0 THEN 0
+                    ELSE ROUND((LEAST(vp.watched_seconds, cv.duration) + 0.0) / (cv.duration + 0.0) * 100.0, 2)
+               END AS percentage
+        FROM video_progress vp
+        LEFT JOIN course_videos cv ON cv.video_id = vp.video_id
+        WHERE vp.student_id = #{studentId} AND vp.course_id = #{courseId}
+        ORDER BY vp.updated_at DESC
+    </select>
+
 </mapper>
 
 
