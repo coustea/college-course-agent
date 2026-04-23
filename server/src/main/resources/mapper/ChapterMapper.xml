@@ -16,6 +16,8 @@
     </resultMap>
 
     <resultMap id="ChapterTreeRM" type="com.ccut.entity.Chapter" extends="ChapterRM">
+        <association property="video" column="chapter_id" select="com.ccut.mapper.CourseVideoMapper.findByChapterId"/>
+        <association property="document" column="chapter_id" select="com.ccut.mapper.CourseDocumentMapper.findByChapterId"/>
         <collection property="children" ofType="com.ccut.entity.Chapter" column="chapter_id" select="findSectionsByParentId"/>
     </resultMap>
 

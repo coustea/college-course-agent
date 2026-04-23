@@ -12,6 +12,8 @@ public interface CourseDocumentMapper {
     int updateById(CourseDocument document);
     int deleteById(@Param("documentId") Long documentId);
     List<CourseDocument> findByCourseId(@Param("courseId") Long courseId);
+    CourseDocument findByChapterId(@Param("chapterId") Long chapterId);
+    int updateChapterId(@Param("documentId") Long documentId, @Param("chapterId") Long chapterId);
     Integer findMaxIndexByCourseId(@Param("courseId") Long courseId);
 }
 

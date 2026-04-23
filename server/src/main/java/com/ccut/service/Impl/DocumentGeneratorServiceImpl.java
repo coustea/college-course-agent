@@ -445,7 +445,7 @@ public class DocumentGeneratorServiceImpl implements DocumentGeneratorService {
      */
     private String saveFile(byte[] content, String extension, String title) throws IOException {
         String dateDir = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        Path dirPath = Paths.get(uploadDir, "generated", dateDir);
+        Path dirPath = Paths.get(uploadDir, "generated", dateDir).toAbsolutePath();
         Files.createDirectories(dirPath);
 
         // 清理文件名中的特殊字符

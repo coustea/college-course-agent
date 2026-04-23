@@ -1,82 +1,100 @@
 <template>
-  <div class="students-groups-container">
-    <!-- 顶部统计卡片 -->
-    <div class="stats-header">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <div class="stat-card total">
-            <div class="stat-icon-bg">
-              <el-icon><DataLine /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">分组总数</div>
-              <div class="stat-value">{{ groups.length }}</div>
-            </div>
-          </div>
-        </el-col>
-        <el-col :span="6">
-          <div class="stat-card pending">
-            <div class="stat-icon-bg">
-              <el-icon><Timer /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">待审批</div>
-              <div class="stat-value">{{ pendingGroupsCount }}</div>
-            </div>
-          </div>
-        </el-col>
-        <el-col :span="6">
-          <div class="stat-card approved">
-            <div class="stat-icon-bg">
-              <el-icon><Check /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">已通过</div>
-              <div class="stat-value">{{ approvedCount }}</div>
-            </div>
-          </div>
-        </el-col>
-        <el-col :span="6">
-          <div class="stat-card rejected">
-            <div class="stat-icon-bg">
-              <el-icon><Close /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">已驳回</div>
-              <div class="stat-value">{{ rejectedCount }}</div>
-            </div>
-          </div>
-        </el-col>
-      </el-row>
+  <div class="groups-page">
+    <!-- 顶部导航 -->
+    <div class="page-header-container">
+      <el-page-header @back="goBack" title="返回学生管理">
+        <template #content>
+          <span class="header-title">分组管理</span>
+        </template>
+        <template #extra>
+          <el-button
+            type="primary"
+            :icon="Refresh"
+            circle
+            @click="fetchGroups"
+            :loading="loading"
+            title="刷新数据"
+          />
+        </template>
+      </el-page-header>
     </div>
 
-    <!-- 主内容区 -->
-    <div class="main-content-card">
-      <!-- 工具栏 -->
-      <div class="toolbar">
-        <div class="left-tools">
-          <h3 class="card-title">分组列表</h3>
-          <el-radio-group v-model="applicationStatusFilter" @change="filterGroups" class="status-filter">
+    <!-- 统计卡片区 -->
+    <el-row :gutter="20" class="stats-container">
+      <el-col :xs="24" :sm="6">
+        <el-card shadow="hover" class="stat-card blue-theme">
+          <div class="stat-body">
+            <div class="stat-info">
+              <div class="stat-value">{{ groups.length }}</div>
+              <div class="stat-label">分组总数</div>
+            </div>
+            <el-icon class="stat-icon"><DataLine /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="6">
+        <el-card shadow="hover" class="stat-card orange-theme">
+          <div class="stat-body">
+            <div class="stat-info">
+              <div class="stat-value">{{ pendingGroupsCount }}</div>
+              <div class="stat-label">待审批</div>
+            </div>
+            <el-icon class="stat-icon"><Timer /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="6">
+        <el-card shadow="hover" class="stat-card green-theme">
+          <div class="stat-body">
+            <div class="stat-info">
+              <div class="stat-value">{{ approvedCount }}</div>
+              <div class="stat-label">已通过</div>
+            </div>
+            <el-icon class="stat-icon"><Check /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="6">
+        <el-card shadow="hover" class="stat-card red-theme">
+          <div class="stat-body">
+            <div class="stat-info">
+              <div class="stat-value">{{ rejectedCount }}</div>
+              <div class="stat-label">已驳回</div>
+            </div>
+            <el-icon class="stat-icon"><Close /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 主内容卡片 -->
+    <el-card class="main-card" shadow="never">
+      <!-- 筛选工具栏 -->
+      <div class="filter-toolbar">
+        <div class="left-filters">
+          <span class="filter-label">筛选状态：</span>
+          <el-radio-group v-model="applicationStatusFilter" @change="filterGroups" size="small">
             <el-radio-button label="">全部</el-radio-button>
             <el-radio-button label="pending">待审批</el-radio-button>
             <el-radio-button label="approval">已通过</el-radio-button>
             <el-radio-button label="rejected">已驳回</el-radio-button>
           </el-radio-group>
         </div>
-        <div class="right-tools">
-          <el-button type="primary" :icon="Search" circle @click="fetchGroups" title="刷新数据" />
+        <div class="right-filters">
+           <!-- 如果需要更多操作可以放在这里 -->
         </div>
       </div>
 
-      <!-- 表格区域 -->
-      <div class="table-wrapper">
-        <el-table
-          :data="paginatedGroups"
-          style="width: 100%"
-          v-loading="loading"
-          :header-cell-style="{ background: '#f8fafc', color: '#64748b', fontWeight: '600' }"
-          row-key="id"
-        >
+      <!-- 表格内容 -->
+      <el-table
+        :data="paginatedGroups"
+        v-loading="loading"
+        style="width: 100%"
+        stripe
+        highlight-current-row
+        header-cell-class-name="table-header-gray"
+        row-key="id"
+      >
           <el-table-column type="index" label="序号" width="60" align="center"/>
 
           <el-table-column prop="name" label="队伍名称" min-width="140" show-overflow-tooltip>
@@ -140,64 +158,56 @@
             </template>
           </el-table-column>
         </el-table>
-      </div>
-
-      <!-- 分页 -->
-      <div class="pagination-footer">
+      <!-- 分页组件 -->
+      <div class="pagination-container">
         <el-pagination
-            v-if="filteredGroups.length > 0"
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSize"
-            :page-sizes="[10, 20, 50, 100]"
-            :total="filteredGroups.length"
-            layout="total, sizes, prev, pager, next, jumper"
-            background
+          v-if="filteredGroups.length > 0"
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="filteredGroups.length"
+          layout="total, sizes, prev, pager, next, jumper"
+          @current-change="currentPage = $event"
+          @size-change="pageSize = $event; currentPage = 1"
+          background
         />
       </div>
-    </div>
+    </el-card>
 
     <!-- 详情弹窗 -->
     <el-dialog
-        v-model="showDetailsDialog"
-        title="分组详情"
-        width="600px"
-        class="group-detail-dialog"
-        destroy-on-close
-        align-center
+      v-model="showDetailsDialog"
+      :title="`${currentGroupDetails?.name || '分组'} 的详情`"
+      width="750px"
+      destroy-on-close
+      class="detail-dialog"
     >
-      <div v-if="currentGroupDetails" class="detail-container">
-        <!-- 弹窗顶部信息 -->
-        <div class="detail-header">
-          <div class="dh-left">
-            <div class="dh-avatar" :style="{background: getAvatarColor(currentGroupDetails.name)}">
-              {{ currentGroupDetails.name?.charAt(0) }}
-            </div>
-            <div class="dh-info">
-              <div class="dh-name">{{ currentGroupDetails.name }}</div>
-            </div>
-          </div>
-          <div class="dh-right">
-            <el-tag :type="getStatusTagType(currentGroupDetails.status)" size="large" effect="dark">
-              {{ getStatusText(currentGroupDetails.status) }}
-            </el-tag>
-          </div>
-        </div>
-
-        <el-divider style="margin: 16px 0;" />
-
-        <el-descriptions :column="2" border class="custom-desc">
-          <el-descriptions-item label="组长" :span="1">
-            <span class="desc-leader">{{ currentGroupDetails.leaderName }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="总人数" :span="1">{{ currentGroupDetails.memberCount }} 人</el-descriptions-item>
-          <el-descriptions-item label="分工描述" :span="2">
-            <div class="desc-text">{{ currentGroupDetails.description || '暂无分工描述' }}</div>
-          </el-descriptions-item>
-        </el-descriptions>
+      <div v-if="currentGroupDetails" class="detail-content">
+        <!-- 分组基本信息卡片 (采用渐变风格) -->
+        <el-card class="info-card" shadow="hover">
+          <el-descriptions :column="2" border size="large" class="custom-desc">
+            <el-descriptions-item label="分组名称">
+              <span class="info-text">{{ currentGroupDetails.name }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="状态">
+               <el-tag :type="getStatusTagType(currentGroupDetails.status)" size="small" effect="dark">
+                {{ getStatusText(currentGroupDetails.status) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="组长">
+              <span class="info-text">{{ currentGroupDetails.leaderName }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="当前人数">
+              <span class="info-text">{{ currentGroupDetails.memberCount }} 人</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="分工描述" :span="2">
+              <div class="desc-text">{{ currentGroupDetails.description || '暂无描述' }}</div>
+            </el-descriptions-item>
+          </el-descriptions>
+        </el-card>
 
         <div class="section-title mt-4">
-          <span class="title-text">成员列表</span>
-          <span class="title-count">({{ currentGroupDetails.memberList?.length || 0 }})</span>
+          <span class="title-text">成员列表 ({{ currentGroupDetails.memberList?.length || 0 }})</span>
         </div>
 
         <div class="members-grid">
@@ -226,8 +236,9 @@
 
 <script>
 import {ref, computed, onMounted} from 'vue'
+import { useRouter } from 'vue-router'
 import {ElMessage, ElMessageBox} from 'element-plus'
-import {Search, DataLine, Timer, Check, Close} from '@element-plus/icons-vue'
+import {Search, DataLine, Timer, Check, Close, Refresh} from '@element-plus/icons-vue'
 import axios from 'axios'
 
 const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://192.168.52.75:9999/api' : '/api'))
@@ -246,6 +257,7 @@ export default {
     Search, DataLine, Timer, Check, Close
   },
   setup() {
+    const router = useRouter()
     const loading = ref(false)
     const applicationStatusFilter = ref('')
     const currentPage = ref(1)
@@ -496,130 +508,267 @@ export default {
       getStatusTagType,
       getStatusText,
       getAvatarColor,
-      Search
+      goBack: () => router.back(),
+      Search,
+      Refresh
     }
   }
 }
 </script>
 
 <style scoped>
-.students-groups-container {
+.groups-page {
   padding: 24px;
-  background-color: #f1f5f9;
-  min-height: calc(100vh - 60px);
+  background-color: #f5f7fa;
+  min-height: 100vh;
 }
 
-/* 顶部统计卡片 */
-.stats-header {
-  margin-bottom: 24px;
+/* 顶部 Header */
+.page-header-container {
+  background: #fff;
+  padding: 16px 24px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
 }
+
+.header-title {
+  font-weight: 600;
+  font-size: 18px;
+  color: #303133;
+}
+
+/* 统计卡片 */
+.stats-container {
+  margin-bottom: 20px;
+}
+
 .stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
+  border: none;
+  border-radius: 8px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 100%;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.stat-body {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  transition: transform 0.2s;
+  padding: 10px;
 }
-.stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.08); }
 
-.stat-icon-bg {
-  width: 48px; height: 48px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 24px;
-}
-.total .stat-icon-bg { background: #eff6ff; color: #3b82f6; }
-.pending .stat-icon-bg { background: #fff7ed; color: #f97316; }
-.approved .stat-icon-bg { background: #f0fdf4; color: #22c55e; }
-.rejected .stat-icon-bg { background: #fef2f2; color: #ef4444; }
-
-.stat-info { display: flex; flex-direction: column; }
-.stat-label { font-size: 13px; color: #64748b; margin-bottom: 4px; }
-.stat-value { font-size: 24px; font-weight: 700; color: #1e293b; line-height: 1; }
-
-/* 主内容卡片 */
-.main-content-card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  min-height: 500px;
+.stat-info {
   display: flex;
   flex-direction: column;
 }
 
-.toolbar {
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #909399;
+  margin-top: 6px;
+}
+
+.stat-icon {
+  font-size: 40px;
+  padding: 10px;
+  border-radius: 12px;
+  opacity: 0.8;
+}
+
+/* 统计卡片主题色 */
+.blue-theme .stat-icon {
+  background-color: #ecf5ff;
+  color: #409eff;
+}
+.orange-theme .stat-icon {
+  background-color: #fdf6ec;
+  color: #e6a23c;
+}
+.green-theme .stat-icon {
+  background-color: #f0f9eb;
+  color: #67c23a;
+}
+.red-theme .stat-icon {
+  background-color: #fef0f0;
+  color: #f56c6c;
+}
+
+/* 主内容卡片 */
+.main-card {
+  border-radius: 8px;
+}
+
+/* 筛选工具栏 */
+.filter-toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
+  margin-bottom: 16px;
   gap: 16px;
 }
-.left-tools { display: flex; align-items: center; gap: 24px; }
-.card-title { font-size: 18px; font-weight: 600; color: #1e293b; margin: 0; }
-.right-tools { display: flex; align-items: center; gap: 12px; }
 
-.table-wrapper { flex: 1; margin-bottom: 16px; }
-.group-name-text { font-weight: 600; color: #334155; }
-
-.leader-info { display: flex; align-items: center; gap: 8px; }
-.leader-avatar { font-size: 12px; color: white; background: #3b82f6; }
-.leader-name { font-weight: 500; color: #334155; font-size: 13px; }
-
-.members-preview { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.member-tag-item { border: none; background: #f1f5f9; color: #475569; }
-.member-tag-more { background: #f8fafc; color: #94a3b8; }
-.no-members { color: #cbd5e1; font-size: 12px; }
-
-.status-tag-rounded { border-radius: 12px; padding: 0 12px; height: 24px; line-height: 24px; border: none; }
-
-.pagination-footer { display: flex; justify-content: flex-end; margin-top: auto; }
-
-/* 详情弹窗样式 */
-.detail-container { padding: 0 10px; }
-.detail-header {
-  display: flex; justify-content: space-between; align-items: center;
-  background: #f8fafc; padding: 20px; border-radius: 12px;
+.left-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.dh-left { display: flex; align-items: center; gap: 16px; }
-.dh-avatar {
-  width: 56px; height: 56px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  color: white; font-size: 24px; font-weight: bold;
-}
-.dh-info .dh-name { font-size: 20px; font-weight: 700; color: #1e293b; }
 
-.desc-text { color: #475569; line-height: 1.6; white-space: pre-wrap; font-size: 14px; }
-.desc-leader { font-weight: 600; color: #3b82f6; }
+.filter-label {
+  font-size: 14px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.right-filters {
+  display: flex;
+  gap: 12px;
+}
+
+/* 表格样式 */
+.group-name-text {
+  font-weight: 600;
+  color: #303133;
+}
+
+.leader-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.leader-name {
+  font-weight: 500;
+  color: #303133;
+}
+
+.members-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.member-tag-item {
+  background-color: #f0f2f5;
+  border-color: #dcdfe6;
+  color: #606266;
+}
+
+.status-tag-rounded {
+  border-radius: 12px;
+}
+
+:deep(.table-header-gray) {
+  background-color: #f5f7fa !important;
+  color: #606266;
+  font-weight: 600;
+}
+
+/* 分页 */
+.pagination-container {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+/* 详情弹窗 */
+.detail-content {
+  padding: 0 10px;
+}
+
+.info-card {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+  border: none;
+}
+
+.info-text {
+  font-weight: 500;
+  color: #303133;
+}
+
+.desc-text {
+  color: #606266;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-size: 14px;
+}
 
 .section-title {
-  font-size: 15px; font-weight: 600; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 12px;
 }
-.title-count { color: #94a3b8; font-weight: normal; }
 
 .members-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
 }
-.member-card-mini {
-  display: flex; align-items: center; gap: 10px; padding: 10px;
-  border: 1px solid #e2e8f0; border-radius: 8px;
-  background: white;
-}
-.member-card-mini.is-leader { border-color: #bfdbfe; background: #eff6ff; }
-.member-info .m-name { font-size: 13px; font-weight: 600; color: #334155; }
-.member-info .m-role { font-size: 11px; color: #3b82f6; }
-.member-info .text-gray { color: #94a3b8; }
 
-.mt-4 { margin-top: 24px; }
-.dialog-footer { display: flex; justify-content: flex-end; gap: 12px; }
+.member-card-mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.member-card-mini.is-leader {
+  border-color: #409eff;
+  background-color: #ecf5ff;
+}
+
+.member-info .m-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.member-info .m-role {
+  font-size: 11px;
+  color: #409eff;
+}
+
+.member-info .text-gray {
+  color: #909399;
+}
+
+.mt-4 {
+  margin-top: 24px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
 
 /* 响应式 */
 @media (max-width: 768px) {
-  .toolbar { flex-direction: column; align-items: flex-start; }
-  .right-tools { width: 100%; justify-content: space-between; }
-  .stats-header .el-col { width: 50%; margin-bottom: 12px; }
+  .filter-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .right-filters {
+    flex-direction: column;
+  }
 }
 </style>

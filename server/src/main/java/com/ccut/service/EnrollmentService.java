@@ -1,8 +1,10 @@
 package com.ccut.service;
 
 import com.ccut.entity.Enrollment;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 选课服务接口
@@ -34,6 +36,15 @@ public interface EnrollmentService {
      * @return 成功添加的学生数量
      */
     int batchEnroll(Long courseId, Long teacherId, List<Long> studentIds);
+
+    /**
+     * 通过Excel批量导入学生到课程
+     * @param courseId 课程ID
+     * @param teacherId 教师ID（用于权限验证）
+     * @param file Excel文件（包含学号列表）
+     * @return 导入结果 {success: 成功数, failed: 失败数, notFound: 未找到学号列表, details: 详细信息}
+     */
+    Map<String, Object> importStudentsFromExcel(Long courseId, Long teacherId, MultipartFile file);
 
     /**
      * 查询学生的所有已选课程

@@ -5,15 +5,21 @@ import com.ccut.entity.Enrollment;
 import com.ccut.entity.Student;
 import com.ccut.mapper.CourseMapper;
 import com.ccut.mapper.EnrollmentMapper;
+import com.ccut.mapper.StudentMapper;
 import com.ccut.service.EnrollmentService;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 选课服务实现类
@@ -28,6 +34,9 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     @Autowired
     private CourseMapper courseMapper;
+
+    @Autowired
+    private StudentMapper studentMapper;
 
     @Override
     @Transactional
@@ -187,6 +196,190 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         } catch (Exception e) {
             log.error("检查选课状态失败：studentId={}, courseId={}, error={}", studentId, courseId, e.getMessage(), e);
             throw e;
+        }
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> importStudentsFromExcel(Long courseId, Long teacherId, MultipartFile file) {
+        log.debug("执行方法：importStudentsFromExcel, 参数：courseId={}, teacherId={}, fileName={}",
+                courseId, teacherId, file != null ? file.getOriginalFilename() : "null");
+        long startTime = System.currentTimeMillis();
+
+        Map<String, Object> result = new HashMap<>();
+        List<String> notFoundNumbers = new ArrayList<>();
+        List<String> alreadyEnrolledNumbers = new ArrayList<>();
+        List<Map<String, Object>> successStudents = new ArrayList<>();
+
+        try {
+            // 验证课程是否属于该教师
+            Course course = courseMapper.selectById(courseId);
+            if (course == null) {
+                log.error("课程不存在：courseId={}", courseId);
+                throw new RuntimeException("课程不存在");
+            }
+            if (!course.getTeacherId().equals(teacherId)) {
+                log.error("无权为此课程添加学生：courseId={}, teacherId={}, courseTeacherId={}",
+                        courseId, teacherId, course.getTeacherId());
+                throw new IllegalArgumentException("您无权为此课程添加学生");
+            }
+
+            // 验证文件
+            if (file == null || file.isEmpty()) {
+                throw new IllegalArgumentException("请上传Excel文件");
+            }
+            String filename = file.getOriginalFilename();
+            if (filename == null || (!filename.endsWith(".xlsx") && !filename.endsWith(".xls"))) {
+                throw new IllegalArgumentException("请上传Excel文件（.xlsx或.xls格式）");
+            }
+
+            // 解析Excel获取学号列表
+            List<String> studentNumbers = parseStudentNumbersFromExcel(file.getInputStream());
+            if (studentNumbers.isEmpty()) {
+                throw new IllegalArgumentException("Excel文件中未找到学号数据");
+            }
+
+            log.info("从Excel解析到 {} 个学号", studentNumbers.size());
+
+            // 批量查询学生
+            List<Student> students = studentMapper.findByStudentNumbers(studentNumbers);
+            Map<String, Student> studentMap = students.stream()
+                    .collect(Collectors.toMap(Student::getStudentNumber, s -> s, (a, b) -> a));
+
+            // 找出未找到的学号
+            for (String number : studentNumbers) {
+                if (!studentMap.containsKey(number)) {
+                    notFoundNumbers.add(number);
+                }
+            }
+
+            // 检查已选课的学生
+            List<Long> studentIdsToEnroll = new ArrayList<>();
+            for (Student student : students) {
+                if (isEnrolled(student.getId(), courseId)) {
+                    alreadyEnrolledNumbers.add(student.getStudentNumber());
+                } else {
+                    studentIdsToEnroll.add(student.getId());
+                }
+            }
+
+            // 批量添加
+            int successCount = 0;
+            if (!studentIdsToEnroll.isEmpty()) {
+                successCount = enrollmentMapper.batchInsert(courseId, studentIdsToEnroll);
+                // 构建成功学生信息
+                for (Long studentId : studentIdsToEnroll) {
+                    for (Student s : students) {
+                        if (s.getId().equals(studentId)) {
+                            Map<String, Object> info = new HashMap<>();
+                            info.put("studentId", s.getId());
+                            info.put("studentNumber", s.getStudentNumber());
+                            info.put("name", s.getName());
+                            successStudents.add(info);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            long duration = System.currentTimeMillis() - startTime;
+
+            result.put("success", successCount);
+            result.put("failed", alreadyEnrolledNumbers.size());
+            result.put("notFound", notFoundNumbers);
+            result.put("alreadyEnrolled", alreadyEnrolledNumbers);
+            result.put("successStudents", successStudents);
+            result.put("totalInFile", studentNumbers.size());
+            result.put("message", String.format("导入完成：成功%d人，已选课%d人，未找到学号%d人",
+                    successCount, alreadyEnrolledNumbers.size(), notFoundNumbers.size()));
+
+            log.info("Excel导入学生完成：courseId={}, 成功={}, 已选课={}, 未找到={}, 耗时={}ms",
+                    courseId, successCount, alreadyEnrolledNumbers.size(), notFoundNumbers.size(), duration);
+
+            return result;
+        } catch (IOException e) {
+            log.error("读取Excel文件失败：{}", e.getMessage(), e);
+            throw new RuntimeException("读取Excel文件失败：" + e.getMessage());
+        } catch (Exception e) {
+            log.error("Excel导入学生失败：courseId={}, teacherId={}, error={}", courseId, teacherId, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * 从Excel文件解析学号列表
+     * 支持第一列为学号或第一行有"学号"标题的列
+     */
+    private List<String> parseStudentNumbersFromExcel(InputStream inputStream) throws IOException {
+        List<String> studentNumbers = new ArrayList<>();
+
+        try (Workbook workbook = new XSSFWorkbook(inputStream)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            if (sheet == null || sheet.getPhysicalNumberOfRows() == 0) {
+                return studentNumbers;
+            }
+
+            // 检查第一行是否有"学号"标题
+            Row headerRow = sheet.getRow(0);
+            int studentNumberCol = 0; // 默认第一列
+
+            if (headerRow != null) {
+                for (Cell cell : headerRow) {
+                    String value = getCellValueAsString(cell);
+                    if (value != null && value.contains("学号")) {
+                        studentNumberCol = cell.getColumnIndex();
+                        break;
+                    }
+                }
+            }
+
+            // 从第二行开始读取（跳过标题行）
+            int startRow = 1;
+            // 如果第一行看起来像数据（纯数字），则从第一行开始
+            if (headerRow != null) {
+                Cell firstCell = headerRow.getCell(studentNumberCol);
+                String firstValue = getCellValueAsString(firstCell);
+                if (firstValue != null && firstValue.matches("\\d+")) {
+                    startRow = 0;
+                }
+            }
+
+            for (int i = startRow; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+
+                Cell cell = row.getCell(studentNumberCol);
+                String value = getCellValueAsString(cell);
+                if (value != null && !value.trim().isEmpty()) {
+                    studentNumbers.add(value.trim());
+                }
+            }
+        }
+
+        return studentNumbers;
+    }
+
+    /**
+     * 获取单元格的字符串值
+     */
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) return null;
+
+        switch (cell.getCellType()) {
+            case STRING:
+                return cell.getStringCellValue();
+            case NUMERIC:
+                // 处理学号可能以数字形式存储的情况
+                long num = (long) cell.getNumericCellValue();
+                return String.valueOf(num);
+            case FORMULA:
+                try {
+                    return cell.getStringCellValue();
+                } catch (Exception e) {
+                    return String.valueOf((long) cell.getNumericCellValue());
+                }
+            default:
+                return null;
         }
     }
 }

@@ -15,6 +15,12 @@ public interface CourseVideoMapper {
     List<CourseVideo> findByCourseId(@Param("courseId") Long courseId);
     Integer findMaxIndexByCourseId(@Param("courseId") Long courseId);
 
+    // 新增：更新视频所属章节
+    int updateChapterId(@Param("videoId") Long videoId, @Param("chapterId") Long chapterId);
+
+    // 新增：按章节查询视频
+    CourseVideo findByChapterId(@Param("chapterId") Long chapterId);
+
     // 新增：按教师ID查询其课程下的视频列表
     List<TeacherVideoItem> listByTeacherId(@Param("teacherId") Long teacherId);
 }

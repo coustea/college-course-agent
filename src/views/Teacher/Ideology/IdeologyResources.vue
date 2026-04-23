@@ -154,8 +154,34 @@
         <el-form-item label="关键词">
           <el-input v-model="form.keywords" placeholder="多个关键词用逗号分隔" />
         </el-form-item>
-        <el-form-item label="资源链接">
-          <el-input v-model="form.sourceUrl" placeholder="资源URL地址" />
+        <el-form-item label="资源来源">
+          <el-radio-group v-model="form.sourceType" @change="handleSourceTypeChange">
+            <el-radio value="url">网络链接</el-radio>
+            <el-radio value="file">上传文件</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="form.sourceType === 'url'" label="资源链接">
+          <el-input v-model="form.sourceUrl" placeholder="输入网络资源URL地址" />
+        </el-form-item>
+        <el-form-item v-if="form.sourceType === 'file'" label="上传文件">
+          <el-upload
+            ref="uploadRef"
+            class="upload-area"
+            action="#"
+            :auto-upload="false"
+            :on-change="handleFileChange"
+            :on-remove="handleFileRemove"
+            :limit="1"
+            :file-list="fileList"
+          >
+            <el-button type="primary" plain>
+              <el-icon><Upload /></el-icon>
+              选择文件
+            </el-button>
+            <template #tip>
+              <div class="upload-tip">支持 PDF、Word、PPT、视频等格式，文件大小不超过 50MB</div>
+            </template>
+          </el-upload>
         </el-form-item>
         <el-form-item label="难度">
           <el-radio-group v-model="form.difficulty">
@@ -203,7 +229,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Upload } from '@element-plus/icons-vue'
 import {
   getIdeologyResources,
   getIdeologyResourceStats,
@@ -218,6 +244,9 @@ const resourceStatsLoading = ref(false)
 const submitting = ref(false)
 const resources = ref([])
 const courses = ref([])
+const uploadRef = ref(null)
+const fileList = ref([])
+const uploadedFile = ref(null)
 const resourceStats = reactive({
   targetResources: 100,
   totalResources: 0,
@@ -255,6 +284,7 @@ const form = reactive({
   valueTheme: '',
   applicableScene: '',
   keywords: '',
+  sourceType: 'url',
   sourceUrl: '',
   difficulty: 'medium',
   status: 'draft',
@@ -413,11 +443,14 @@ const showEditDialog = (row) => {
     valueTheme: row.valueTheme,
     applicableScene: row.applicableScene,
     keywords: row.keywords,
-    sourceUrl: row.sourceUrl,
+    sourceType: row.sourceUrl ? 'url' : 'file',
+    sourceUrl: row.sourceUrl || '',
     difficulty: row.difficulty,
     status: row.status,
     autoAnalyze: false
   })
+  fileList.value = []
+  uploadedFile.value = null
   dialogVisible.value = true
 }
 
@@ -431,11 +464,28 @@ const resetForm = () => {
     valueTheme: '',
     applicableScene: '',
     keywords: '',
+    sourceType: 'url',
     sourceUrl: '',
     difficulty: 'medium',
     status: 'draft',
     autoAnalyze: true
   })
+  fileList.value = []
+  uploadedFile.value = null
+}
+
+const handleSourceTypeChange = () => {
+  form.sourceUrl = ''
+  fileList.value = []
+  uploadedFile.value = null
+}
+
+const handleFileChange = (file) => {
+  uploadedFile.value = file.raw
+}
+
+const handleFileRemove = () => {
+  uploadedFile.value = null
 }
 
 const handleSubmit = async () => {
@@ -448,10 +498,34 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     let res
-    if (isEdit.value) {
-      res = await updateIdeologyResource(form.resourceId, form)
+    if (form.sourceType === 'file' && uploadedFile.value) {
+      // 文件上传模式
+      const formData = new FormData()
+      formData.append('title', form.title)
+      formData.append('resourceType', form.resourceType)
+      formData.append('contentSummary', form.contentSummary || '')
+      formData.append('courseId', form.courseId || '')
+      formData.append('valueTheme', form.valueTheme || '')
+      formData.append('applicableScene', form.applicableScene || '')
+      formData.append('keywords', form.keywords || '')
+      formData.append('difficulty', form.difficulty)
+      formData.append('status', form.status)
+      formData.append('autoAnalyze', form.autoAnalyze)
+      formData.append('file', uploadedFile.value)
+
+      if (isEdit.value) {
+        formData.append('resourceId', form.resourceId)
+        res = await updateIdeologyResource(form.resourceId, formData)
+      } else {
+        res = await createIdeologyResource(formData)
+      }
     } else {
-      res = await createIdeologyResource(form)
+      // URL模式
+      if (isEdit.value) {
+        res = await updateIdeologyResource(form.resourceId, form)
+      } else {
+        res = await createIdeologyResource(form)
+      }
     }
 
     const body = normalizeResponse(res)

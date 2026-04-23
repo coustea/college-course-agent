@@ -101,4 +101,14 @@
         ORDER BY id DESC
     </select>
 
+    <!-- 根据学号列表批量查询学生 -->
+    <select id="findByStudentNumbers" resultMap="StudentRM">
+        SELECT id, student_number, name, email, phone, class_name, major, grade, status, group_status
+        FROM students
+        WHERE student_number IN
+        <foreach collection="studentNumbers" item="studentNumber" open="(" separator="," close=")">
+            #{studentNumber}
+        </foreach>
+    </select>
+
 </mapper>

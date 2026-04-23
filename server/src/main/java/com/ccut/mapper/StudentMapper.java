@@ -20,4 +20,11 @@ public interface StudentMapper {
 
     // 推荐系统需要的辅助方法
     List<Long> findAllStudentIds();
+
+    /**
+     * 根据学号列表批量查询学生
+     * @param studentNumbers 学号列表
+     * @return 学生列表
+     */
+    List<Student> findByStudentNumbers(@Param("studentNumbers") List<String> studentNumbers);
 }

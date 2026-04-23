@@ -5,6 +5,7 @@ import com.ccut.entity.Enrollment;
 import com.ccut.service.EnrollmentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -93,5 +94,18 @@ public class EnrollmentController {
             @RequestParam("courseId") Long courseId) {
         boolean enrolled = enrollmentService.isEnrolled(studentId, courseId);
         return Result.success(enrolled);
+    }
+
+    /**
+     * 通过Excel批量导入学生到课程
+     * Excel文件应包含学号列（第一列或有"学号"标题的列）
+     */
+    @PostMapping("/import-excel")
+    public Result<Map<String, Object>> importStudentsFromExcel(
+            @RequestParam("courseId") Long courseId,
+            @RequestParam("teacherId") Long teacherId,
+            @RequestParam("file") MultipartFile file) {
+        Map<String, Object> result = enrollmentService.importStudentsFromExcel(courseId, teacherId, file);
+        return Result.success(result);
     }
 }

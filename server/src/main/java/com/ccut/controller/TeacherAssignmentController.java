@@ -64,8 +64,8 @@ public class TeacherAssignmentController {
         List<FileInfo> fileInfos = new ArrayList<>();
 
         if (files != null && files.length > 0) {
-            //  使用配置文件路径作为根目录
-            Path basePath = Paths.get(uploadBaseDir, "homework", "teacher");
+            //  使用配置文件路径作为根目录，转换为绝对路径
+            Path basePath = Paths.get(uploadBaseDir, "homework", "teacher").toAbsolutePath();
             String dateDir = LocalDate.now().toString();
             Path uploadDir = basePath.resolve(dateDir);
             Files.createDirectories(uploadDir);
@@ -83,7 +83,7 @@ public class TeacherAssignmentController {
 
                 // 写入文件
                 Path target = uploadDir.resolve(saveFileName);
-                file.transferTo(target.toFile());
+                file.transferTo(target);
 
                 // 数据库存相对路径（供前端访问）
                 String relativePath = "/uploads/homework/teacher/" + dateDir + "/" + saveFileName;

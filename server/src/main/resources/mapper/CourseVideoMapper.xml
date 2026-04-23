@@ -5,6 +5,7 @@
     <resultMap id="CourseVideoRM" type="com.ccut.entity.CourseVideo">
         <id property="videoId" column="video_id"/>
         <result property="courseId" column="course_id"/>
+        <result property="chapterId" column="chapter_id"/>
         <result property="videoIndex" column="video_index"/>
         <result property="videoTitle" column="video_title"/>
         <result property="videoUrl" column="video_url"/>
@@ -16,6 +17,7 @@
         INSERT INTO course_videos (
             <trim suffixOverrides=",">
                 <if test="courseId != null">course_id,</if>
+                <if test="chapterId != null">chapter_id,</if>
                 <if test="videoIndex != null">video_index,</if>
                 <if test="videoTitle != null">video_title,</if>
                 <if test="videoUrl != null">video_url,</if>
@@ -25,6 +27,7 @@
         ) VALUES (
             <trim suffixOverrides=",">
                 <if test="courseId != null">#{courseId},</if>
+                <if test="chapterId != null">#{chapterId},</if>
                 <if test="videoIndex != null">#{videoIndex},</if>
                 <if test="videoTitle != null">#{videoTitle},</if>
                 <if test="videoUrl != null">#{videoUrl},</if>
@@ -38,6 +41,7 @@
         UPDATE course_videos
         <set>
             <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="chapterId != null">chapter_id = #{chapterId},</if>
             <if test="videoIndex != null">video_index = #{videoIndex},</if>
             <if test="videoTitle != null">video_title = #{videoTitle},</if>
             <if test="videoUrl != null">video_url = #{videoUrl},</if>
@@ -52,11 +56,22 @@
     </delete>
 
     <select id="findByCourseId" resultMap="CourseVideoRM">
-        SELECT video_id, course_id, video_index, video_title, video_url, duration, upload_date
+        SELECT video_id, course_id, chapter_id, video_index, video_title, video_url, duration, upload_date
         FROM course_videos
         WHERE course_id = #{courseId}
         ORDER BY video_index ASC
     </select>
+
+    <select id="findByChapterId" resultMap="CourseVideoRM">
+        SELECT video_id, course_id, chapter_id, video_index, video_title, video_url, duration, upload_date
+        FROM course_videos
+        WHERE chapter_id = #{chapterId}
+        LIMIT 1
+    </select>
+
+    <update id="updateChapterId">
+        UPDATE course_videos SET chapter_id = #{chapterId} WHERE video_id = #{videoId}
+    </update>
 
     <select id="findMaxIndexByCourseId" resultType="java.lang.Integer">
         SELECT COALESCE(MAX(video_index), 0) FROM course_videos WHERE course_id = #{courseId}

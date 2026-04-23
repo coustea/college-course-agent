@@ -5,6 +5,7 @@
     <resultMap id="CourseDocRM" type="com.ccut.entity.CourseDocument">
         <id property="documentId" column="document_id"/>
         <result property="courseId" column="course_id"/>
+        <result property="chapterId" column="chapter_id"/>
         <result property="docIndex" column="document_index"/>
         <result property="docTitle" column="document_title"/>
         <result property="docUrl" column="document_url"/>
@@ -15,6 +16,7 @@
         INSERT INTO course_documents (
             <trim suffixOverrides=",">
                 <if test="courseId != null">course_id,</if>
+                <if test="chapterId != null">chapter_id,</if>
                 <if test="docIndex != null">document_index,</if>
                 <if test="docTitle != null">document_title,</if>
                 <if test="docUrl != null">document_url,</if>
@@ -23,6 +25,7 @@
         ) VALUES (
             <trim suffixOverrides=",">
                 <if test="courseId != null">#{courseId},</if>
+                <if test="chapterId != null">#{chapterId},</if>
                 <if test="docIndex != null">#{docIndex},</if>
                 <if test="docTitle != null">#{docTitle},</if>
                 <if test="docUrl != null">#{docUrl},</if>
@@ -35,6 +38,7 @@
         UPDATE course_documents
         <set>
             <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="chapterId != null">chapter_id = #{chapterId},</if>
             <if test="docIndex != null">document_index = #{docIndex},</if>
             <if test="docTitle != null">document_title = #{docTitle},</if>
             <if test="docUrl != null">document_url = #{docUrl},</if>
@@ -48,16 +52,25 @@
     </delete>
 
     <select id="findByCourseId" resultMap="CourseDocRM">
-        SELECT document_id, course_id, document_index, document_title, document_url, upload_date
+        SELECT document_id, course_id, chapter_id, document_index, document_title, document_url, upload_date
         FROM course_documents
         WHERE course_id = #{courseId}
         ORDER BY document_index ASC
     </select>
+
+    <select id="findByChapterId" resultMap="CourseDocRM">
+        SELECT document_id, course_id, chapter_id, document_index, document_title, document_url, upload_date
+        FROM course_documents
+        WHERE chapter_id = #{chapterId}
+        LIMIT 1
+    </select>
+
+    <update id="updateChapterId">
+        UPDATE course_documents SET chapter_id = #{chapterId} WHERE document_id = #{documentId}
+    </update>
 
     <select id="findMaxIndexByCourseId" resultType="java.lang.Integer">
         SELECT COALESCE(MAX(document_index), 0) FROM course_documents WHERE course_id = #{courseId}
     </select>
 
 </mapper>
-
-

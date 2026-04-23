@@ -78,7 +78,7 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
 
             Path target = uploadDateDir.resolve(filename);
             try {
-                file.transferTo(target.toFile());
+                file.transferTo(target);
                 log.info("文档文件保存成功：originalFilename={}, savedFilename={}", original, filename);
             } catch (Exception e) {
                 log.error("文件保存失败：filename={}", filename);
@@ -165,7 +165,7 @@ public class CourseDocumentServiceImpl implements CourseDocumentService {
 
                 Path target = uploadDateDir.resolve(filename);
                 try {
-                    file.transferTo(target.toFile());
+                    file.transferTo(target);
                     log.info("新文档文件保存成功：originalFilename={}, savedFilename={}", original, filename);
                 } catch (Exception e) {
                     log.error("文件保存失败：filename={}", filename);

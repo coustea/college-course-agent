@@ -55,7 +55,7 @@ public class CourseVideoServiceImpl implements CourseVideoService {
 
             // === 构造保存目录 ===
             String dateDir = LocalDate.now().toString();
-            Path uploadPath = Paths.get(uploadDir, dateDir);
+            Path uploadPath = Paths.get(uploadDir, dateDir).toAbsolutePath();
             try {
                 Files.createDirectories(uploadPath);
             } catch (Exception e) {
@@ -74,7 +74,7 @@ public class CourseVideoServiceImpl implements CourseVideoService {
 
             Path target = uploadPath.resolve(filename);
             try {
-                file.transferTo(target.toFile());
+                file.transferTo(target);
                 log.info("视频文件保存成功：originalFilename={}, savedFilename={}", original, filename);
             } catch (Exception e) {
                 log.error("文件保存失败：filename={}", filename);

@@ -31,6 +31,16 @@ export function getIdeologyResourceStats(params) {
  * 创建思政资源
  */
 export function createIdeologyResource(data) {
+  if (data instanceof FormData) {
+    return request({
+      url: '/api/ideology/resources/upload',
+      method: 'post',
+      data,
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+  }
   return request({
     url: '/api/ideology/resources',
     method: 'post',
@@ -42,6 +52,16 @@ export function createIdeologyResource(data) {
  * 更新思政资源
  */
 export function updateIdeologyResource(resourceId, data) {
+  if (data instanceof FormData) {
+    return request({
+      url: `/api/ideology/resources/${resourceId}/upload`,
+      method: 'put',
+      data,
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+  }
   return request({
     url: `/api/ideology/resources/${resourceId}`,
     method: 'put',

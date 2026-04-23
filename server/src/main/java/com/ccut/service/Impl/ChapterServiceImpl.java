@@ -1,6 +1,8 @@
 package com.ccut.service.Impl;
 
 import com.ccut.entity.Chapter;
+import com.ccut.entity.CourseDocument;
+import com.ccut.entity.CourseVideo;
 import com.ccut.mapper.ChapterMapper;
 import com.ccut.mapper.CourseVideoMapper;
 import com.ccut.mapper.CourseDocumentMapper;
@@ -250,13 +252,18 @@ public class ChapterServiceImpl implements ChapterService {
                 throw new IllegalArgumentException("章节不存在");
             }
 
-            // TODO: 更新 course_videos 表的 chapter_id 字段
-            // 这里需要先创建 CourseVideoMapper 的更新方法
+            // 更新 course_videos 表的 chapter_id 字段
+            courseVideoMapper.updateChapterId(videoId, chapterId);
 
-            chapter.setContentType(1); // 视频内容
+            // 根据是否已有文档来设置 contentType
+            // 1 = 仅视频, 2 = 仅文档, 3 = 视频+文档
+            CourseDocument existingDoc = courseDocumentMapper.findByChapterId(chapterId);
+            chapter.setContentType(existingDoc != null ? 3 : 1);
             chapterMapper.updateById(chapter);
+
             long duration = System.currentTimeMillis() - startTime;
-            log.info("视频关联成功：chapterId={}, videoId={}, 耗时={}ms", chapterId, videoId, duration);
+            log.info("视频关联成功：chapterId={}, videoId={}, contentType={}, 耗时={}ms",
+                    chapterId, videoId, chapter.getContentType(), duration);
             log.debug("方法返回：result=视频关联成功");
             return "视频关联成功";
         } catch (Exception e) {
@@ -282,13 +289,18 @@ public class ChapterServiceImpl implements ChapterService {
                 throw new IllegalArgumentException("章节不存在");
             }
 
-            // TODO: 更新 course_documents 表的 chapter_id 字段
-            // 这里需要先创建 CourseDocumentMapper 的更新方法
+            // 更新 course_documents 表的 chapter_id 字段
+            courseDocumentMapper.updateChapterId(documentId, chapterId);
 
-            chapter.setContentType(2); // 文档内容
+            // 根据是否已有视频来设置 contentType
+            // 1 = 仅视频, 2 = 仅文档, 3 = 视频+文档
+            CourseVideo existingVideo = courseVideoMapper.findByChapterId(chapterId);
+            chapter.setContentType(existingVideo != null ? 3 : 2);
             chapterMapper.updateById(chapter);
+
             long duration = System.currentTimeMillis() - startTime;
-            log.info("文档关联成功：chapterId={}, documentId={}, 耗时={}ms", chapterId, documentId, duration);
+            log.info("文档关联成功：chapterId={}, documentId={}, contentType={}, 耗时={}ms",
+                    chapterId, documentId, chapter.getContentType(), duration);
             log.debug("方法返回：result=文档关联成功");
             return "文档关联成功";
         } catch (Exception e) {
