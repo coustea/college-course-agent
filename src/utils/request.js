@@ -2,9 +2,14 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-// 创建 axios 实例
+const normalizeBaseURL = (value) => {
+  const baseURL = value || ''
+  return baseURL.replace(/\/api\/?$/, '')
+}
+
+// 创建 axios 实例。各 service 已经显式使用 /api 前缀，baseURL 不再重复拼接 /api。
 const request = axios.create({
-  baseURL: 'http://localhost:9999',
+  baseURL: normalizeBaseURL(import.meta.env.VITE_API_BASE_URL),
   timeout: 10000
 })
 

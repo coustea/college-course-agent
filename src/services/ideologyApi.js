@@ -3,6 +3,9 @@ import request from '@/utils/request'
 export const searchIdeologyResources = (params = {}) =>
   request.get('/api/ideology/resources', { params })
 
+export const getIdeologyResourceStats = (params = {}) =>
+  request.get('/api/ideology/resources/stats', { params })
+
 export const createIdeologyResource = (payload) =>
   request.post('/api/ideology/resources', payload)
 

@@ -75,9 +75,20 @@
         <div class="detail-keywords">
           <span v-for="keyword in splitKeywords(activeResource?.keywords)" :key="keyword">#{{ keyword }}</span>
         </div>
-        <a v-if="activeResource?.sourceUrl" class="resource-link" :href="activeResource.sourceUrl" target="_blank" rel="noopener">
+        <a
+          v-if="hasResourceLink(activeResource)"
+          class="resource-link"
+          :href="activeResource.sourceUrl"
+          target="_blank"
+          rel="noopener"
+        >
           打开资源链接
         </a>
+        <div v-else class="resource-unavailable">
+          <el-tag type="info" effect="plain">
+            {{ resourceAvailabilityText(activeResource) }}
+          </el-tag>
+        </div>
       </div>
     </el-dialog>
   </div>
@@ -205,6 +216,15 @@ const resourceTypeText = (type) => ({
   document: '文档材料',
   activity: '互动活动'
 }[type] || '思政资源')
+
+const hasResourceLink = (resource) => Boolean(resource?.sourceUrl)
+
+const resourceAvailabilityText = (resource) => {
+  if (resource?.resourceType === 'video') {
+    return '视频资源暂未开放'
+  }
+  return '资源链接暂未开放'
+}
 
 onMounted(async () => {
   await loadCourses()
@@ -426,6 +446,11 @@ onMounted(async () => {
   color: #0f766e;
   font-weight: 700;
   text-decoration: none;
+}
+
+.resource-unavailable {
+  margin-top: 22px;
+  color: #64748b;
 }
 
 @media (max-width: 820px) {

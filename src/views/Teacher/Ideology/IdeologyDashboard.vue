@@ -11,6 +11,72 @@
       </el-col>
     </el-row>
 
+    <el-row :gutter="20" class="resource-stats" v-if="resourceStats">
+      <el-col :xs="12" :sm="6">
+        <el-card class="resource-stat-card" shadow="never">
+          <div class="resource-stat-value">{{ resourceStats.totalResources }}</div>
+          <div class="resource-stat-label">资源总数</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card class="resource-stat-card" shadow="never">
+          <div class="resource-stat-value">{{ resourceStats.publishedResources }}</div>
+          <div class="resource-stat-label">已发布</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card class="resource-stat-card" shadow="never">
+          <div class="resource-stat-value">{{ resourceStats.videoResources }}</div>
+          <div class="resource-stat-label">视频资源</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card class="resource-stat-card" shadow="never">
+          <div class="resource-stat-value">{{ resourceStats.pendingSourceResources }}</div>
+          <div class="resource-stat-label">待补链接</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="20" class="achievement-grid" v-if="resourceStats">
+      <el-col :xs="24" :lg="8">
+        <el-card class="achievement-card" shadow="never">
+          <div class="achievement-head">
+            <span>资源库建设</span>
+            <strong>{{ resourceTargetProgress }}%</strong>
+          </div>
+          <el-progress :percentage="resourceTargetProgress" :stroke-width="10" />
+          <div class="achievement-meta">
+            已上线 {{ resourceStats.totalResources }} / {{ resourceStats.targetResources }} 条，覆盖 {{ resourceStats.courseCoverageCount }} 门课程
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :lg="8">
+        <el-card class="achievement-card" shadow="never">
+          <div class="achievement-head">
+            <span>平台试运行</span>
+            <strong>{{ publishedRate }}%</strong>
+          </div>
+          <el-progress :percentage="publishedRate" :stroke-width="10" status="success" />
+          <div class="achievement-meta">
+            已发布 {{ resourceStats.publishedResources }} 条，视频资源 {{ resourceStats.videoResources }} 条
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :lg="8">
+        <el-card class="achievement-card" shadow="never">
+          <div class="achievement-head">
+            <span>评价模型闭环</span>
+            <strong>{{ modelReadiness }}%</strong>
+          </div>
+          <el-progress :percentage="modelReadiness" :stroke-width="10" status="warning" />
+          <div class="achievement-meta">
+            汇总评价、情感分析、价值认同与学生预警已接入看板
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <!-- 核心指标卡片 -->
     <el-row :gutter="20" class="metric-cards">
       <el-col :xs="12" :sm="6">
@@ -122,14 +188,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { User, TrendCharts, CollectionTag, Warning } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
   getCourseEvaluationSummary,
   getCourseWarnings,
   getCourseSentimentDistribution,
-  getCourseValueSummary
+  getCourseValueSummary,
+  getIdeologyResourceStats,
+  getIdeologyResources
 } from '@/services/ideology'
 import { getCourses } from '@/services/coursesApi'
 
@@ -139,6 +207,26 @@ const evaluationSummary = ref(null)
 const valueSummary = ref(null)
 const warnings = ref([])
 const sentimentDistribution = ref(null)
+const resourceStats = ref(null)
+
+const resourceTargetProgress = computed(() => {
+  return clampPercentage(resourceStats.value?.completionRate)
+})
+
+const publishedRate = computed(() => {
+  return clampPercentage(resourceStats.value?.publishedRate)
+})
+
+const modelReadiness = computed(() => {
+  const signals = [
+    Boolean(evaluationSummary.value),
+    Boolean(sentimentDistribution.value),
+    Boolean(valueSummary.value),
+    Boolean(warnings.value)
+  ]
+  const readyCount = signals.filter(Boolean).length
+  return Math.round((readyCount / signals.length) * 100)
+})
 
 // 图表引用
 const radarChartRef = ref(null)
@@ -159,8 +247,9 @@ onMounted(() => {
 const loadCourses = async () => {
   try {
     const res = await getCourses()
-    if (res.code === 200) {
-      courses.value = res.data || []
+    const body = normalizeResponse(res)
+    if (body?.code === 200) {
+      courses.value = body.data || []
       if (courses.value.length > 0) {
         selectedCourseId.value = courses.value[0].courseId
         loadData()
@@ -179,17 +268,106 @@ const loadData = async () => {
     getCourseEvaluationSummary(selectedCourseId.value, 'monthly'),
     getCourseWarnings(selectedCourseId.value),
     getCourseValueSummary(selectedCourseId.value),
-    getCourseSentimentDistribution(selectedCourseId.value)
+    getCourseSentimentDistribution(selectedCourseId.value),
+    loadResourceStats()
   ])
 
-  if (evalRes.code === 200) evaluationSummary.value = evalRes.data
-  if (warnRes.code === 200) warnings.value = warnRes.data
-  if (valueRes.code === 200) valueSummary.value = valueRes.data
-  if (sentimentRes.code === 200) sentimentDistribution.value = sentimentRes.data
+  const evalBody = normalizeResponse(evalRes)
+  const warnBody = normalizeResponse(warnRes)
+  const valueBody = normalizeResponse(valueRes)
+  const sentimentBody = normalizeResponse(sentimentRes)
+
+  if (evalBody?.code === 200) evaluationSummary.value = evalBody.data
+  if (warnBody?.code === 200) warnings.value = warnBody.data
+  if (valueBody?.code === 200) valueSummary.value = valueBody.data
+  if (sentimentBody?.code === 200) sentimentDistribution.value = sentimentBody.data
 
   nextTick(() => {
     updateCharts()
   })
+}
+
+const normalizeResponse = (res) => {
+  if (res && typeof res === 'object' && 'status' in res && res.data) {
+    return res.data
+  }
+  return res
+}
+
+const deriveResourceStats = (items = []) => {
+  const list = Array.isArray(items) ? items : []
+  return {
+    targetResources: 100,
+    totalResources: list.length,
+    publishedResources: list.filter(item => item.status === 'published').length,
+    videoResources: list.filter(item => item.resourceType === 'video').length,
+    pendingSourceResources: list.filter(item => item.resourceType === 'video' && !item.sourceUrl).length,
+    courseCoverageCount: new Set(list.map(item => item.courseId).filter(Boolean)).size,
+    completionRate: clampPercentage(list.length),
+    publishedRate: list.length > 0 ? clampPercentage((list.filter(item => item.status === 'published').length * 100) / list.length) : 0
+  }
+}
+
+const applyResourceStats = (payload) => {
+  if (Array.isArray(payload)) {
+    resourceStats.value = deriveResourceStats(payload)
+    return
+  }
+  if (payload && typeof payload === 'object') {
+    const resourceTypeCounts = payload.resourceTypeCounts || {}
+    const targetResources = Number(payload.targetResources ?? payload.targetCount ?? 100)
+    const totalResources = Number(payload.totalResources ?? payload.totalCount ?? payload.total ?? 0)
+    const publishedResources = Number(payload.publishedResources ?? payload.publishedCount ?? 0)
+    resourceStats.value = {
+      targetResources,
+      totalResources,
+      publishedResources,
+      videoResources: Number(payload.videoResources ?? payload.videoCount ?? resourceTypeCounts.video ?? 0),
+      pendingSourceResources: Number(payload.pendingSourceResources ?? payload.pendingSourceCount ?? payload.pendingCount ?? 0),
+      courseCoverageCount: Number(payload.courseCoverageCount ?? 0),
+      completionRate: clampPercentage(payload.completionRate ?? payload.resourceCompletionRate ?? ((totalResources * 100) / targetResources)),
+      publishedRate: clampPercentage(payload.publishedRate ?? (totalResources > 0 ? (publishedResources * 100) / totalResources : 0))
+    }
+  }
+}
+
+const clampPercentage = (value) => {
+  const numberValue = Number(value ?? 0)
+  if (Number.isNaN(numberValue)) {
+    return 0
+  }
+  return Math.max(0, Math.min(100, Math.round(numberValue)))
+}
+
+const loadResourceStats = async () => {
+  try {
+    const res = await getIdeologyResourceStats({
+      courseId: selectedCourseId.value || undefined
+    })
+    const body = normalizeResponse(res)
+    if (body?.code === 200) {
+      applyResourceStats(body.data)
+      return
+    }
+  } catch (error) {
+    console.warn('加载资源统计失败，使用资源列表回退', error)
+  }
+
+  try {
+    const resourceRes = await getIdeologyResources({
+      courseId: selectedCourseId.value || undefined,
+      limit: 200
+    })
+    const body = normalizeResponse(resourceRes)
+    if (body?.code === 200) {
+      applyResourceStats(body.data || [])
+    } else {
+      resourceStats.value = deriveResourceStats([])
+    }
+  } catch (error) {
+    console.warn('资源列表回退失败', error)
+    resourceStats.value = deriveResourceStats([])
+  }
 }
 
 const initCharts = () => {
@@ -254,7 +432,7 @@ const updateCharts = () => {
     sentimentChart.setOption({
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: ['积极', '中性', '消极'] },
-      yAxis: { type: 'value', max: 1, axisLabel: { formatter: '{%}' } },
+      yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
       series: [{
         type: 'bar',
         data: [
@@ -300,6 +478,58 @@ const updateCharts = () => {
 
 .filter-card {
   margin-bottom: 20px;
+}
+
+.resource-stats {
+  margin-bottom: 20px;
+}
+
+.resource-stat-card {
+  min-height: 96px;
+}
+
+.resource-stat-value {
+  color: #303133;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.resource-stat-label {
+  margin-top: 6px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.achievement-grid {
+  margin-bottom: 20px;
+}
+
+.achievement-card {
+  min-height: 128px;
+}
+
+.achievement-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  color: #303133;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.achievement-head strong {
+  color: #1f5fbf;
+  font-size: 22px;
+}
+
+.achievement-meta {
+  margin-top: 12px;
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .metric-cards {

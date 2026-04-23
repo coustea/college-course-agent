@@ -17,6 +17,17 @@ export function getIdeologyResources(params) {
 }
 
 /**
+ * 获取思政资源统计
+ */
+export function getIdeologyResourceStats(params) {
+  return request({
+    url: '/api/ideology/resources/stats',
+    method: 'get',
+    params
+  })
+}
+
+/**
  * 创建思政资源
  */
 export function createIdeologyResource(data) {

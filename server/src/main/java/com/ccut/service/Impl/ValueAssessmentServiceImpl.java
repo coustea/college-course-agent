@@ -47,6 +47,15 @@ public class ValueAssessmentServiceImpl implements ValueAssessmentService {
     @Autowired
     private EvaluationService evaluationService;
 
+    @Autowired
+    private ConversationMapper conversationMapper;
+
+    @Autowired
+    private LearningPathRecordMapper pathRecordMapper;
+
+    @Autowired
+    private WrongQuestionMapper wrongQuestionMapper;
+
     @Override
     @Transactional
     public ValueAssessment assessStudentValue(Long studentId, Long courseId, String period) {
@@ -247,6 +256,9 @@ public class ValueAssessmentServiceImpl implements ValueAssessmentService {
     private double calculatePatriotismScore(Long studentId, Long courseId,
                                              List<IdeologyResourceRecommendation> recommendations) {
         double base = 50.0;
+        if (recommendations == null) {
+            recommendations = List.of();
+        }
         // 基于家国情怀相关资源的点击和学习
         long patrioticClicks = recommendations.stream()
                 .filter(r -> r.getResource() != null && r.getResource().getValueTheme() != null)
@@ -260,6 +272,9 @@ public class ValueAssessmentServiceImpl implements ValueAssessmentService {
     private double calculateSocialResponsibilityScore(Long studentId, Long courseId,
                                                        List<IdeologyResourceRecommendation> recommendations) {
         double base = 50.0;
+        if (recommendations == null) {
+            recommendations = List.of();
+        }
         long responsibilityClicks = recommendations.stream()
                 .filter(r -> r.getResource() != null && r.getResource().getValueTheme() != null)
                 .filter(r -> r.getResource().getValueTheme().contains("责任") ||
@@ -278,14 +293,57 @@ public class ValueAssessmentServiceImpl implements ValueAssessmentService {
     }
 
     private double calculateInnovationScore(Long studentId, Long courseId) {
-        // 基于AI互动和错题订正
-        // TODO: 可扩展更多指标
-        return 60.0;
+        double score = 45.0;
+
+        List<LearningPathRecord> pathRecords = pathRecordMapper.selectByStudentId(studentId, courseId, 100);
+        if (pathRecords != null && !pathRecords.isEmpty()) {
+            long interactiveActions = pathRecords.stream()
+                    .filter(record -> isInteractiveAction(record.getActionType()))
+                    .count();
+            long reviewActions = pathRecords.stream()
+                    .filter(record -> "review".equalsIgnoreCase(record.getActionType()))
+                    .count();
+            Set<String> resourceTypes = new HashSet<>();
+            for (LearningPathRecord record : pathRecords) {
+                if (record.getResourceType() != null) {
+                    resourceTypes.add(record.getResourceType());
+                }
+            }
+            score += Math.min(interactiveActions * 4.0 + reviewActions * 3.0 + resourceTypes.size() * 4.0, 28.0);
+        }
+
+        List<Conversation> conversations = conversationMapper.findByStudentId(studentId);
+        score += Math.min((conversations != null ? conversations.size() : 0) * 2.5, 12.0);
+
+        LearningProgress progress = learningProgressMapper.findOne(studentId, courseId);
+        if (progress != null && progress.getCompletionPercentage() != null) {
+            score += Math.min(progress.getCompletionPercentage() * 0.15, 12.0);
+        }
+
+        List<WrongQuestion> wrongQuestions = wrongQuestionMapper.selectByStudentId(studentId, courseId);
+        if (wrongQuestions == null) {
+            wrongQuestions = List.of();
+        }
+        if (wrongQuestions != null && !wrongQuestions.isEmpty()) {
+            long masteredCount = wrongQuestions.stream()
+                    .filter(question -> Boolean.TRUE.equals(question.getIsMastered())
+                            || (question.getCorrectCount() != null && question.getCorrectCount() > 0))
+                    .count();
+            long reviewedCount = wrongQuestions.stream()
+                    .filter(question -> question.getCorrectCount() != null && question.getCorrectCount() > 0)
+                    .count();
+            score += Math.min(masteredCount * 4.0 + reviewedCount * 2.0, 18.0);
+        }
+
+        return Math.min(score, 100.0);
     }
 
     private double calculateCulturalConfidenceScore(Long studentId, Long courseId,
                                                      List<IdeologyResourceRecommendation> recommendations) {
         double base = 50.0;
+        if (recommendations == null) {
+            recommendations = List.of();
+        }
         long cultureClicks = recommendations.stream()
                 .filter(r -> r.getResource() != null && r.getResource().getValueTheme() != null)
                 .filter(r -> r.getResource().getValueTheme().contains("文化") ||
@@ -314,6 +372,9 @@ public class ValueAssessmentServiceImpl implements ValueAssessmentService {
         StringBuilder basis = new StringBuilder();
         basis.append("基于学生对思政资源的学习情况分析。");
 
+        if (recommendations == null) {
+            recommendations = List.of();
+        }
         int clicked = (int) recommendations.stream()
                 .filter(r -> Boolean.TRUE.equals(r.getHasClicked()))
                 .count();
@@ -332,20 +393,28 @@ public class ValueAssessmentServiceImpl implements ValueAssessmentService {
     }
 
     private Double calculateInteractionLevel(Long teacherId) {
-        // TODO: 基于实际数据计算
-        return 70.0;
+        TeacherStyleSignals signals = collectTeacherStyleSignals(teacherId);
+        double score = 40.0 + signals.avgConversationCount * 6.0 + signals.avgInteractiveActions * 3.0;
+        return Math.min(score, 100.0);
     }
 
     private Double calculateContentDepth(Long teacherId) {
-        return 65.0;
+        TeacherStyleSignals signals = collectTeacherStyleSignals(teacherId);
+        double score = 38.0 + signals.publishedResourceCount * 2.0 + signals.avgCompletionRate * 0.35;
+        return Math.min(score, 100.0);
     }
 
     private Double calculatePracticality(Long teacherId) {
-        return 60.0;
+        TeacherStyleSignals signals = collectTeacherStyleSignals(teacherId);
+        double score = 36.0 + signals.avgStudyTimeHours * 2.0 + signals.avgCompletedActions * 2.0;
+        return Math.min(score, 100.0);
     }
 
     private Double calculateInnovation(Long teacherId) {
-        return 55.0;
+        TeacherStyleSignals signals = collectTeacherStyleSignals(teacherId);
+        double score = 35.0 + signals.resourceTypeDiversity * 8.0 + signals.avgReviewActions * 4.0
+                + signals.avgConversationCount * 2.0;
+        return Math.min(score, 100.0);
     }
 
     private Double calculateIdeologyIntegration(Long teacherId) {
@@ -362,6 +431,9 @@ public class ValueAssessmentServiceImpl implements ValueAssessmentService {
     private String determineMainValueThemes(Long teacherId) {
         // 查询教师课程关联的思政资源主题
         List<IdeologyResource> resources = ideologyResourceMapper.findByCreatorId(teacherId, 20);
+        if (resources == null || resources.isEmpty()) {
+            return "";
+        }
         Set<String> themes = new HashSet<>();
         for (IdeologyResource r : resources) {
             if (r.getValueTheme() != null) {
@@ -385,5 +457,116 @@ public class ValueAssessmentServiceImpl implements ValueAssessmentService {
         if (practicality >= 70) return "practical";
         if (innovation >= 70) return "innovative";
         return "academic";
+    }
+
+    private boolean isInteractiveAction(String actionType) {
+        if (actionType == null) {
+            return false;
+        }
+        return "interact".equalsIgnoreCase(actionType)
+                || "review".equalsIgnoreCase(actionType)
+                || "comment".equalsIgnoreCase(actionType)
+                || "submit".equalsIgnoreCase(actionType);
+    }
+
+    private TeacherStyleSignals collectTeacherStyleSignals(Long teacherId) {
+        TeacherStyleSignals signals = new TeacherStyleSignals();
+        List<Course> courses = courseMapper.selectByTeacherId(teacherId);
+        if (courses == null || courses.isEmpty()) {
+            return signals;
+        }
+
+        int courseCount = 0;
+        int studentCount = 0;
+        double completionSum = 0.0;
+        double studyTimeSum = 0.0;
+        int completedActions = 0;
+        int interactiveActions = 0;
+        int reviewActions = 0;
+        int conversationCount = 0;
+        Set<String> resourceTypes = new HashSet<>();
+
+        for (Course course : courses) {
+            if (course == null || course.getCourseId() == null) {
+                continue;
+            }
+            courseCount++;
+
+            List<IdeologyResource> resources = ideologyResourceMapper.search(course.getCourseId(), null, "published", 100);
+            if (resources != null) {
+                signals.publishedResourceCount += resources.size();
+                for (IdeologyResource resource : resources) {
+                    if (resource != null && resource.getResourceType() != null) {
+                        resourceTypes.add(resource.getResourceType());
+                    }
+                }
+            }
+
+            List<Student> students = enrollmentMapper.findStudentsByCourseId(course.getCourseId());
+            if (students == null || students.isEmpty()) {
+                continue;
+            }
+
+            for (Student student : students) {
+                if (student == null || student.getId() == null) {
+                    continue;
+                }
+                studentCount++;
+
+                List<Conversation> conversations = conversationMapper.findByStudentId(student.getId());
+                conversationCount += conversations != null ? conversations.size() : 0;
+
+                LearningProgress progress = learningProgressMapper.findOne(student.getId(), course.getCourseId());
+                if (progress != null) {
+                    if (progress.getCompletionPercentage() != null) {
+                        completionSum += progress.getCompletionPercentage();
+                    }
+                    if (progress.getTimeSpent() != null) {
+                        studyTimeSum += progress.getTimeSpent() / 3600.0;
+                    }
+                }
+
+                List<LearningPathRecord> pathRecords = pathRecordMapper.selectByStudentId(student.getId(), course.getCourseId(), 100);
+                if (pathRecords == null) {
+                    continue;
+                }
+                for (LearningPathRecord record : pathRecords) {
+                    if (record == null) {
+                        continue;
+                    }
+                    if (isInteractiveAction(record.getActionType())) {
+                        interactiveActions++;
+                    }
+                    if ("complete".equalsIgnoreCase(record.getActionType())) {
+                        completedActions++;
+                    }
+                    if ("review".equalsIgnoreCase(record.getActionType())) {
+                        reviewActions++;
+                    }
+                }
+            }
+        }
+
+        signals.resourceTypeDiversity = resourceTypes.size();
+        signals.avgCompletionRate = studentCount > 0 ? completionSum / studentCount : 0.0;
+        signals.avgStudyTimeHours = studentCount > 0 ? studyTimeSum / studentCount : 0.0;
+        signals.avgCompletedActions = studentCount > 0 ? (double) completedActions / studentCount : 0.0;
+        signals.avgInteractiveActions = studentCount > 0 ? (double) interactiveActions / studentCount : 0.0;
+        signals.avgReviewActions = studentCount > 0 ? (double) reviewActions / studentCount : 0.0;
+        signals.avgConversationCount = studentCount > 0 ? (double) conversationCount / studentCount : 0.0;
+        signals.courseCount = courseCount;
+        return signals;
+    }
+
+    private static class TeacherStyleSignals {
+        private int courseCount;
+        private int publishedResourceCount;
+        private int resourceTypeDiversity;
+        private double avgCompletionRate;
+        private double avgStudyTimeHours;
+        private double avgCompletedActions;
+        private double avgInteractiveActions;
+        private double avgReviewActions;
+        private double avgConversationCount;
     }
 }

@@ -300,8 +300,12 @@ CCUT/
 
 ### 环境要求
 
+使用 Docker 一键启动时，只需要安装 Docker 与 Docker Compose。
+
 | 依赖 | 版本要求 |
 |------|----------|
+| Docker | 24+ |
+| Docker Compose | 2+ |
 | JDK | 17+ |
 | Node.js | 18+ |
 | MySQL | 8.0+ |
@@ -314,7 +318,38 @@ git clone https://github.com/coustea/college-course-agent.git
 cd college-course-agent
 ```
 
-### 2. 数据库初始化
+### 2. Docker 一键启动（推荐）
+
+```bash
+docker compose up -d --build
+```
+
+该命令会自动启动：
+
+- `ccut-frontend`：前端 Nginx 服务，访问 `http://localhost`
+- `ccut-backend`：Spring Boot 后端，访问 `http://localhost:9999`
+- `ccut-mysql`：MySQL 8.0，首次启动自动导入 `server/src/main/resources/SQL.sql`
+- `ccut-redis`：Redis 7
+
+查看运行状态和后端日志：
+
+```bash
+docker compose ps
+docker compose logs -f backend
+```
+
+如需重置数据库测试数据：
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+### 3. 本地开发启动
+
+如果不使用 Docker，可按下面步骤本地启动依赖和服务。
+
+#### 3.1 数据库初始化
 
 ```bash
 mysql -u root -p
@@ -326,7 +361,7 @@ USE ccut;
 SOURCE server/src/main/resources/SQL.sql;
 ```
 
-### 3. 后端启动
+#### 3.2 后端启动
 
 ```bash
 cd server
@@ -340,7 +375,7 @@ mvn spring-boot:run
 
 后端启动在 `http://localhost:9999`。
 
-### 4. 前端启动
+#### 3.3 前端启动
 
 ```bash
 # 回到项目根目录
@@ -350,7 +385,7 @@ npm run dev
 
 前端启动在 `http://localhost:5173`，自动代理 `/api`、`/media`、`/uploads` 到后端。
 
-### 5. 默认账号
+### 4. 默认账号
 
 | 角色 | 用户名 | 密码 |
 |------|--------|------|

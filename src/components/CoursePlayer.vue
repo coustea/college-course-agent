@@ -275,7 +275,7 @@ const triedSources = ref(new Set())
 const prefetchedKeys = new Set()
 // 已完成的视频ID集合
 const completedVideos = ref(new Set())
-const UPLOADS_ORIGIN = ( 'http://localhost:9999' || import.meta?.env?.VITE_BACKEND_ORIGIN || 'http://localhost:9999')
+const UPLOADS_ORIGIN = import.meta?.env?.VITE_BACKEND_ORIGIN || ''
 function buildAltSources(src) {
   const list = []
   const s = String(src || '')

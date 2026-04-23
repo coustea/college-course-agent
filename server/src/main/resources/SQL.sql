@@ -1,55 +1,3 @@
-/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 -- ================================================
 -- CCUT 高校教学管理系统 — 完整数据库脚本
@@ -1030,6 +978,77 @@ INSERT INTO ideology_resources (course_id, title, resource_type, content_summary
 (NULL, '中华优秀传统文化与科技创新', 'document', '探讨传统文化与现代科技的融合。', '文化自信', '案例分析', '传统文化,科技创新', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher')),
 (NULL, '创新创业教育与实践', 'activity', '创新创业实践活动的组织与指导。', '创新精神', '实践应用', '创新创业,实践活动', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
 (NULL, '科技论文写作规范', 'document', '介绍科技论文写作的学术规范。', '职业道德', '案例分析', '学术规范,论文写作', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher3'));
+
+-- 资源库补充数据（视频可先保持草稿并留空 source_url）
+INSERT INTO ideology_resources (course_id, title, resource_type, content_summary, source_url, value_theme, applicable_scene, keywords, difficulty, status, created_by) VALUES
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展视频思政素材01', 'video', '视频思政素材第01条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '爱国主义', '课堂导入', '视频素材,思政引导,扩展01', 'easy', 'draft', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展视频思政素材02', 'video', '视频思政素材第02条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '创新精神', '案例分析', '视频素材,思政引导,扩展02', 'medium', 'draft', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展视频思政素材03', 'video', '视频思政素材第03条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '团队协作', '实践应用', '视频素材,思政引导,扩展03', 'hard', 'draft', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展视频思政素材04', 'video', '视频思政素材第04条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '社会责任', '课后拓展', '视频素材,思政引导,扩展04', 'easy', 'draft', (SELECT id FROM users WHERE username = 'teacher')),
+(NULL, '扩展视频思政素材05', 'video', '视频思政素材第05条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '文化自信', '课堂导入', '视频素材,思政引导,扩展05', 'medium', 'draft', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展视频思政素材06', 'video', '视频思政素材第06条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '职业道德', '案例分析', '视频素材,思政引导,扩展06', 'hard', 'draft', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展视频思政素材07', 'video', '视频思政素材第07条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '爱国主义', '实践应用', '视频素材,思政引导,扩展07', 'easy', 'draft', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展视频思政素材08', 'video', '视频思政素材第08条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '创新精神', '课后拓展', '视频素材,思政引导,扩展08', 'medium', 'draft', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展视频思政素材09', 'video', '视频思政素材第09条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '团队协作', '课堂导入', '视频素材,思政引导,扩展09', 'hard', 'draft', (SELECT id FROM users WHERE username = 'teacher3')),
+(NULL, '扩展视频思政素材10', 'video', '视频思政素材第10条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '社会责任', '案例分析', '视频素材,思政引导,扩展10', 'easy', 'draft', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展视频思政素材11', 'video', '视频思政素材第11条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '文化自信', '实践应用', '视频素材,思政引导,扩展11', 'medium', 'draft', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展视频思政素材12', 'video', '视频思政素材第12条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '职业道德', '课后拓展', '视频素材,思政引导,扩展12', 'hard', 'draft', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展视频思政素材13', 'video', '视频思政素材第13条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '爱国主义', '课堂导入', '视频素材,思政引导,扩展13', 'easy', 'draft', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展视频思政素材14', 'video', '视频思政素材第14条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '创新精神', '案例分析', '视频素材,思政引导,扩展14', 'medium', 'draft', (SELECT id FROM users WHERE username = 'teacher2')),
+(NULL, '扩展视频思政素材15', 'video', '视频思政素材第15条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '团队协作', '实践应用', '视频素材,思政引导,扩展15', 'hard', 'draft', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展视频思政素材16', 'video', '视频思政素材第16条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '社会责任', '课后拓展', '视频素材,思政引导,扩展16', 'easy', 'draft', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展视频思政素材17', 'video', '视频思政素材第17条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '文化自信', '课堂导入', '视频素材,思政引导,扩展17', 'medium', 'draft', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展视频思政素材18', 'video', '视频思政素材第18条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '职业道德', '案例分析', '视频素材,思政引导,扩展18', 'hard', 'draft', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展视频思政素材19', 'video', '视频思政素材第19条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '爱国主义', '实践应用', '视频素材,思政引导,扩展19', 'easy', 'draft', (SELECT id FROM users WHERE username = 'teacher')),
+(NULL, '扩展视频思政素材20', 'video', '视频思政素材第20条，围绕课程内容补充思政引导要点，适合后续视频资源上传后继续完善。', NULL, '创新精神', '课后拓展', '视频素材,思政引导,扩展20', 'medium', 'draft', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展文档思政案例01', 'document', '文档思政案例第01条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_21.pdf', '团队协作', '课堂导入', '文档案例,课程资源,扩展21', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展文档思政案例02', 'document', '文档思政案例第02条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_22.pdf', '社会责任', '案例分析', '文档案例,课程资源,扩展22', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展文档思政案例03', 'document', '文档思政案例第03条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_23.pdf', '文化自信', '实践应用', '文档案例,课程资源,扩展23', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展文档思政案例04', 'document', '文档思政案例第04条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_24.pdf', '职业道德', '课后拓展', '文档案例,课程资源,扩展24', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+(NULL, '扩展文档思政案例05', 'document', '文档思政案例第05条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_25.pdf', '爱国主义', '课堂导入', '文档案例,课程资源,扩展25', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展文档思政案例06', 'document', '文档思政案例第06条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_26.pdf', '创新精神', '案例分析', '文档案例,课程资源,扩展26', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展文档思政案例07', 'document', '文档思政案例第07条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_27.pdf', '团队协作', '实践应用', '文档案例,课程资源,扩展27', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展文档思政案例08', 'document', '文档思政案例第08条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_28.pdf', '社会责任', '课后拓展', '文档案例,课程资源,扩展28', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展文档思政案例09', 'document', '文档思政案例第09条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_29.pdf', '文化自信', '课堂导入', '文档案例,课程资源,扩展29', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+(NULL, '扩展文档思政案例10', 'document', '文档思政案例第10条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_30.pdf', '职业道德', '案例分析', '文档案例,课程资源,扩展30', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展文档思政案例11', 'document', '文档思政案例第11条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_31.pdf', '爱国主义', '实践应用', '文档案例,课程资源,扩展31', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展文档思政案例12', 'document', '文档思政案例第12条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_32.pdf', '创新精神', '课后拓展', '文档案例,课程资源,扩展32', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展文档思政案例13', 'document', '文档思政案例第13条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_33.pdf', '团队协作', '课堂导入', '文档案例,课程资源,扩展33', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展文档思政案例14', 'document', '文档思政案例第14条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_34.pdf', '社会责任', '案例分析', '文档案例,课程资源,扩展34', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+(NULL, '扩展文档思政案例15', 'document', '文档思政案例第15条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_35.pdf', '文化自信', '实践应用', '文档案例,课程资源,扩展35', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展文档思政案例16', 'document', '文档思政案例第16条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_36.pdf', '职业道德', '课后拓展', '文档案例,课程资源,扩展36', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展文档思政案例17', 'document', '文档思政案例第17条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_37.pdf', '爱国主义', '课堂导入', '文档案例,课程资源,扩展37', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展文档思政案例18', 'document', '文档思政案例第18条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_38.pdf', '创新精神', '案例分析', '文档案例,课程资源,扩展38', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展文档思政案例19', 'document', '文档思政案例第19条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_39.pdf', '团队协作', '实践应用', '文档案例,课程资源,扩展39', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+(NULL, '扩展文档思政案例20', 'document', '文档思政案例第20条，用于补充课程资源库的文本型教学素材。', '/ideology/extended_doc_40.pdf', '社会责任', '课后拓展', '文档案例,课程资源,扩展40', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展案例思政资源01', 'case', '案例型思政资源第01条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_41.pdf', '文化自信', '课堂导入', '案例资源,课程思政,扩展41', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展案例思政资源02', 'case', '案例型思政资源第02条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_42.pdf', '职业道德', '案例分析', '案例资源,课程思政,扩展42', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展案例思政资源03', 'case', '案例型思政资源第03条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_43.pdf', '爱国主义', '实践应用', '案例资源,课程思政,扩展43', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展案例思政资源04', 'case', '案例型思政资源第04条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_44.pdf', '创新精神', '课后拓展', '案例资源,课程思政,扩展44', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+(NULL, '扩展案例思政资源05', 'case', '案例型思政资源第05条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_45.pdf', '团队协作', '课堂导入', '案例资源,课程思政,扩展45', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展案例思政资源06', 'case', '案例型思政资源第06条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_46.pdf', '社会责任', '案例分析', '案例资源,课程思政,扩展46', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展案例思政资源07', 'case', '案例型思政资源第07条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_47.pdf', '文化自信', '实践应用', '案例资源,课程思政,扩展47', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展案例思政资源08', 'case', '案例型思政资源第08条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_48.pdf', '职业道德', '课后拓展', '案例资源,课程思政,扩展48', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展案例思政资源09', 'case', '案例型思政资源第09条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_49.pdf', '爱国主义', '课堂导入', '案例资源,课程思政,扩展49', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+(NULL, '扩展案例思政资源10', 'case', '案例型思政资源第10条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_50.pdf', '创新精神', '案例分析', '案例资源,课程思政,扩展50', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展案例思政资源11', 'case', '案例型思政资源第11条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_51.pdf', '团队协作', '实践应用', '案例资源,课程思政,扩展51', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展案例思政资源12', 'case', '案例型思政资源第12条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_52.pdf', '社会责任', '课后拓展', '案例资源,课程思政,扩展52', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展案例思政资源13', 'case', '案例型思政资源第13条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_53.pdf', '文化自信', '课堂导入', '案例资源,课程思政,扩展53', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展案例思政资源14', 'case', '案例型思政资源第14条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_54.pdf', '职业道德', '案例分析', '案例资源,课程思政,扩展54', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+(NULL, '扩展案例思政资源15', 'case', '案例型思政资源第15条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_55.pdf', '爱国主义', '实践应用', '案例资源,课程思政,扩展55', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展案例思政资源16', 'case', '案例型思政资源第16条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_56.pdf', '创新精神', '课后拓展', '案例资源,课程思政,扩展56', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展案例思政资源17', 'case', '案例型思政资源第17条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_57.pdf', '团队协作', '课堂导入', '案例资源,课程思政,扩展57', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展案例思政资源18', 'case', '案例型思政资源第18条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_58.pdf', '社会责任', '案例分析', '案例资源,课程思政,扩展58', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展案例思政资源19', 'case', '案例型思政资源第19条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_59.pdf', '文化自信', '实践应用', '案例资源,课程思政,扩展59', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+(NULL, '扩展案例思政资源20', 'case', '案例型思政资源第20条，聚焦教学场景中的价值引导与课程融合。', '/ideology/extended_case_60.pdf', '职业道德', '课后拓展', '案例资源,课程思政,扩展60', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展视频思政素材21', 'video', '视频思政素材第21条，继续补充课程视频场景下的思政引导内容。', NULL, '爱国主义', '课堂导入', '视频素材,思政引导,扩展21', 'easy', 'draft', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展视频思政素材22', 'video', '视频思政素材第22条，继续补充课程视频场景下的思政引导内容。', NULL, '创新精神', '案例分析', '视频素材,思政引导,扩展22', 'medium', 'draft', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展视频思政素材23', 'video', '视频思政素材第23条，继续补充课程视频场景下的思政引导内容。', NULL, '团队协作', '实践应用', '视频素材,思政引导,扩展23', 'hard', 'draft', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展视频思政素材24', 'video', '视频思政素材第24条，继续补充课程视频场景下的思政引导内容。', NULL, '社会责任', '课后拓展', '视频素材,思政引导,扩展24', 'easy', 'draft', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'CS101'), '扩展文档思政案例21', 'document', '文档思政案例第21条，继续补充课程资源库中的文本型素材。', '/ideology/extended_doc_61.pdf', '文化自信', '课堂导入', '文档案例,课程资源,扩展61', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2')),
+((SELECT course_id FROM courses WHERE course_code = 'CS201'), '扩展文档思政案例22', 'document', '文档思政案例第22条，继续补充课程资源库中的文本型素材。', '/ideology/extended_doc_62.pdf', '职业道德', '案例分析', '文档案例,课程资源,扩展62', 'hard', 'published', (SELECT id FROM users WHERE username = 'teacher3')),
+((SELECT course_id FROM courses WHERE course_code = 'SE101'), '扩展案例思政资源21', 'case', '案例型思政资源第21条，继续补充课程资源库中的课程融合素材。', '/ideology/extended_case_63.pdf', '爱国主义', '实践应用', '案例资源,课程思政,扩展63', 'easy', 'published', (SELECT id FROM users WHERE username = 'teacher')),
+((SELECT course_id FROM courses WHERE course_code = 'AI101'), '扩展案例思政资源22', 'case', '案例型思政资源第22条，继续补充课程资源库中的课程融合素材。', '/ideology/extended_case_64.pdf', '创新精神', '课后拓展', '案例资源,课程思政,扩展64', 'medium', 'published', (SELECT id FROM users WHERE username = 'teacher2'));
 
 -- 资源标签关联
 INSERT INTO ideology_resource_tag_rel (resource_id, tag_id) VALUES

@@ -28,6 +28,9 @@ public class BehaviorAnalysisServiceImpl implements BehaviorAnalysisService {
     private LearningPathRecordMapper pathRecordMapper;
 
     @Autowired
+    private EnrollmentMapper enrollmentMapper;
+
+    @Autowired
     private LearningProgressMapper learningProgressMapper;
 
     @Autowired
@@ -73,8 +76,19 @@ public class BehaviorAnalysisServiceImpl implements BehaviorAnalysisService {
 
     @Override
     public List<BehaviorAnalysisResult> analyzeCourseBehavior(Long courseId) {
-        // TODO: 实现课程所有学生行为分析
-        return new ArrayList<>();
+        List<Student> students = enrollmentMapper.findStudentsByCourseId(courseId);
+        if (students == null || students.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<BehaviorAnalysisResult> results = new ArrayList<>();
+        for (Student student : students) {
+            if (student == null || student.getId() == null) {
+                continue;
+            }
+            results.add(analyzeStudentBehavior(student.getId()));
+        }
+        return results;
     }
 
     @Override
@@ -145,7 +159,17 @@ public class BehaviorAnalysisServiceImpl implements BehaviorAnalysisService {
 
     @Override
     public void batchUpdateCourseProfiles(Long courseId) {
-        // TODO: 实现批量更新
+        List<Student> students = enrollmentMapper.findStudentsByCourseId(courseId);
+        if (students == null || students.isEmpty()) {
+            return;
+        }
+
+        for (Student student : students) {
+            if (student == null || student.getId() == null) {
+                continue;
+            }
+            updateBehaviorProfile(student.getId());
+        }
     }
 
     @Override
@@ -204,6 +228,11 @@ public class BehaviorAnalysisServiceImpl implements BehaviorAnalysisService {
     private void calculateBehaviorMetrics(StudentBehaviorProfile profile, Long studentId) {
         LocalDateTime weekAgo = LocalDateTime.now().minusDays(7);
 
+        List<LearningPathRecord> recentRecords = pathRecordMapper.selectByStudentId(studentId, null, 100);
+        if (recentRecords == null) {
+            recentRecords = new ArrayList<>();
+        }
+
         // 计算平均学习时长
         Integer totalDuration = pathRecordMapper.sumDurationByStudent(studentId, null, weekAgo);
         int totalMinutes = (totalDuration != null ? totalDuration : 0) / 60;
@@ -212,14 +241,14 @@ public class BehaviorAnalysisServiceImpl implements BehaviorAnalysisService {
 
         // 计算互动频率
         List<Conversation> conversations = conversationMapper.findByStudentId(studentId);
-        profile.setInteractionFrequency(conversations != null ? conversations.size() : 0);
+        int interactionFrequency = conversations != null ? conversations.size() : 0;
+        profile.setInteractionFrequency(interactionFrequency);
 
         // 计算完成率
-        // TODO: 需要更精确的计算
-        profile.setCompletionRate(0.6);  // 默认值
+        profile.setCompletionRate(calculateCompletionRate(studentId, recentRecords));
 
         // 计算学习连贯性
-        profile.setConsistencyScore(calculateConsistencyScore(studentId));
+        profile.setConsistencyScore(calculateConsistencyScore(studentId, recentRecords));
 
         // 确定学习风格
         profile.setLearningStyleTag(determineLearningStyle(profile));
@@ -231,10 +260,52 @@ public class BehaviorAnalysisServiceImpl implements BehaviorAnalysisService {
         calculateIdeologyMetrics(profile, studentId);
     }
 
-    private Double calculateConsistencyScore(Long studentId) {
-        // 计算学习连贯性：基于连续学习天数
-        // TODO: 实现更精确的计算
-        return 60.0;
+    private Double calculateConsistencyScore(Long studentId, List<LearningPathRecord> recentRecords) {
+        int consecutiveDays = 0;
+        try {
+            Integer value = learningProgressMapper.getConsecutiveDays(studentId);
+            consecutiveDays = value != null ? value : 0;
+        } catch (Exception e) {
+            log.warn("读取连续学习天数失败: {}", e.getMessage());
+        }
+
+        Set<java.time.LocalDate> activeDays = new HashSet<>();
+        for (LearningPathRecord record : recentRecords) {
+            if (record.getCreatedAt() != null) {
+                activeDays.add(record.getCreatedAt().toLocalDate());
+            }
+        }
+
+        int activeDayScore = Math.min(activeDays.size() * 12, 48);
+        int streakScore = Math.min(consecutiveDays * 8, 32);
+        int recordScore = Math.min(recentRecords.size() * 3, 20);
+        return Math.min((double) activeDayScore + streakScore + recordScore, 100.0);
+    }
+
+    private Double calculateCompletionRate(Long studentId, List<LearningPathRecord> recentRecords) {
+        double recordCompletionRate = 0.0;
+        if (!recentRecords.isEmpty()) {
+            long completedActions = recentRecords.stream()
+                    .filter(record -> {
+                        String actionType = record.getActionType();
+                        Double progress = record.getProgressPercent();
+                        return (actionType != null && ("complete".equalsIgnoreCase(actionType) || "review".equalsIgnoreCase(actionType)))
+                                || (progress != null && progress >= 95.0);
+                    })
+                    .count();
+            recordCompletionRate = (double) completedActions / recentRecords.size();
+        }
+
+        double weeklyStudyScore = 0.0;
+        try {
+            Integer weeklyStudyTime = learningProgressMapper.getWeeklyStudyTime(studentId);
+            weeklyStudyScore = Math.min((weeklyStudyTime != null ? weeklyStudyTime : 0) / 25200.0, 1.0);
+        } catch (Exception e) {
+            log.warn("读取周学习时长失败: {}", e.getMessage());
+        }
+
+        double completionRate = recordCompletionRate * 0.7 + weeklyStudyScore * 0.3;
+        return Math.max(0.0, Math.min(completionRate, 1.0));
     }
 
     private String determineLearningStyle(StudentBehaviorProfile profile) {
@@ -285,6 +356,9 @@ public class BehaviorAnalysisServiceImpl implements BehaviorAnalysisService {
         result.setCompletionRate(profile.getCompletionRate());
         result.setConsistencyScore(profile.getConsistencyScore());
         result.setInteractionCount(profile.getInteractionFrequency());
+        result.setAiChatCount(profile.getInteractionFrequency());
+        Integer weeklyStudyTime = learningProgressMapper.getWeeklyStudyTime(profile.getStudentId());
+        result.setTotalStudyHours(weeklyStudyTime != null ? weeklyStudyTime / 3600 : null);
         result.setLearningStyle(profile.getLearningStyleTag());
         result.setEngagementLevel(profile.getEngagementLevel());
         result.setIdeologyEngagementRate(profile.getIdeologyClickRate());

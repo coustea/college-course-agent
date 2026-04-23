@@ -2,6 +2,7 @@ package com.ccut.controller;
 
 import com.ccut.dto.IdeologyAnalysisResult;
 import com.ccut.dto.IdeologyResourceRequest;
+import com.ccut.dto.IdeologyResourceStats;
 import com.ccut.dto.Result;
 import com.ccut.entity.IdeologyResource;
 import com.ccut.entity.IdeologyResourceRecommendation;
@@ -25,19 +26,19 @@ public class IdeologyResourceController {
         return Result.success(ideologyResourceService.create(request));
     }
 
-    @PutMapping("/{resourceId}")
+    @PutMapping("/{resourceId:\\d+}")
     public Result<IdeologyResource> update(@PathVariable Long resourceId,
                                            @RequestBody IdeologyResourceRequest request) {
         return Result.success(ideologyResourceService.update(resourceId, request));
     }
 
-    @DeleteMapping("/{resourceId}")
+    @DeleteMapping("/{resourceId:\\d+}")
     public Result<String> delete(@PathVariable Long resourceId) {
         ideologyResourceService.delete(resourceId);
         return Result.success("删除成功");
     }
 
-    @GetMapping("/{resourceId}")
+    @GetMapping("/{resourceId:\\d+}")
     public Result<IdeologyResource> detail(@PathVariable Long resourceId) {
         return Result.success(ideologyResourceService.getById(resourceId));
     }
@@ -50,12 +51,17 @@ public class IdeologyResourceController {
         return Result.success(ideologyResourceService.search(courseId, keyword, status, limit));
     }
 
+    @GetMapping("/stats")
+    public Result<IdeologyResourceStats> stats(@RequestParam(value = "courseId", required = false) Long courseId) {
+        return Result.success(ideologyResourceService.getStats(courseId));
+    }
+
     @PostMapping("/analyze")
     public Result<IdeologyAnalysisResult> analyze(@RequestBody Map<String, String> request) {
         return Result.success(ideologyResourceService.analyze(request.get("title"), request.get("content")));
     }
 
-    @GetMapping("/{resourceId}/tags")
+    @GetMapping("/{resourceId:\\d+}/tags")
     public Result<List<IdeologyResourceTag>> listTags(@PathVariable Long resourceId) {
         return Result.success(ideologyResourceService.listTags(resourceId));
     }

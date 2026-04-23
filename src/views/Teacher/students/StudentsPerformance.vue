@@ -222,60 +222,76 @@
           </div>
         </template>
 
-        <el-table
-            :data="tableData"
-            v-loading="tableLoading"
-            stripe
-            style="width: 100%"
-        >
-          <el-table-column prop="studentId" label="学号" width="120" />
-          <el-table-column prop="name" label="姓名" width="100" />
-          <el-table-column prop="className" label="班级" width="150" />
-          <el-table-column prop="courseName" label="课程" width="150" />
-          <el-table-column prop="studyTime" label="学习时长(h)" width="120" align="center">
-            <template #default="scope">
-              <span :class="getStudyTimeClass(scope.row.studyTime)">{{ scope.row.studyTime }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="completionRate" label="完成率" width="100" align="center">
-            <template #default="scope">
-              <el-tag :type="getCompletionType(scope.row.completionRate)" size="small">
-                {{ scope.row.completionRate }}%
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="avgScore" label="平均成绩" width="100" align="center">
-            <template #default="scope">
-              <span :class="getScoreClass(scope.row.avgScore)">{{ scope.row.avgScore }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="lastLogin" label="最后登录" width="120" />
-          <el-table-column label="表现等级" width="100" align="center">
-            <template #default="scope">
-              <el-tag :type="getPerformanceType(scope.row.performanceLevel)" effect="light">
-                {{ getPerformanceText(scope.row.performanceLevel) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="180" fixed="right" align="center">
-            <template #default="scope">
-              <el-button link type="primary" @click="viewStudentDetail(scope.row)">详情</el-button>
-              <el-button link type="warning" @click="sendReminder(scope.row)">提醒</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <el-alert
+            v-if="loadError"
+            :title="loadError"
+            type="error"
+            show-icon
+            :closable="false"
+        />
 
-        <div class="pagination-container">
-          <el-pagination
-              v-model:current-page="pagination.currentPage"
-              v-model:page-size="pagination.pageSize"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="pagination.total"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="handleSizeChange"
-              @current-change="handleCurrentChange"
-          />
-        </div>
+        <el-empty
+            v-else-if="!filters.courseId && !tableLoading"
+            description="请选择课程后查看学生表现"
+        />
+
+        <template v-else>
+          <el-table
+              :data="tableData"
+              :empty-text="tableEmptyText"
+              v-loading="tableLoading"
+              stripe
+              style="width: 100%"
+          >
+            <el-table-column prop="studentId" label="学号" width="120" />
+            <el-table-column prop="name" label="姓名" width="100" />
+            <el-table-column prop="className" label="班级" width="150" />
+            <el-table-column prop="courseName" label="课程" width="150" />
+            <el-table-column prop="studyTime" label="学习时长(h)" width="120" align="center">
+              <template #default="scope">
+                <span :class="getStudyTimeClass(scope.row.studyTime)">{{ scope.row.studyTime }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="completionRate" label="完成率" width="100" align="center">
+              <template #default="scope">
+                <el-tag :type="getCompletionType(scope.row.completionRate)" size="small">
+                  {{ scope.row.completionRate }}%
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="avgScore" label="平均成绩" width="100" align="center">
+              <template #default="scope">
+                <span :class="getScoreClass(scope.row.avgScore)">{{ scope.row.avgScore }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="lastLogin" label="最后登录" width="120" />
+            <el-table-column label="表现等级" width="100" align="center">
+              <template #default="scope">
+                <el-tag :type="getPerformanceType(scope.row.performanceLevel)" effect="light">
+                  {{ getPerformanceText(scope.row.performanceLevel) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180" fixed="right" align="center">
+              <template #default="scope">
+                <el-button link type="primary" @click="viewStudentDetail(scope.row)">详情</el-button>
+                <el-button link type="warning" @click="sendReminder(scope.row)">提醒</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div class="pagination-container">
+            <el-pagination
+                v-model:current-page="pagination.currentPage"
+                v-model:page-size="pagination.pageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="pagination.total"
+                layout="total, sizes, prev, pager, next, jumper"
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+            />
+          </div>
+        </template>
       </el-card>
     </div>
 
@@ -294,7 +310,7 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Refresh,
@@ -309,18 +325,18 @@ import * as echarts from 'echarts'
 import StudentDetail from '@/components/StudentDetail.vue'
 import axios from 'axios'
 
-// 模拟数据 - 用于调试
-const mockData = {
+// 空状态默认值
+const emptyDefaults = {
   // 指标数据
   metrics: {
-    totalStudents: 156,
-    avgStudyTime: 12.5,
-    avgScore: 78.6,
-    concernStudents: 18,
-    studentTrend: 5.2,
-    timeTrend: 3.1,
-    scoreTrend: -1.2,
-    concernTrend: 8.5
+    totalStudents: 0,
+    avgStudyTime: 0,
+    avgScore: 0,
+    concernStudents: 0,
+    studentTrend: 0,
+    timeTrend: 0,
+    scoreTrend: 0,
+    concernTrend: 0
   },
 
   // 学生数据
@@ -474,9 +490,10 @@ export default {
       total: 0
     })
 
-    const metrics = reactive({ ...mockData.metrics })
+    const metrics = reactive({ ...emptyDefaults.metrics })
     const tableData = ref([])
     const tableLoading = ref(false)
+    const loadError = ref('')
     const detailDialogVisible = ref(false)
     const selectedStudent = ref(null)
 
@@ -499,6 +516,11 @@ export default {
     const scoreChartCourse = ref('all')
     const timeChartClass = ref('all')
     const activityChartClass = ref('all')
+    const tableEmptyText = computed(() => {
+      if (loadError.value) return '学生表现数据加载失败，请稍后重试'
+      if (!filters.courseId) return '请选择课程后查看学生表现'
+      return '当前条件下暂无学生表现数据'
+    })
 
     let scoreChartInstance = null
     let timeChartInstance = null
@@ -641,7 +663,7 @@ export default {
           }
           return { success: true, data: metricsData }
         } catch (e) {
-          return { success: true, data: { ...mockData.metrics } }
+          throw e
         }
       },
 
@@ -654,22 +676,18 @@ export default {
           const paginatedData = items.slice(startIndex, endIndex)
           return { success: true, data: { items: paginatedData, total, page: params.page, pageSize: params.pageSize } }
         } catch (e) {
-          // 失败时退回模拟
-          const startIndex = (params.page - 1) * params.pageSize
-          const endIndex = startIndex + parseInt(params.pageSize)
-          const fallback = mockData.students.slice(startIndex, endIndex)
-          return { success: true, data: { items: fallback, total: mockData.students.length, page: params.page, pageSize: params.pageSize } }
+          throw e
         }
       },
 
       // 获取图表数据
       async getChartData(type, params) {
-        const items = lastFetchedItems && lastFetchedItems.length ? lastFetchedItems : mockData.students
+        const items = lastFetchedItems && lastFetchedItems.length ? lastFetchedItems : []
         const charts = {
           scoreDistribution: [0, 0, 0, 0, 0],
           timeDistribution: [0, 0, 0, 0, 0],
           completionData: [],
-          activityData: [25, 30, 28, 32, 35, 30, 40]
+          activityData: []
         }
         // 用完成率作为成绩分布
         items.forEach(x => {
@@ -711,6 +729,16 @@ export default {
         }
       } catch (error) {
         console.error('获取指标数据失败:', error)
+        Object.assign(metrics, {
+          totalStudents: 0,
+          avgStudyTime: 0,
+          avgScore: 0,
+          concernStudents: 0,
+          studentTrend: 0,
+          timeTrend: 0,
+          scoreTrend: 0,
+          concernTrend: 0
+        })
         ElMessage.error('获取指标数据失败')
       }
     }
@@ -728,15 +756,14 @@ export default {
         if (response.success) {
           tableData.value = response.data.items
           pagination.total = response.data.total
+          loadError.value = ''
         }
       } catch (error) {
         console.error('获取学生数据失败:', error)
         ElMessage.error('获取学生数据失败')
-        // 使用模拟数据作为后备
-        const startIndex = (pagination.currentPage - 1) * pagination.pageSize
-        const endIndex = startIndex + pagination.pageSize
-        tableData.value = mockData.students.slice(startIndex, endIndex)
-        pagination.total = mockData.students.length
+        tableData.value = []
+        pagination.total = 0
+        loadError.value = filters.courseId ? '学生表现数据加载失败，请检查课程后重试' : ''
       } finally {
         tableLoading.value = false
       }

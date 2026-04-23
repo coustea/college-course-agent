@@ -2,6 +2,7 @@ package com.ccut.service.Impl;
 
 import com.ccut.dto.IdeologyAnalysisResult;
 import com.ccut.dto.IdeologyResourceRequest;
+import com.ccut.dto.IdeologyResourceStats;
 import com.ccut.entity.IdeologyResource;
 import com.ccut.entity.IdeologyResourceRecommendation;
 import com.ccut.entity.IdeologyResourceTag;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 public class IdeologyResourceServiceImpl implements IdeologyResourceService {
 
     private static final int DEFAULT_LIMIT = 20;
+    private static final long PROJECT_RESOURCE_TARGET = 100L;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static final String ANALYZE_PROMPT = """
@@ -149,6 +151,25 @@ public class IdeologyResourceServiceImpl implements IdeologyResourceService {
     @Override
     public List<IdeologyResource> search(Long courseId, String keyword, String status, Integer limit) {
         return resourceMapper.search(courseId, keyword, status, normalizeLimit(limit));
+    }
+
+    @Override
+    public IdeologyResourceStats getStats(Long courseId) {
+        Long totalCount = safeLong(resourceMapper.countAll(courseId));
+        Long publishedCount = safeLong(resourceMapper.countByStatus("published", courseId));
+        return new IdeologyResourceStats(
+                PROJECT_RESOURCE_TARGET,
+                totalCount,
+                publishedCount,
+                safeLong(resourceMapper.countByStatus("draft", courseId)),
+                safeLong(resourceMapper.countPendingSource(courseId)),
+                safeLong(resourceMapper.countDistinctCourseCoverage(courseId)),
+                percent(totalCount, PROJECT_RESOURCE_TARGET),
+                percent(publishedCount, totalCount),
+                toCountMap(resourceMapper.countByResourceType(courseId), "resourceType"),
+                toCountMap(resourceMapper.countByValueTheme(courseId), "valueTheme"),
+                toCountMap(resourceMapper.countByApplicableScene(courseId), "applicableScene")
+        );
     }
 
     @Override
@@ -394,6 +415,46 @@ public class IdeologyResourceServiceImpl implements IdeologyResourceService {
             return DEFAULT_LIMIT;
         }
         return Math.min(limit, 100);
+    }
+
+    private Map<String, Long> toCountMap(List<Map<String, Object>> rows, String keyField) {
+        Map<String, Long> result = new java.util.LinkedHashMap<>();
+        if (rows == null || rows.isEmpty()) {
+            return result;
+        }
+        for (Map<String, Object> row : rows) {
+            if (row == null) {
+                continue;
+            }
+            Object key = row.get(keyField);
+            Object count = row.get("count");
+            if (key == null || count == null) {
+                continue;
+            }
+            result.put(String.valueOf(key), safeLong(count));
+        }
+        return result;
+    }
+
+    private Long safeLong(Object value) {
+        if (value == null) {
+            return 0L;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
+
+    private Double percent(Long numerator, Long denominator) {
+        if (numerator == null || denominator == null || denominator <= 0) {
+            return 0.0;
+        }
+        return Math.min(100.0, Math.round(numerator * 10000.0 / denominator) / 100.0);
     }
 
     private void addSplit(Set<String> values, String text) {

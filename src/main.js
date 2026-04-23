@@ -21,7 +21,7 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
 
-app.config.globalProperties.$baseUrl = 'http://localhost:9999/api'
+app.config.globalProperties.$baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
 app.config.globalProperties.$request = request
 
 // 初始化全局设置

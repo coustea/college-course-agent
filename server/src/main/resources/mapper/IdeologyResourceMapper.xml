@@ -77,6 +77,74 @@
         LIMIT #{limit}
     </select>
 
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM ideology_resources
+        <where>
+            <if test="courseId != null">course_id = #{courseId}</if>
+        </where>
+    </select>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*)
+        FROM ideology_resources
+        <where>
+            status = #{status}
+            <if test="courseId != null">AND course_id = #{courseId}</if>
+        </where>
+    </select>
+
+    <select id="countPendingSource" resultType="long">
+        SELECT COUNT(*)
+        FROM ideology_resources
+        <where>
+            resource_type = 'video'
+            AND (source_url IS NULL OR source_url = '')
+            <if test="courseId != null">AND course_id = #{courseId}</if>
+        </where>
+    </select>
+
+    <select id="countByResourceType" resultType="map">
+        SELECT resource_type AS resourceType, COUNT(*) AS count
+        FROM ideology_resources
+        <where>
+            resource_type IS NOT NULL AND resource_type != ''
+            <if test="courseId != null">AND course_id = #{courseId}</if>
+        </where>
+        GROUP BY resource_type
+        ORDER BY COUNT(*) DESC, resource_type ASC
+    </select>
+
+    <select id="countByValueTheme" resultType="map">
+        SELECT value_theme AS valueTheme, COUNT(*) AS count
+        FROM ideology_resources
+        <where>
+            value_theme IS NOT NULL AND value_theme != ''
+            <if test="courseId != null">AND course_id = #{courseId}</if>
+        </where>
+        GROUP BY value_theme
+        ORDER BY COUNT(*) DESC, value_theme ASC
+    </select>
+
+    <select id="countByApplicableScene" resultType="map">
+        SELECT applicable_scene AS applicableScene, COUNT(*) AS count
+        FROM ideology_resources
+        <where>
+            applicable_scene IS NOT NULL AND applicable_scene != ''
+            <if test="courseId != null">AND course_id = #{courseId}</if>
+        </where>
+        GROUP BY applicable_scene
+        ORDER BY COUNT(*) DESC, applicable_scene ASC
+    </select>
+
+    <select id="countDistinctCourseCoverage" resultType="long">
+        SELECT COUNT(DISTINCT course_id)
+        FROM ideology_resources
+        <where>
+            course_id IS NOT NULL
+            <if test="courseId != null">AND course_id = #{courseId}</if>
+        </where>
+    </select>
+
     <select id="findPublishedByKeywords" resultMap="IdeologyResourceRM">
         SELECT * FROM ideology_resources
         WHERE status = 'published'

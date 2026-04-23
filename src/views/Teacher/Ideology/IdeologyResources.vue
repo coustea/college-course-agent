@@ -10,6 +10,45 @@
       </div>
     </el-card>
 
+    <el-row :gutter="16" class="stats-row">
+      <el-col :xs="12" :sm="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-value">{{ resourceStats.totalResources }}</div>
+          <div class="stat-label">资源总数</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-value">{{ resourceStats.publishedResources }}</div>
+          <div class="stat-label">已发布</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-value">{{ resourceStats.videoResources }}</div>
+          <div class="stat-label">视频资源</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-value">{{ resourceStats.pendingSourceResources }}</div>
+          <div class="stat-label">待补链接</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-card shadow="never" class="goal-card">
+      <div class="goal-content">
+        <div>
+          <div class="goal-title">项目资源库目标进度</div>
+          <div class="goal-subtitle">
+            已上线 {{ resourceStats.totalResources }} / {{ resourceStats.targetResources }} 条，已发布率 {{ resourceStats.publishedRate }}%
+          </div>
+        </div>
+        <el-progress class="goal-progress" :percentage="resourceStats.completionRate" :stroke-width="10" />
+      </div>
+    </el-card>
+
     <!-- 搜索筛选 -->
     <el-card class="filter-card">
       <el-form :inline="true" :model="searchForm">
@@ -167,17 +206,28 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
   getIdeologyResources,
+  getIdeologyResourceStats,
   createIdeologyResource,
   updateIdeologyResource,
   deleteIdeologyResource
 } from '@/services/ideology'
 import { getCourses } from '@/services/coursesApi'
-import request from '@/utils/request'
 
 const loading = ref(false)
+const resourceStatsLoading = ref(false)
 const submitting = ref(false)
 const resources = ref([])
 const courses = ref([])
+const resourceStats = reactive({
+  targetResources: 100,
+  totalResources: 0,
+  publishedResources: 0,
+  videoResources: 0,
+  pendingSourceResources: 0,
+  courseCoverageCount: 0,
+  completionRate: 0,
+  publishedRate: 0
+})
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
 const isEdit = ref(false)
@@ -216,16 +266,74 @@ const rules = {
   resourceType: [{ required: true, message: '请选择资源类型', trigger: 'change' }]
 }
 
-onMounted(() => {
-  loadCourses()
-  loadResources()
+const normalizeResponse = (res) => {
+  if (res && typeof res === 'object' && 'status' in res && res.data) {
+    return res.data
+  }
+  return res
+}
+
+const buildResourceStats = (list = []) => {
+  const items = Array.isArray(list) ? list : []
+  const publishedCount = items.filter(item => item.status === 'published').length
+  return {
+    targetResources: 100,
+    totalResources: items.length,
+    publishedResources: publishedCount,
+    videoResources: items.filter(item => item.resourceType === 'video').length,
+    pendingSourceResources: items.filter(item => item.resourceType === 'video' && !item.sourceUrl).length,
+    courseCoverageCount: new Set(items.map(item => item.courseId).filter(Boolean)).size,
+    completionRate: clampPercentage(items.length),
+    publishedRate: items.length > 0 ? clampPercentage((publishedCount * 100) / items.length) : 0
+  }
+}
+
+const applyResourceStats = (payload) => {
+  if (Array.isArray(payload)) {
+    Object.assign(resourceStats, buildResourceStats(payload))
+    return
+  }
+  if (payload && typeof payload === 'object') {
+    const resourceTypeCounts = payload.resourceTypeCounts || {}
+    const totalResources = Number(payload.totalResources ?? payload.totalCount ?? payload.total ?? 0)
+    const publishedResources = Number(payload.publishedResources ?? payload.publishedCount ?? 0)
+    Object.assign(resourceStats, {
+      targetResources: Number(payload.targetResources ?? payload.targetCount ?? 100),
+      totalResources,
+      publishedResources,
+      videoResources: Number(payload.videoResources ?? payload.videoCount ?? resourceTypeCounts.video ?? 0),
+      pendingSourceResources: Number(payload.pendingSourceResources ?? payload.pendingSourceCount ?? payload.pendingCount ?? 0),
+      courseCoverageCount: Number(payload.courseCoverageCount ?? 0),
+      completionRate: clampPercentage(payload.completionRate ?? ((totalResources * 100) / Number(payload.targetResources ?? payload.targetCount ?? 100))),
+      publishedRate: clampPercentage(payload.publishedRate ?? (totalResources > 0 ? (publishedResources * 100) / totalResources : 0))
+    })
+  }
+}
+
+const clampPercentage = (value) => {
+  const numberValue = Number(value ?? 0)
+  if (Number.isNaN(numberValue)) {
+    return 0
+  }
+  return Math.max(0, Math.min(100, Math.round(numberValue)))
+}
+
+const refreshResources = async () => {
+  await loadResources()
+  await loadResourceStats()
+}
+
+onMounted(async () => {
+  await loadCourses()
+  await refreshResources()
 })
 
 const loadCourses = async () => {
   try {
     const res = await getCourses()
-    if (res.code === 200) {
-      courses.value = res.data || []
+    const body = normalizeResponse(res)
+    if (body?.code === 200) {
+      courses.value = body.data || []
     }
   } catch (e) {
     console.error('加载课程失败', e)
@@ -241,9 +349,13 @@ const loadResources = async () => {
       status: searchForm.status || undefined,
       limit: pagination.pageSize
     })
-    if (res.code === 200) {
-      resources.value = res.data || []
+    const body = normalizeResponse(res)
+    if (body?.code === 200) {
+      resources.value = body.data || []
       pagination.total = resources.value.length
+      if (!resourceStatsLoading.value) {
+        Object.assign(resourceStats, buildResourceStats(resources.value))
+      }
     }
   } catch (e) {
     console.error('加载资源失败', e)
@@ -252,9 +364,29 @@ const loadResources = async () => {
   }
 }
 
+const loadResourceStats = async () => {
+  resourceStatsLoading.value = true
+  try {
+    const res = await getIdeologyResourceStats({
+      courseId: searchForm.courseId || undefined
+    })
+    const body = normalizeResponse(res)
+    if (body?.code === 200) {
+      applyResourceStats(body.data)
+      return
+    }
+  } catch (e) {
+    console.warn('加载资源统计失败，使用列表数据回退', e)
+  } finally {
+    resourceStatsLoading.value = false
+  }
+
+  applyResourceStats(resources.value)
+}
+
 const handleSearch = () => {
   pagination.page = 1
-  loadResources()
+  refreshResources()
 }
 
 const resetSearch = () => {
@@ -322,12 +454,13 @@ const handleSubmit = async () => {
       res = await createIdeologyResource(form)
     }
 
-    if (res.code === 200) {
+    const body = normalizeResponse(res)
+    if (body?.code === 200) {
       ElMessage.success(isEdit.value ? '更新成功' : '创建成功')
       dialogVisible.value = false
-      loadResources()
+      refreshResources()
     } else {
-      ElMessage.error(res.message || '操作失败')
+      ElMessage.error(body?.message || '操作失败')
     }
   } catch (e) {
     ElMessage.error('操作失败')
@@ -339,11 +472,12 @@ const handleSubmit = async () => {
 const handleDelete = async (resourceId) => {
   try {
     const res = await deleteIdeologyResource(resourceId)
-    if (res.code === 200) {
+    const body = normalizeResponse(res)
+    if (body?.code === 200) {
       ElMessage.success('删除成功')
-      loadResources()
+      refreshResources()
     } else {
-      ElMessage.error(res.message || '删除失败')
+      ElMessage.error(body?.message || '删除失败')
     }
   } catch (e) {
     ElMessage.error('删除失败')
@@ -385,6 +519,54 @@ const getDifficultyName = (difficulty) => {
   margin-bottom: 20px;
 }
 
+.stats-row {
+  margin-bottom: 20px;
+}
+
+.goal-card {
+  margin-bottom: 20px;
+}
+
+.goal-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.goal-title {
+  color: #303133;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.goal-subtitle {
+  margin-top: 6px;
+  color: #606266;
+  font-size: 13px;
+}
+
+.goal-progress {
+  width: min(420px, 45%);
+}
+
+.stat-card {
+  border-radius: 8px;
+}
+
+.stat-value {
+  color: #303133;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.stat-label {
+  margin-top: 6px;
+  color: #909399;
+  font-size: 13px;
+}
+
 .header {
   display: flex;
   justify-content: space-between;
@@ -408,5 +590,16 @@ const getDifficultyName = (difficulty) => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .goal-content {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .goal-progress {
+    width: 100%;
+  }
 }
 </style>

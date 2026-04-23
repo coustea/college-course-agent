@@ -35,6 +35,22 @@ public class ProgressController {
         return Result.success("ok");
     }
 
+    @PostMapping("/course/heartbeat")
+    public Result<String> heartbeat(@RequestBody Map<String, Object> body) {
+        Long courseId = body.get("courseId") != null ? Long.valueOf(body.get("courseId").toString()) : null;
+        Integer deltaSec = body.get("deltaSec") != null ? Integer.valueOf(body.get("deltaSec").toString()) : 0;
+        Long videoId = body.get("videoIndex") != null ? Long.valueOf(body.get("videoIndex").toString()) : null;
+
+        // 从 JWT 获取 studentId
+        Long studentId = getCurrentUserId();
+        if (studentId == null) {
+            return Result.error(401, "未登录");
+        }
+
+        progressService.reportProgress(studentId, courseId, videoId, null, deltaSec, null, false);
+        return Result.success("ok");
+    }
+
     @GetMapping("/course")
     public Result<LearningProgress> getCourseProgress(@RequestParam("studentId") Long studentId,
                                                       @RequestParam("courseId") Long courseId) {
@@ -106,5 +122,39 @@ public class ProgressController {
             @RequestParam(value = "weeks", required = false, defaultValue = "4") Integer weeks) {
         List<Map<String, Object>> result = progressService.getStudentRecentWeeksTime(studentId, weeks);
         return Result.success(result);
+    }
+
+    @GetMapping("/time-distribution")
+    public Result<Map<String, Object>> getTimeDistribution(
+            @RequestParam(value = "range", defaultValue = "7d") String range) {
+        Long studentId = getCurrentUserId();
+        if (studentId == null) {
+            return Result.error(401, "未登录");
+        }
+
+        int days = range.equals("30d") ? 30 : 7;
+        List<Map<String, Object>> weeklyData = progressService.getStudentRecentWeeksTime(studentId, days);
+
+        Map<String, Object> result = new java.util.HashMap<>();
+        java.util.List<String> dayLabels = new java.util.ArrayList<>();
+        java.util.List<Double> videoTimes = new java.util.ArrayList<>();
+        java.util.List<Double> docTimes = new java.util.ArrayList<>();
+
+        for (int i = 0; i < days; i++) {
+            java.time.LocalDate date = java.time.LocalDate.now().minusDays(days - 1 - i);
+            dayLabels.add(String.format("%02d-%02d", date.getMonthValue(), date.getDayOfMonth()));
+            videoTimes.add(0.0);
+            docTimes.add(0.0);
+        }
+
+        result.put("days", dayLabels);
+        result.put("video", videoTimes);
+        result.put("doc", docTimes);
+        return Result.success(result);
+    }
+
+    private Long getCurrentUserId() {
+        com.ccut.context.UserContext.Context context = com.ccut.context.UserContext.get();
+        return context == null ? null : context.userId();
     }
 }

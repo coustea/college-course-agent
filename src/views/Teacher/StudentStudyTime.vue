@@ -188,7 +188,7 @@ import {
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
-const BASE_URL = import.meta.env.VITE_BACKEND_ORIGIN || 'http://localhost:9999'
+const BASE_URL = import.meta.env.VITE_BACKEND_ORIGIN || ''
 
 // 数据
 const loading = ref(false)

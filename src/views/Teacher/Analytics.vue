@@ -317,7 +317,7 @@ let activityChartInstance = null
 let detailChartInstance = null
 
 // axios 实例
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://localhost:9999/api' : '/api'))
+const API_BASE = import.meta?.env?.VITE_API_BASE_URL || '/api'
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   try {

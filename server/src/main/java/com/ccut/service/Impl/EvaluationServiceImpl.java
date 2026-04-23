@@ -43,6 +43,9 @@ public class EvaluationServiceImpl implements EvaluationService {
     private ConversationMapper conversationMapper;
 
     @Autowired
+    private LearningPathRecordMapper pathRecordMapper;
+
+    @Autowired
     private CourseMapper courseMapper;
 
     @Autowired
@@ -50,6 +53,18 @@ public class EvaluationServiceImpl implements EvaluationService {
 
     @Autowired
     private EnrollmentMapper enrollmentMapper;
+
+    @Autowired
+    private TeacherAssignmentMapper teacherAssignmentMapper;
+
+    @Autowired
+    private StudentSubmissionMapper studentSubmissionMapper;
+
+    @Autowired
+    private com.ccut.mapper.StudentMemberScoreMapper studentMemberScoreMapper;
+
+    @Autowired
+    private WrongQuestionMapper wrongQuestionMapper;
 
     @Override
     @Transactional
@@ -181,16 +196,18 @@ public class EvaluationServiceImpl implements EvaluationService {
         // 内容融入度：基于思政资源与课程的关联
         // 1. 课程关联的思政资源数量
         List<IdeologyResource> resources = ideologyResourceMapper.search(courseId, null, "published", 100);
-        int resourceCount = resources.size();
+        int resourceCount = resources != null ? resources.size() : 0;
 
         // 2. 学生查看的思政资源数量
         int viewedCount = 0;
         if (studentId != null) {
             List<IdeologyResourceRecommendation> recommendations =
                     ideologyRecommendationMapper.findByStudentId(studentId, 100);
-            viewedCount = (int) recommendations.stream()
-                    .filter(r -> r.getHasClicked() != null && r.getHasClicked())
-                    .count();
+            if (recommendations != null) {
+                viewedCount = (int) recommendations.stream()
+                        .filter(r -> r.getHasClicked() != null && r.getHasClicked())
+                        .count();
+            }
         }
 
         // 评分计算：基础分 + 资源覆盖分 + 学生参与分
@@ -204,17 +221,23 @@ public class EvaluationServiceImpl implements EvaluationService {
     @Override
     public Double calculateInteractionScore(Long studentId, Long courseId) {
         // 师生互动：基于AI对话次数、作业提交次数等
-        double baseScore = 40.0;
+        double baseScore = 35.0;
 
         try {
             // AI对话次数
             List<Conversation> conversations = conversationMapper.findByStudentId(studentId);
             int chatCount = conversations != null ? conversations.size() : 0;
-            double chatScore = Math.min(chatCount * 3, 30);  // 每次对话3分，最多30分
+            double chatScore = Math.min(chatCount * 4.0, 24.0);
 
-            // TODO: 可扩展：作业提交次数、讨论区发言次数等
+            List<LearningPathRecord> pathRecords = pathRecordMapper.selectByStudentId(studentId, courseId, 100);
+            long interactiveActions = pathRecords == null ? 0 : pathRecords.stream()
+                    .filter(record -> isInteractiveRecord(record.getActionType()))
+                    .count();
+            double pathScore = Math.min(interactiveActions * 4.0, 16.0);
 
-            return Math.min(baseScore + chatScore, 100);
+            double assignmentScore = calculateAssignmentInteractionScore(studentId, courseId);
+
+            return Math.min(baseScore + chatScore + pathScore + assignmentScore, 100);
         } catch (Exception e) {
             log.warn("计算互动评分失败: {}", e.getMessage());
             return baseScore;
@@ -251,7 +274,7 @@ public class EvaluationServiceImpl implements EvaluationService {
     @Override
     public Double calculateValueRecognitionScore(Long studentId, Long courseId) {
         // 价值认同：基于思政资源点击、学习反思等
-        double baseScore = 40.0;
+        double baseScore = 35.0;
 
         try {
             // 思政资源推荐点击情况
@@ -263,11 +286,27 @@ public class EvaluationServiceImpl implements EvaluationService {
                         .filter(r -> Boolean.TRUE.equals(r.getHasClicked()))
                         .count();
                 double clickRate = (double) clicked / recommendations.size();
-                baseScore += clickRate * 40;  // 点击率最多加40分
+                baseScore += clickRate * 30.0;
             }
 
-            // 错题订正情况（反映学习反思）
-            // TODO: 可扩展错题相关计算
+            List<LearningPathRecord> pathRecords = pathRecordMapper.selectByStudentId(studentId, courseId, 100);
+            long reviewActions = pathRecords == null ? 0 : pathRecords.stream()
+                    .filter(record -> "review".equalsIgnoreCase(record.getActionType())
+                            || "complete".equalsIgnoreCase(record.getActionType()))
+                    .count();
+            baseScore += Math.min(reviewActions * 3.0, 12.0);
+
+            List<WrongQuestion> wrongQuestions = wrongQuestionMapper.selectByStudentId(studentId, courseId);
+            if (wrongQuestions != null && !wrongQuestions.isEmpty()) {
+                long masteredCount = wrongQuestions.stream()
+                        .filter(question -> Boolean.TRUE.equals(question.getIsMastered())
+                                || (question.getCorrectCount() != null && question.getCorrectCount() > 0))
+                        .count();
+                long reviewedCount = wrongQuestions.stream()
+                        .filter(question -> question.getCorrectCount() != null && question.getCorrectCount() > 0)
+                        .count();
+                baseScore += Math.min(masteredCount * 4.0 + reviewedCount * 1.5, 18.0);
+            }
 
             return Math.min(baseScore, 100);
         } catch (Exception e) {
@@ -371,5 +410,65 @@ public class EvaluationServiceImpl implements EvaluationService {
         }
 
         result.setImprovementSuggestions(suggestions);
+    }
+
+    private boolean isInteractiveRecord(String actionType) {
+        if (actionType == null) {
+            return false;
+        }
+        return "interact".equalsIgnoreCase(actionType)
+                || "review".equalsIgnoreCase(actionType)
+                || "submit".equalsIgnoreCase(actionType)
+                || "comment".equalsIgnoreCase(actionType);
+    }
+
+    private double calculateAssignmentInteractionScore(Long studentId, Long courseId) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null || course.getTeacherId() == null) {
+            return 0.0;
+        }
+
+        List<TeacherAssignment> assignments = teacherAssignmentMapper.selectByTeacherId(course.getTeacherId());
+        if (assignments == null || assignments.isEmpty()) {
+            return 0.0;
+        }
+
+        int matchedSubmissions = 0;
+        double feedbackScoreTotal = 0.0;
+        int feedbackCount = 0;
+
+        for (TeacherAssignment assignment : assignments) {
+            if (assignment == null || assignment.getAssignmentId() == null) {
+                continue;
+            }
+            List<StudentSubmission> submissions = studentSubmissionMapper.selectByAssignmentId(assignment.getAssignmentId());
+            if (submissions == null || submissions.isEmpty()) {
+                continue;
+            }
+            for (StudentSubmission submission : submissions) {
+                if (!Objects.equals(studentId, submission.getSubmittedBy())) {
+                    continue;
+                }
+                matchedSubmissions++;
+                List<com.ccut.dto.StudentMemberScore> memberScores =
+                        studentMemberScoreMapper.selectBySubmissionId(submission.getSubmissionId());
+                if (memberScores == null) {
+                    continue;
+                }
+                for (com.ccut.dto.StudentMemberScore memberScore : memberScores) {
+                    if (memberScore == null || !Objects.equals(studentId, memberScore.studentId())) {
+                        continue;
+                    }
+                    if (memberScore.score() != null) {
+                        feedbackScoreTotal += memberScore.score();
+                        feedbackCount++;
+                    }
+                }
+            }
+        }
+
+        double submissionScore = Math.min(matchedSubmissions * 4.0, 12.0);
+        double feedbackScore = feedbackCount > 0 ? Math.min((feedbackScoreTotal / feedbackCount) / 10.0, 8.0) : 0.0;
+        return Math.min(submissionScore + feedbackScore, 20.0);
     }
 }
