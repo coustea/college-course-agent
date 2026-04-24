@@ -442,7 +442,7 @@ const saveCourse = async (status) => {
       return
     }
 
-    const base = import.meta?.env?.VITE_API_BASE_URL || ''
+    const base = import.meta?.env?.VITE_API_BASE_URL || '/api'
 
     const formData = new FormData()
 

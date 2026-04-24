@@ -275,7 +275,7 @@ function toUrl(u) {
 
 const emit = defineEmits(['update:modelValue', 'next', 'prev', 'progressClick'])
 const { proxy } = getCurrentInstance()
-const BASE_URL = proxy?.$baseUrl || ''
+const BASE_URL = proxy?.$baseUrl || '/api'
 
 // 目录
 const flatChapters = computed(() => {

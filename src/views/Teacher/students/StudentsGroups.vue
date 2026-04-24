@@ -241,7 +241,7 @@ import {ElMessage, ElMessageBox} from 'element-plus'
 import {Search, DataLine, Timer, Check, Close, Refresh} from '@element-plus/icons-vue'
 import axios from 'axios'
 
-const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '4173' ? 'http://192.168.52.75:9999/api' : '/api'))
+const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || '/api')
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 api.interceptors.request.use((config) => {
   try {

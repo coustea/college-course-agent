@@ -906,9 +906,8 @@ onMounted(async () => {
   } catch (e) {
     // 尝试使用绝对后端基址作为降级
     try {
-      const fallbackBase = (window?.location?.port === '5173' || window?.location?.port === '4173') ? 'http://39.96.172.21:9999/api' : API_BASE
       const token = localStorage.getItem('token') || localStorage.getItem('userToken') || ''
-      const res2 = await axios.get(`${fallbackBase}/personal-submission/by-assignment`, { params: { assignmentId }, headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      const res2 = await axios.get(`${API_BASE}/personal-submission/by-assignment`, { params: { assignmentId }, headers: token ? { Authorization: `Bearer ${token}` } : {} })
       const raw2 = res2?.data
       const list2 = Array.isArray(raw2?.data) ? raw2.data : []
       personalSubmissions.value = list2.map(it => ({

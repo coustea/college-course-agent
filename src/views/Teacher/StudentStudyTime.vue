@@ -188,7 +188,7 @@ import {
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
-const BASE_URL = import.meta.env.VITE_BACKEND_ORIGIN || ''
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 // 数据
 const loading = ref(false)
@@ -269,7 +269,7 @@ const fetchStudentStudyTime = async () => {
     const teacherId = localStorage.getItem('userId')
     const token = localStorage.getItem('token')
 
-    const response = await axios.get(`${BASE_URL}/api/progress/teacher/course/students/weekly`, {
+    const response = await axios.get(`${BASE_URL}/progress/teacher/course/students/weekly`, {
       params: {
         courseId: selectedCourseId.value,
         teacherId: teacherId

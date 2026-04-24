@@ -102,7 +102,7 @@ import { setAuthSession } from '../services/auth'
 
 const router = useRouter()
 const { proxy } = getCurrentInstance()
-const BASE_URL = proxy.$baseUrl
+const BASE_URL = proxy?.$baseUrl || '/api'
 
 // 表单数据
 const loginForm = reactive({
