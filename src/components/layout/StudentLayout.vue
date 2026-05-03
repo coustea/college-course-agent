@@ -215,19 +215,15 @@ const profileForm = ref({ name: '', className: '', studentNumber: '', phone: '',
 const savingProfile = ref(false)
 
 const getStudentById = async () => {
-  console.log('getStudentById called')
   try {
     const userId = localStorage.getItem('userId')
-    console.log(userId)
     const res = await axios.post(`${BASE_URL}/student/by-id`, { userId }, {
       headers: {
         'content-type': 'multipart/form-data',
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
     })
-    console.log("getStudentById响应", res.data)
     if (res.data.code === 200) {
-      console.log(res.data.data)
       userName.value = res.data.data.name
       localStorage.setItem('studentName', res.data.data.name)
       localStorage.setItem('className', res.data.data.className)
@@ -396,7 +392,6 @@ const changePassword = async () => {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       })
-      console.log("修改密码响应", res.data)
       if (res.data.code === 200) {
         ElMessage.success('密码修改成功')
         passwordDialogVisible.value = false
@@ -484,13 +479,11 @@ async function updateStudentContact(phone, email) {
     const normalizedEmail = String((email ?? profileForm.value.email ?? '')).trim()
 
     const token = localStorage.getItem('token')
-    console.log('学生更改信息', normalizedPhone, normalizedEmail)
     const res = await axios.put(
       `${BASE_URL}/teacher/update/student/${userId}`,
       { phone: normalizedPhone, email: normalizedEmail },
       { headers: { Authorization: `Bearer ${token}` } }
     )
-    console.log('学生更改信息结果', res.data)
     if (res?.data?.code !== 200) { ElMessage.error('保存失败'); return false }
 
     try {

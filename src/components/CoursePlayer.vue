@@ -403,21 +403,17 @@ async function fetchOverallProgress() {
     const studentId = localStorage.getItem('userId')
     const courseId = props.courseId || flatChapters.value?.[0]?.courseId
     if (!studentId || !courseId) {
-      console.log('[CoursePlayer] 缺少必要参数，studentId:', studentId, 'courseId:', courseId)
       return
     }
 
     const token = localStorage.getItem('token')
-    console.log('[CoursePlayer] 请求课程进度，studentId:', studentId, 'courseId:', courseId)
     const res = await axios.get(`${BASE_URL}/progress/course/all`, {
       params: { studentId, courseId },
       headers: { Authorization: `Bearer ${token}` }
     })
 
-    console.log('[CoursePlayer] 获取课程进度结果:', res.data)
     if (res?.data?.code === 200) {
       const data = res?.data?.data
-      console.log('[CoursePlayer] data内容:', data)
 
       // 从后端数据中更新已完成视频集合
       if (Array.isArray(data?.videos)) {
@@ -427,7 +423,6 @@ async function fetchOverallProgress() {
             const vid = v.videoId ?? v.id ?? v.videoIndex
             if (vid) {
               completedVideos.value.add(vid)
-              console.log('[CoursePlayer] 已完成的视频:', vid)
             }
           }
         })
@@ -436,40 +431,24 @@ async function fetchOverallProgress() {
       // 获取当前视频的 videoId
       const ch = flatChapters.value?.[currentIndex.value]
       const currentVideoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? (currentIndex.value + 1)
-      console.log('[CoursePlayer] 当前视频ID:', currentVideoId, '当前索引:', currentIndex.value)
-      console.log('[CoursePlayer] 后端返回的所有视频数据:', data?.videos)
 
       // 从 videos 数组中查找当前视频的进度
       let percentage = 0
       if (Array.isArray(data?.videos)) {
-        // 打印所有视频的 ID 用于调试
-        data.videos.forEach((v, i) => {
-          console.log(`[CoursePlayer] 后端视频[${i}]:`, {
-            videoId: v.videoId,
-            id: v.id,
-            courseId: v.courseId,
-            percentage: v.percentage
-          })
-        })
-
         const currentVideo = data.videos.find(v =>
           Number(v.videoId) === Number(currentVideoId) ||
           Number(v.id) === Number(currentVideoId) ||
           String(v.videoId) === String(currentVideoId) ||
           String(v.id) === String(currentVideoId)
         )
-        console.log('[CoursePlayer] 找到的当前视频数据:', currentVideo)
 
         if (currentVideo && typeof currentVideo.percentage === 'number') {
           percentage = currentVideo.percentage
-          console.log('[CoursePlayer] 当前视频进度:', percentage + '%')
         } else {
-          console.log('[CoursePlayer] 未找到当前视频进度，使用默认值0')
         }
       }
 
       overallProgress.value = percentage / 100
-      console.log('[CoursePlayer] 设置显示进度:', percentage + '%', '转换后:', overallProgress.value)
       // 更新当前视频允许的最大可快进比例
       backendSeekMax.value = Math.max(0, Math.min(1, percentage / 100))
 
@@ -486,7 +465,6 @@ async function fetchOverallProgress() {
         const existingRaw = localStorage.getItem(key)
         if (!existingRaw && pct > 0) {
           localStorage.setItem(key, JSON.stringify({ p: pct, t: Date.now() }))
-          console.log('[CoursePlayer] 初始化播放位置（使用后端进度）:', key, '进度:', pct)
         }
       } catch (e) { console.error(e) }
     }
@@ -505,7 +483,6 @@ async function reportCourseProgress(deltaSec, completed = false) {
   // 检查用户角色，教师不上报进度
   const userRole = localStorage.getItem('userRole')
   if (userRole === 'teacher') {
-    console.log('[CoursePlayer] 当前用户是教师，跳过进度上报')
     return
   }
 
@@ -515,25 +492,20 @@ async function reportCourseProgress(deltaSec, completed = false) {
   const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? ch?.index ?? (currentIndex.value + 1)
   if (!studentId || !courseId || !videoId) return
   try {
-    console.log('[CoursePlayer] 观看时长上报开始(展示所需参数)', studentId, courseId, videoId, sec, 'completed:', completed)
     const token = localStorage.getItem('token')
     const res = await axios.post(`${BASE_URL}/progress/report`,null, {
       params: { studentId, courseId, videoId, deltaSec: sec, completed: completed },
       headers:  { Authorization: `Bearer ${token}` }
     })
-    console.log('[CoursePlayer] 观看时长上报结果', res.data)
     if (res?.data?.code === 200) {
-      console.log('观看时长上报成功')
       // 如果标记为完成，添加到已完成集合
       if (completed) {
         completedVideos.value.add(videoId)
-        console.log('[CoursePlayer] 视频已完成并标记:', videoId)
       }
       // 更新整体进度
       const percentage = res?.data?.data?.percentage ?? res?.data?.percentage
       if (typeof percentage === 'number') {
         overallProgress.value = percentage / 100 // 将百分比转换为 0-1 范围
-        console.log('[CoursePlayer] 更新整体进度:', percentage + '%')
       }
     }
   } catch (e) {
@@ -879,7 +851,6 @@ function nextTickSeekSaved() {
         const pct = Number(saved?.p)
         if (Number.isFinite(pct) && pct > 0 && pct < 1) {
           player.value.currentTime = pct * player.value.duration
-          console.log('[CoursePlayer] 从 localStorage 恢复视频位置:', videoId, '进度:', pct)
         }
       }
     } catch (e) { console.error(e) }
@@ -972,8 +943,6 @@ let hasRestoredPosition = false
 
 function onLoaded() {
   try {
-    console.log('[CoursePlayer] Video onLoaded 触发，视频元数据已加载')
-    console.log('[CoursePlayer] 视频时长:', player.value?.duration, '秒')
     // 从 localStorage 恢复播放位置（只执行一次）
     if (!hasRestoredPosition) {
       nextTickSeekSaved()
@@ -989,7 +958,6 @@ function onLoaded() {
 
 // 视频可以播放时触发
 function onCanPlay() {
-  console.log('[CoursePlayer] Video onCanPlay 触发，视频可以播放')
   isBuffering.value = false
   // 不要在这里恢复位置，已经在 onLoaded 中处理了
 }
@@ -1003,7 +971,6 @@ function onEnded() {
   // 标记当前视频为已完成
   const ch = flatChapters.value?.[currentIndex.value]
   const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? ch?.index ?? (currentIndex.value + 1)
-  console.log('[CoursePlayer] 视频播放完成，标记为已完成:', videoId)
   // 上报完成状态
   reportCourseProgress(0, true)
 }
@@ -1085,7 +1052,6 @@ watch(questionVisible, (newVal, oldVal) => {
   if (oldVal === true && newVal === false && wasPlayingBeforeQuestion.value) {
     const el = player.value
     if (el && el.paused) {
-      console.log('[CoursePlayer] 弹窗关闭，恢复视频播放')
       el.play()
       isPlaying.value = true
       startWatchTimerIfNeeded()
@@ -1165,7 +1131,6 @@ function generateRandomTriggerPoints() {
   // 排序确保按顺序触发
   points.sort((a, b) => a - b)
   randomTriggerPoints.value = points
-  console.log('[CoursePlayer] 生成随机题目触发点:', points.map(p => Math.round(p * 100) + '%'))
 }
 
 // 显示下一道题目
@@ -1217,7 +1182,6 @@ async function prefetchQuestions() {
     if (prefetchedExam.value) {
       hasRestoredState = restoreQuestionState()
       if (hasRestoredState) {
-        console.log('[CoursePlayer] 已恢复答题状态，无需重新生成题目')
         return
       }
     }
@@ -1233,7 +1197,6 @@ async function prefetchQuestions() {
       { choiceCount: 2, judgeCount: 1, description: '2道选择题+1道判断题' }
     ]
     const selectedScheme = questionSchemes[Math.floor(Math.random() * questionSchemes.length)]
-    console.log('[CoursePlayer] 本次题目方案:', selectedScheme.description)
 
     const body = {
       courseId,
@@ -1249,7 +1212,6 @@ async function prefetchQuestions() {
         Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'
       }
     })
-    console.log('获取题目结果:', res.data)
     if (res.data.code === 200) {
       const data = res.data.data
       prefetchedDict.value[key] = data
@@ -1382,12 +1344,10 @@ function onQuestionSubmit(payload) {
         addToWrongQuestionBook(qid, letter, ['A','B','C','D'][questionCorrectIndex.value])
       }
 
-      console.log(`[CoursePlayer] 答题进度: ${answeredCount.value}/${REQUIRED_QUESTIONS_PER_VIDEO}, 答题${isCorrect ? '正确' : '错误'}`)
 
       // 检查是否已完成所有题目
       const allCompleted = answeredCount.value >= REQUIRED_QUESTIONS_PER_VIDEO
       if (allCompleted) {
-        console.log('[CoursePlayer] 所有题目已完成，提交所有答案到后端')
         // 只在所有题目都答完后才提交到后端
         submitAnswers()
         clearQuestionState()
@@ -1398,7 +1358,6 @@ function onQuestionSubmit(payload) {
 
       // 答完题后不自动关闭弹窗，让学生有充足时间看解析
       // 学生需要手动点击"继续学习"按钮关闭弹窗
-      console.log('[CoursePlayer] 答题完成，等待学生手动关闭弹窗查看解析')
     }
   } catch (e) { console.error(e) }
 }
@@ -1416,7 +1375,6 @@ async function addToWrongQuestionBook(questionId, wrongAnswer, correctAnswer) {
     }
 
     const token = localStorage.getItem('token')
-    console.log('[CoursePlayer] 添加错题到错题本:', { questionId, wrongAnswer, correctAnswer })
 
     const res = await axios.post(`${BASE_URL}/wrong-question/add`, null, {
       params: {
@@ -1433,7 +1391,6 @@ async function addToWrongQuestionBook(questionId, wrongAnswer, correctAnswer) {
     })
 
     if (res.data.code === 200) {
-      console.log('[CoursePlayer] 错题添加成功')
     } else {
       console.warn('[CoursePlayer] 错题添加失败:', res.data.message)
     }
@@ -1467,7 +1424,6 @@ function resetQuestionState() {
   questionTitle.value = '选择题'
   questionVisible.value = false
   prefetchedExam.value = null
-  console.log('[CoursePlayer] 重置题目状态')
 }
 
 // 保存答题状态到 localStorage
@@ -1484,7 +1440,6 @@ function saveQuestionState() {
       timestamp: Date.now()
     }
     localStorage.setItem(key, JSON.stringify(state))
-    console.log('[CoursePlayer] 保存答题状态:', key, state)
   } catch (e) {
     console.error('[CoursePlayer] 保存答题状态失败:', e)
   }
@@ -1506,11 +1461,8 @@ function restoreQuestionState() {
         askedQuestionIndexes.value = new Set(state.askedQuestionIndexes || [])
         randomTriggerPoints.value = state.randomTriggerPoints || []
         answersSoFar.value = state.answersSoFar || []
-        console.log('[CoursePlayer] 恢复答题状态:', key, state)
-        console.log('[CoursePlayer] 已回答题目数:', answeredCount.value)
         return true
       } else {
-        console.log('[CoursePlayer] 答题状态已过期，忽略')
         localStorage.removeItem(key)
       }
     }
@@ -1528,7 +1480,6 @@ function clearQuestionState() {
     const videoId = ch?.videoId ?? ch?.id ?? ch?.videoIndex ?? currentIndex.value
     const key = `question_state_${props.courseId}_${videoId}`
     localStorage.removeItem(key)
-    console.log('[CoursePlayer] 清除答题状态:', key)
   } catch (e) {
     console.error('[CoursePlayer] 清除答题状态失败:', e)
   }
@@ -1550,7 +1501,6 @@ async function submitAnswers() {
       'Content-Type': 'application/json'
     }})
     if (res.data.code === 200) {
-      console.log('提交答案成功')
     }
   } catch (e) {
     console.error('提交答案失败', e)

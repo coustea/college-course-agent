@@ -403,9 +403,6 @@ onMounted(async () => {
     const isEditMode = localStorage.getItem('from_group_edit') === '1'
     const currentLeaderId = localStorage.getItem('current_leader_id')
 
-    console.log('[组建小组] 是否编辑模式:', isEditMode)
-    console.log('[组建小组] 当前用户ID:', myId.value)
-    console.log('[组建小组] 组长ID:', currentLeaderId)
 
     const list = await getStudentsByClassName(className.value)
 
@@ -418,12 +415,9 @@ onMounted(async () => {
         const filteredBaseIds = baseIds.filter(id => {
           const idNum = Number(id)
           const leaderIdNum = Number(currentLeaderId || myId.value)
-          console.log('[组建小组] 检查成员ID:', idNum, '组长ID:', leaderIdNum, '是否排除:', idNum === leaderIdNum)
           return idNum !== leaderIdNum
         })
 
-        console.log('[组建小组] 原始成员ID:', baseIds)
-        console.log('[组建小组] 过滤后成员ID:', filteredBaseIds)
 
         const idSet = new Set((list || []).filter(s => filteredBaseIds.includes(Number(s.id) || s.id)).map(s => s.id))
         selectedIds.value = Array.from(idSet)
@@ -442,7 +436,6 @@ onMounted(async () => {
       // 在编辑模式下，标记当前用户（组长）为不可选
       const isCurrentUser = isEditMode && (String(s.id) === String(myId.value) || String(s.id) === String(currentLeaderId))
       if (isCurrentUser) {
-        console.log('[组建小组] 标记当前用户为不可选:', s.name, 'ID:', s.id)
         mappedUnavailable = true
       }
 
@@ -566,7 +559,6 @@ function finishSelecting() {
   // 如果是编辑模式，保存选中的成员并返回编辑页面
   const isEditMode = localStorage.getItem('from_group_edit') === '1'
   if (isEditMode) {
-    console.log('[组建小组] 编辑模式：保存成员并返回')
     // 保存选中的成员信息
     const selectedMembersInfo = selectedMembers.value.map(m => ({
       groupId: null, // 会在 MyGroup.vue 中填充
@@ -594,7 +586,6 @@ function cancelCreate() {
   // 如果是编辑模式，返回编辑页面并清理临时数据
   const isEditMode = localStorage.getItem('from_group_edit') === '1'
   if (isEditMode) {
-    console.log('[组建小组] 编辑模式：取消选择并返回')
     localStorage.removeItem('current_leader_id')
     localStorage.removeItem('from_group_edit')
     localStorage.removeItem('base_member_student_ids')
@@ -607,22 +598,15 @@ async function submitGroup() {
 
   try {
     // 调试日志
-    console.log('[创建小组] myId.value:', myId.value)
-    console.log('[创建小组] localStorage userId:', localStorage.getItem('userId'))
-    console.log('[创建小组] myId.value 类型:', typeof myId.value)
 
     let leaderId = Number(myId.value)
 
     // 如果 Number(myId.value) 是 NaN 或 0，尝试从 localStorage 获取
     if (!leaderId || leaderId === 0 || isNaN(leaderId)) {
       const localStorageUserId = localStorage.getItem('userId')
-      console.log('[创建小组] myId.value 无效，尝试从 localStorage 获取:', localStorageUserId)
       leaderId = Number(localStorageUserId)
     }
 
-    console.log('[创建小组] 最终 leaderId:', leaderId)
-    console.log('[创建小组] leaderId 类型:', typeof leaderId)
-    console.log('[创建小组] isNaN(leaderId):', isNaN(leaderId))
 
     // 验证 leaderId 是否有效
     if (!leaderId || leaderId === 0 || isNaN(leaderId)) {
@@ -639,7 +623,6 @@ async function submitGroup() {
       memberIds: members.map(m => m.id)
     }
 
-    console.log('[创建小组] 提交的 payload:', payload)
 
     const res = isUpdate.value ? await updateStudentGroup(payload) : await createStudentGroup(payload)
     if (Number(res?.code ?? res?.status) === 200) {

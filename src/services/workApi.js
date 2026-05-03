@@ -5,7 +5,6 @@ const http = request
 export async function getWorkSidebarStatus(signal) {
   // 兼容两种来源：localStorage.className 或 profile.className
   let className = localStorage.getItem('className')
-  console.log("className班级:", className)
   if (!className) {
     try { const p = JSON.parse(localStorage.getItem('profile') || 'null'); className = p?.className || '' } catch {}
   }
@@ -13,7 +12,6 @@ export async function getWorkSidebarStatus(signal) {
   const form = new FormData()
   form.append('className', className)
   const resp = await http.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' }, signal })
-  console.log("作品作业的列表", resp.data)
   return resp?.data?.data ?? resp?.data ?? {}
 }
 

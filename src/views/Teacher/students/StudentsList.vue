@@ -783,7 +783,6 @@ const handleCurrentChange = (val) => {
 
 const handleSortChange = ({ prop, order }) => {
   // Implement sorting logic if needed
-  console.log('Sort changed:', prop, order)
 }
 
 const tableRowClassName = ({ rowIndex }) => {
@@ -810,7 +809,6 @@ const openImportDialog = () => {
   uploadProgress.value = { current: 0, total: 0, success: 0, failed: 0 }
   uploading.value = false
 
-  console.log('[批量导入] 打开对话框，重置文件列表')
 
   showImportDialog.value = true
 }
@@ -971,14 +969,12 @@ const submitUpload = async () => {
   uploading.value = true
   uploadProgress.value = { current: 0, total: validFiles.length, success: 0, failed: 0 }
 
-  console.log(`[批量导入] 开始上传 ${validFiles.length} 个文件`)
 
   // 使用 Promise.allSettled 并行处理所有文件
   const uploadPromises = validFiles.map(async (file, index) => {
     try {
       uploadProgress.value.current = index + 1
 
-      console.log(`[批量导入] 上传文件 ${index + 1}/${validFiles.length}: ${file.name}`)
 
       const formData = new FormData()
       formData.append('file', file)
@@ -990,7 +986,6 @@ const submitUpload = async () => {
         }
       })
 
-      console.log(`[批量导入] 文件 ${file.name} 上传成功:`, res.data)
       uploadProgress.value.success++
 
       return {
@@ -1018,7 +1013,6 @@ const submitUpload = async () => {
   const successCount = results.filter(r => r.value?.success).length
   const failedCount = results.filter(r => !r.value?.success).length
 
-  console.log(`[批量导入] 全部完成: 成功 ${successCount} 个，失败 ${failedCount} 个`)
 
   // 显示详细结果
   if (failedCount === 0) {
@@ -1045,13 +1039,6 @@ const submitUpload = async () => {
 }
 
 const handleFileChange = (file, uploadFileList) => {
-  console.log('[文件选择] 新增文件:', file.name)
-  console.log('[文件选择] 当前文件列表:', uploadFileList.map(f => ({
-    name: f.name,
-    size: f.size,
-    status: f.status
-  })))
-
   // 验证新添加的文件
   if (!validateFile(file)) {
     // 如果验证失败，从列表中移除该文件
@@ -1065,22 +1052,16 @@ const handleFileChange = (file, uploadFileList) => {
   // 更新文件列表
   fileList.value = [...uploadFileList]
 
-  console.log('[文件选择] 更新后的 fileList 长度:', fileList.value.length)
-  console.log('[文件选择] 文件列表:', fileList.value.map(f => f.name))
 }
 
 const handleFileRemove = (file, uploadFileList) => {
-  console.log('[文件移除] 移除文件:', file.name)
-  console.log('[文件移除] 剩余文件列表:', uploadFileList.map(f => f.name))
 
   fileList.value = [...uploadFileList]
 
-  console.log('[文件移除] 更新后的 fileList 长度:', fileList.value.length)
 }
 
 const handleUploadSuccess = response => {
   // 单个文件上传成功的回调（已不使用，统一在 submitUpload 中处理）
-  console.log('[批量导入] 单个文件上传成功:', response)
 }
 
 const handleUploadError = error => {
@@ -1218,7 +1199,6 @@ const refreshCourseProgress = async () => {
 watch(showImportDialog, (newVal) => {
   if (!newVal) {
     // 对话框关闭时重置状态
-    console.log('[批量导入] 对话框关闭，重置状态')
     fileList.value = []
     uploadProgress.value = { current: 0, total: 0, success: 0, failed: 0 }
     uploading.value = false

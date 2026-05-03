@@ -249,7 +249,6 @@ async function refreshMyGroup() {
   errorMessage.value = ''
 
   try {
-    console.log('[我的小组] 开始加载小组数据...')
 
     const userId = localStorage.getItem('userId')
     if (!userId) {
@@ -259,7 +258,6 @@ async function refreshMyGroup() {
       return
     }
 
-    console.log('[我的小组] 当前用户ID:', userId)
 
     const token = localStorage.getItem('token')
     if (!token) {
@@ -275,12 +273,10 @@ async function refreshMyGroup() {
     }
 
     // 1. 获取用户所属小组ID
-    console.log('[我的小组] 步骤1: 调用 /groupMember/getById')
     const fd1 = new FormData()
     fd1.append('studentId', userId)
 
     const res = await axios.post(`${BASE_URL}/groupMember/getById`, fd1, { headers })
-    console.log('[我的小组] /groupMember/getById 响应:', res.data)
 
     if (!(res?.data?.code === 200)) {
       console.warn('[我的小组] 获取小组成员失败，响应码:', res?.data?.code)
@@ -290,26 +286,21 @@ async function refreshMyGroup() {
     }
 
     if (!res?.data?.data?.groupId) {
-      console.log('[我的小组] 用户未加入任何小组')
       setNone()
       return
     }
 
     const groupId = res.data.data.groupId
     currentGroupId.value = groupId
-    console.log('[我的小组] 找到小组ID:', groupId)
 
     // 2. 获取小组详细信息
-    console.log('[我的小组] 步骤2: 调用 /student-group/getByGroupId')
     const fd2 = new FormData()
     fd2.append('groupId', groupId)
 
     const response = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd2, { headers })
-    console.log('[我的小组] /student-group/getByGroupId 响应:', response.data)
 
     if (response?.data?.code === 200 && response?.data?.data) {
       const group = response.data.data
-      console.log('[我的小组] 小组详情:', group)
 
       // 处理审批状态
       const st = String(group?.approvalStatus || '').toLowerCase()
@@ -317,11 +308,9 @@ async function refreshMyGroup() {
                         (st === 'pending' ? 'pending' :
                         (st === 'rejected' ? 'rejected' : 'none'))
 
-      console.log('[我的小组] 小组状态:', groupStatus.value)
 
       // 处理成员数据
       const membersRaw = Array.isArray(group.groupMemberList) ? group.groupMemberList : []
-      console.log('[我的小组] 原始成员列表:', membersRaw)
 
       const leaderId = group.groupLeaderId || membersRaw.find(m =>
         m.role === 'leader' || m.memberRole === 'leader'
@@ -342,7 +331,6 @@ async function refreshMyGroup() {
         }
       }).sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0))
 
-      console.log('[我的小组] 格式化后的成员列表:', allMembersFormatted)
 
       createdGroup.value = {
         groupId: group.groupId,
@@ -353,7 +341,6 @@ async function refreshMyGroup() {
         memberNames: allMembersFormatted.filter(m => !m.isLeader).map(m => m.name)
       }
 
-      console.log('[我的小组] 最终小组数据:', createdGroup.value)
 
       // 检测状态变化并显示通知
       checkStatusChange()
@@ -393,7 +380,6 @@ async function refreshMyGroup() {
         localStorage.removeItem('group_edit_auto_open')
       }
 
-      console.log('[我的小组] 数据加载成功！')
 
     } else {
       console.warn('[我的小组] 获取小组详情失败，响应:', response?.data)
@@ -478,9 +464,7 @@ function startPolling() {
 
   // 如果当前状态是 pending，启动轮询
   if (groupStatus.value === 'pending') {
-    console.log('[我的小组] 启动状态轮询...')
     pollingInterval.value = setInterval(async () => {
-      console.log('[我的小组] 轮询检查小组状态...')
       await refreshMyGroup()
     }, 5000) // 每5秒轮询一次
   }
@@ -489,7 +473,6 @@ function startPolling() {
 // 停止轮询
 function stopPolling() {
   if (pollingInterval.value) {
-    console.log('[我的小组] 停止状态轮询')
     clearInterval(pollingInterval.value)
     pollingInterval.value = null
   }
@@ -537,13 +520,10 @@ function goSelectMembers() {
   const currentUserId = Number(localStorage.getItem('userId'))
   const currentLeaderId = (createdGroup.value?.allMembers || []).find(m => m.isLeader)?.studentId
 
-  console.log('[编辑小组] 当前用户ID:', currentUserId)
-  console.log('[编辑小组] 组长ID:', currentLeaderId)
 
   // 只保存现有组员的ID，不包含组长
   const memberIds = editableMembers.value.map(x => x.studentId)
 
-  console.log('[编辑小组] 现有组员ID:', memberIds)
 
   // 保存到 localStorage，注意：不包含组长ID
   localStorage.setItem('base_member_student_ids', JSON.stringify(memberIds))
@@ -560,7 +540,6 @@ watch(editTaskDesc, (v) => localStorage.setItem('edit_group_task_draft', v ?? ''
 
 async function resubmitNow() {
     try {
-      console.log('[重新提交] 开始重新提交小组申请...')
 
       // 获取当前用户ID（组长ID）
       const userIdStr = localStorage.getItem('userId')
@@ -573,7 +552,6 @@ async function resubmitNow() {
         return
       }
 
-      console.log('[重新提交] 组长ID:', newLeaderId)
 
       // 验证组员人数
       const count = editableMembers.value.length
@@ -582,8 +560,6 @@ async function resubmitNow() {
         return
       }
 
-      console.log('[重新提交] 当前组员数:', count)
-      console.log('[重新提交] editableMembers:', editableMembers.value)
 
       // 计算新增的成员
       const baseSet = new Set(originalMemberIds.value.map(id => Number(id)))
@@ -591,8 +567,6 @@ async function resubmitNow() {
         .map(m => Number(m.studentId))
         .filter(id => !baseSet.has(id))
 
-      console.log('[重新提交] 原始成员ID:', originalMemberIds.value)
-      console.log('[重新提交] 新增成员ID:', addMemberIds)
 
       const payload = {
         groupName: editGroupName.value?.trim(),
@@ -602,7 +576,6 @@ async function resubmitNow() {
         approvalStatus: 'pending'
       }
 
-      console.log('[重新提交] 提交的 payload:', payload)
 
       const headers = {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -610,11 +583,9 @@ async function resubmitNow() {
       }
       const gid = currentGroupId.value
 
-      console.log('[重新提交] 发送请求到:', `${BASE_URL}/student-group/${gid}/full-update`)
 
       const resp = await axios.put(`${BASE_URL}/student-group/${gid}/full-update`, payload, { headers })
 
-      console.log('[重新提交] 响应:', resp.data)
 
       if (resp.data.code === 200) {
         localStorage.setItem('student_group_status', 'pending')

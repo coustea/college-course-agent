@@ -80,7 +80,6 @@ export function sendChatStream(conversationId, message, files, onChunk, onError,
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  console.log('[ChatStream] 发送流式请求:', { conversationId, message, fileCount: files?.length || 0 })
 
   fetch(`${FETCH_API_BASE}/ai/chat/stream`, {
     method: 'POST',
@@ -89,7 +88,6 @@ export function sendChatStream(conversationId, message, files, onChunk, onError,
     signal: controller.signal,
   })
     .then(async (response) => {
-      console.log('[ChatStream] 响应状态:', response.status)
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -144,7 +142,6 @@ export function sendChatStream(conversationId, message, files, onChunk, onError,
           }
 
           if (done) {
-            console.log('[ChatStream] 流式接收完成，共接收', chunkCount, '个chunk')
             if (buffer.trim()) processLine(buffer.trim())
             onDone()
             break
@@ -157,7 +154,6 @@ export function sendChatStream(conversationId, message, files, onChunk, onError,
     })
     .catch((err) => {
       if (err.name === 'AbortError') {
-        console.log('[ChatStream] 请求被中止')
       } else {
         console.error('[ChatStream] 网络错误:', err)
         onError(err.message || '网络错误')

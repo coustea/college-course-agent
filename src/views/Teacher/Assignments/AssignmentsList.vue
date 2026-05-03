@@ -373,14 +373,11 @@ export default {
     const fetchAssignments = async () => {
       loading.value = true
       try {
-        console.log('开始获取作业列表...')
         
         // 获取所有作业（不限制教师）
         const res = await api.get('/teacherAssignments')
-        console.log('作业列表响应:', res)
         const raw = res?.data
         const list = (raw && Number(raw.code) === 200 && Array.isArray(raw.data)) ? raw.data : []
-        console.log('解析后的作业列表:', list)
         // 映射为表格需要的字段
         assignments.value = list.map((it) => {
           const deadline = it.dueDate || ''

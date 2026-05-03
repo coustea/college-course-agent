@@ -309,7 +309,6 @@ watch(() => props.modelValue, (v) => {
     currentIndex.value = Math.max(0, (props.chapterIndex || 1) - 1)
     isBackendCompleted.value = false  // 重置后端完成状态
     // 立即同步进度展示
-    console.log('[DocumentViewer]文档打开，立即同步进度')
     syncDocumentProgressFromCourse(false).catch(e => console.error(e))
     // 加载文档内容（原生渲染）
     loadDocument()
@@ -336,7 +335,6 @@ watch(currentIndex, async () => {
   // 不要立即重置readProgress，等待后端同步完成
   actualReadTime.value = 0 // 重置阅读时间
   readTimeAccumulator = 0  // 重置累加器
-  console.log('[DocumentViewer]切换章节，重置答题状态和阅读时间，等待后端同步进度')
   // 同步进度时等待异步完成，确保后端状态正确加载
   try {
     await syncDocumentProgressFromCourse(false)
@@ -399,7 +397,6 @@ const isReading = ref(false)
 const isCompleted = computed(() => {
   // 如果后端已经标记为完成，直接返回true
   if (isBackendCompleted.value) {
-    console.log('[DocumentViewer]后端已完成，直接显示完成状态')
     return true
   }
 
@@ -524,7 +521,6 @@ async function loadPdf(url) {
   try {
     pdfSource.value = url
     currentPdfPage.value = 1
-    console.log('[DocumentViewer]PDF源设置为:', url)
   } catch (e) {
     throw new Error('PDF加载失败')
   }
@@ -544,7 +540,6 @@ async function loadDocx(url) {
     }
 
     docxHtml.value = result.value
-    console.log('[DocumentViewer]DOCX加载成功')
   } catch (e) {
     throw new Error('DOCX加载失败: ' + e.message)
   }
@@ -558,7 +553,6 @@ async function loadTxt(url) {
 
     const text = await response.text()
     txtContent.value = text
-    console.log('[DocumentViewer]TXT加载成功')
   } catch (e) {
     throw new Error('TXT加载失败: ' + e.message)
   }
@@ -582,13 +576,11 @@ function nextPdfPage() {
 function onPdfLoaded(info) {
   if (info && info.numPages) {
     totalPdfPages.value = info.numPages
-    console.log('[DocumentViewer]PDF总页数:', info.numPages)
     updateReadProgress() // 初始化阅读进度
   }
 }
 
 function onPdfRendered() {
-  console.log('[DocumentViewer]PDF页面渲染完成, 当前页:', currentPdfPage.value)
 }
 
 // 下载文档
@@ -604,7 +596,6 @@ async function close() {
   isClosing.value = true
   if (questionVisible.value) {
     questionVisible.value = false
-    console.log('[DocumentViewer]关闭文档前先关闭题目弹窗')
   }
   emit('update:modelValue', false)
 }
@@ -613,7 +604,6 @@ async function syncDocumentProgressFromCourse(resetQuizState = false) {
   try {
     const userRole = localStorage.getItem('userRole')
     if (userRole === 'teacher') {
-      console.log('[DocumentViewer]当前用户是教师，跳过进度同步')
       return
     }
 
@@ -625,7 +615,6 @@ async function syncDocumentProgressFromCourse(resetQuizState = false) {
       params: { studentId, courseId },
       headers: { Authorization: `Bearer ${token}` }
     })
-    console.log('[DocumentViewer]同步文档进度结果:', res.data)
     const data = res.data.data
     if (!data) return
     const docs =  data.documents
@@ -633,7 +622,6 @@ async function syncDocumentProgressFromCourse(resetQuizState = false) {
     const currentChapter = flatChapters.value[currentIndex.value]
     const docId = currentChapter?.documentId
     if (!docId) {
-      console.log('[DocumentViewer]当前章节没有 documentId，无法同步进度')
       return
     }
     const cur = docs.find(d => String(d.documentId) === String(docId))
@@ -642,13 +630,10 @@ async function syncDocumentProgressFromCourse(resetQuizState = false) {
       isBackendCompleted.value = completed  // 设置后端完成状态标志
       // 根据后端状态设置进度：已完成=1，未完成=后端百分比或0
       readProgress.value = completed ? 1 : (cur.percentage || cur.maxScrollPct || 0)
-      console.log('[DocumentViewer]同步进度 - documentId:', docId, '后端完成状态:', completed, '后端百分比:', cur.percentage, '当前进度:', readProgress.value)
       // 如果后端已完成，且不需要重置答题状态，则保留已答题记录
       if (completed && !resetQuizState) {
-        console.log('[DocumentViewer]后端已完成，保留答题状态不重置')
       }
     } else {
-      console.log('[DocumentViewer]未找到 documentId:', docId, '的进度记录，重置为0')
       readProgress.value = 0  // 未找到记录，重置为0
       isBackendCompleted.value = false
     }
@@ -671,7 +656,6 @@ async function startQuiz() {
   }
   try {
     quizStarted.value = true
-    console.log('[DocumentViewer]开始答题')
 
     const courseId = props.id || props.title
     const qs = await fetchQuestionsOnce(courseId)
@@ -747,10 +731,8 @@ async function submitDocumentQuiz() {
 
       // 如果答错了，添加到错题本
       if (!isCorrect) {
-        console.log(`[DocumentViewer] 答题错误: 题目ID=${answer.questionId}, 你的答案=${answer.answer}, 正确答案=${correctLetter}`)
         await addToWrongQuestionBook(answer.questionId, answer.answer, correctLetter)
       } else {
-        console.log(`[DocumentViewer] 答题正确: 题目ID=${answer.questionId}, 你的答案=${answer.answer}`)
       }
     }
 
@@ -769,12 +751,10 @@ async function submitDocumentQuiz() {
 // 关闭文档答题弹窗（只关闭dialog，不关闭整个DocumentViewer）
 function closeDocumentQuiz() {
   documentQuizVisible.value = false
-  console.log('[DocumentViewer] 答题dialog已关闭，用户可以点击"完成学习"按钮结束文档学习')
 }
 
 // 结束文档学习（提交答案并标记完成）
 async function finishDocument() {
-  console.log('[DocumentViewer]点击结束按钮，提交答案并标记完成')
   await submitDocumentAnswersAndProgress()
   ElMessage.success('恭喜！文档学习已完成')
   // 延迟关闭，让用户看到成功消息
@@ -860,7 +840,6 @@ async function onQuestionSubmit(payload) {
         await addToWrongQuestionBook(qid, letter, correctLetter)
       }
 
-      console.log(`[DocumentViewer] 答题${isCorrect ? '正确' : '错误'}: 题目ID=${qid}, 你的答案=${letter}, 正确答案=${correctLetter}`)
     }
   } catch (e) {
     console.error('[DocumentViewer] 答题处理失败:', e)
@@ -885,7 +864,6 @@ async function addToWrongQuestionBook(questionId, wrongAnswer, correctAnswer) {
     }
 
     const token = localStorage.getItem('token')
-    console.log('[DocumentViewer] 添加错题到错题本:', { questionId, wrongAnswer, correctAnswer })
 
     const res = await axios.post(`${BASE_URL}/wrong-question/add`, null, {
       params: {
@@ -902,7 +880,6 @@ async function addToWrongQuestionBook(questionId, wrongAnswer, correctAnswer) {
     })
 
     if (res.data.code === 200) {
-      console.log('[DocumentViewer] 错题添加成功')
     } else {
       console.warn('[DocumentViewer] 错题添加失败:', res.data.message)
     }
@@ -916,7 +893,6 @@ let fetchedForChapter = false
 async function fetchQuestionsOnce(courseId) {
   try {
     if (fetchedForChapter && questionList.value?.length > 0) {
-      console.log('[fetchQuestionsOnce]已取过题，返回缓存')
       return questionList.value
     }
     
@@ -926,14 +902,12 @@ async function fetchQuestionsOnce(courseId) {
     const currentChapter = flatChapters.value[currentIndex.value]
     const docId = currentChapter?.documentId
     const body = { courseId, studentId, choiceCount: 5, judgeCount: 0, videoId: null, documentId: docId }
-    console.log('[DocumentViewer]请求参数:', body)
     const res = await axios.post(`${BASE_URL}/aiexam/generate`, body, {
       headers: { 
         'Content-Type': 'application/json', 
         Authorization: `Bearer ${token}` 
       }
     })
-    console.log('[DocumentViewer]获取题目结果:', res.data)
     if (res.data.code === 200) {
       const data = res.data.data
       // 保存 examId
@@ -941,10 +915,8 @@ async function fetchQuestionsOnce(courseId) {
       const list = Array.isArray(data?.questions) ? data.questions : (Array.isArray(data?.choices) ? data.choices : [])
       questionList.value = list.slice(0, 5).map(q => normalizeQuestion(q))
       fetchedForChapter = true
-      console.log('[fetchQuestionsOnce]取题成功，examId:', examId.value, '题目数量:', questionList.value.length)
       return questionList.value
     } else {
-      console.log('[fetchQuestionsOnce]响应code不是200:', res.data)
     }
   } catch (e) { 
     console.error('[fetchQuestionsOnce]取题失败:', e)
@@ -1005,13 +977,11 @@ watch(() => props.modelValue, (v) => {
           // 检查是否完成，完成则上报
           if (isCompleted.value) {
             reportReadProgress(delta, true)
-            console.log('[DocumentViewer]阅读完成！时间:', actualReadTime.value, '秒, 要求:', requiredReadTime.value, '秒, 滚动:', progressDisplay.value, '%')
           }
         }
       }, 1000)
     }
 
-    console.log('[DocumentViewer]阅读计时器启动, 需要阅读时间:', requiredReadTime.value, '秒')
   } else {
     // 文档关闭，停止计时器
     if (readTimerInterval) {
@@ -1025,7 +995,6 @@ watch(() => props.modelValue, (v) => {
       reportReadProgress(readTimeAccumulator, isCompleted.value)
     }
 
-    console.log('[DocumentViewer]阅读计时器停止, 累计阅读时间:', actualReadTime.value, '秒')
   }
 })
 
@@ -1034,7 +1003,6 @@ async function reportReadProgress(deltaSec, forceCompleted = false) {
   try {
     const userRole = localStorage.getItem('userRole')
     if (userRole === 'teacher') {
-      console.log('[DocumentViewer]当前用户是教师，跳过进度上报')
       return
     }
 
@@ -1045,7 +1013,6 @@ async function reportReadProgress(deltaSec, forceCompleted = false) {
     const currentChapter = flatChapters.value[currentIndex.value]
     const docId = currentChapter?.documentId
     if (!docId) {
-      console.log('[DocumentViewer]当前章节没有 documentId，无法上报进度')
       return
     }
 
@@ -1053,7 +1020,6 @@ async function reportReadProgress(deltaSec, forceCompleted = false) {
     const scrollPct = Number(progressDisplay.value) / 100
     const completed = forceCompleted || isCompleted.value
 
-    console.log('[DocumentViewer]上报进度 - documentId:', docId, 'deltaSec:', deltaSec, 'scrollPct:', scrollPct, 'completed:', completed, 'actualTime:', actualReadTime.value, 'required:', requiredReadTime.value)
 
     const res = await axios.post(`${BASE_URL}/progress/report`, null, {
       params: {
@@ -1068,7 +1034,6 @@ async function reportReadProgress(deltaSec, forceCompleted = false) {
     })
 
     if (res.data.code === 200) {
-      console.log('[DocumentViewer]上报进度成功')
     }
   } catch (e) {
     console.error('[DocumentViewer]上报进度失败:', e)
@@ -1157,7 +1122,6 @@ onBeforeUnmount(() => {
 function updateReadProgress() {
   // 如果后端已经完成，不再更新进度
   if (isBackendCompleted.value) {
-    console.log('[DocumentViewer]后端已完成，跳过进度更新')
     return
   }
 
@@ -1165,7 +1129,6 @@ function updateReadProgress() {
   if (docType.value === 'pdf' && totalPdfPages.value > 0) {
     const ratio = currentPdfPage.value / totalPdfPages.value
     readProgress.value = Math.max(0, Math.min(1, ratio))
-    console.log(`[DocumentViewer]PDF页面进度: ${(ratio * 100).toFixed(1)}%, 当前页: ${currentPdfPage.value}/${totalPdfPages.value}`)
     return
   }
 
@@ -1175,7 +1138,6 @@ function updateReadProgress() {
   const total = Math.max(1, el.scrollHeight - el.clientHeight)
   const ratio = Math.max(0, Math.min(1, el.scrollTop / total))
   readProgress.value = ratio
-  console.log(`[DocumentViewer]滚动进度: ${(ratio * 100).toFixed(1)}%, scrollTop: ${el.scrollTop}, total: ${total}`)
 }
 
 // Ctrl + 滚轮：调整字号
@@ -1211,11 +1173,9 @@ function handleWheel(e) {
 // 键盘快捷键：按 End 键直接跳到 100% 进度（测试用）
 function handleKeydown(e) {
   if (e.key === 'End') {
-    console.log('[handleKeydown]End键按下，设置进度到100%')
     readProgress.value = 1
     // 已移除自动弹题调用
   } else if (e.key === 'Home') {
-    console.log('[handleKeydown]Home键按下，重置进度到0%')
     readProgress.value = 0
   }
 }
@@ -1230,13 +1190,11 @@ watch(() => props.modelValue, (v) => {
     answersSoFar.value = []
     quizStarted.value = false
     //isClosing.value = false  // 重置关闭标志
-    console.log('[DocumentViewer]文档打开，重置所有答题状态')
     setTimeout(() => {
       updateReadProgress()
     }, 0)
   } else {
     document.removeEventListener('keydown', handleKeydown)
-    console.log('[DocumentViewer]文档关闭')
   }
 })
 
@@ -1247,7 +1205,6 @@ watch(questionVisible, async (v) => {
   if (!v) {
       // 文档正在关闭时不弹出下一题
       if (isClosing.value) {
-        console.log('[DocumentViewer]文档查看器正在关闭，不弹出下一题')
         return
       }
 
@@ -1269,7 +1226,6 @@ watch(questionVisible, async (v) => {
           questionVisible.value = true
         }
       } else {
-        console.log('[DocumentViewer]题目已答完，展示答题总结')
         summaryVisible.value = true
       }
   }
@@ -1297,7 +1253,6 @@ async function submitDocumentAnswersAndProgress() {
   try {
     const userRole = localStorage.getItem('userRole')
     if (userRole === 'teacher') {
-      console.log('[DocumentViewer]当前用户是教师，跳过答案提交和进度上报')
       return
     }
 
@@ -1307,7 +1262,6 @@ async function submitDocumentAnswersAndProgress() {
     
     // 确保已经答完所有题目
     if (!allQuestionsAnswered.value) {
-      console.log(`[DocumentViewer]题目未答完，已答${answersSoFar.value.length}/${questionList.value.length}题，不上报完成状态`)
       return
     }
     
@@ -1318,12 +1272,10 @@ async function submitDocumentAnswersAndProgress() {
         studentId: studentId,
         answers: answersSoFar.value.map(a => ({ questionId: a.questionId, answer: a.answer }))
       }
-      console.log('[DocumentViewer]提交答案（全部完成）:', body)
       const res = await axios.post(`${BASE_URL}/aiexam/submit`, body, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
       })
       if (res.data.code === 200) {
-        console.log('[DocumentViewer]提交答案成功')
       }
     }
     // 上报文档进度为已完成（所有题目答完后）
@@ -1332,7 +1284,6 @@ async function submitDocumentAnswersAndProgress() {
       const currentChapter = flatChapters.value[currentIndex.value]
       const docId = currentChapter?.documentId
       if (!docId) {
-        console.log('[DocumentViewer]当前章节没有 documentId，无法上报进度')
         return
       }
       const params = {
@@ -1341,13 +1292,11 @@ async function submitDocumentAnswersAndProgress() {
         documentId: docId,
         completed: true
       }
-      console.log('[DocumentViewer]上报文档已看完（全部答完）, documentId:', docId, 'params:', params)
       const res2 = await axios.post(`${BASE_URL}/progress/report`, null, {
         params: params,
         headers: { Authorization: `Bearer ${token}` }
       })
       if (res2.data.code === 200) {
-        console.log('[DocumentViewer]上报文档完成成功')
         // 标记已看完（使用后端返回的进度，不再被本地滚动进度覆盖）
         readProgress.value = 1
         // 同步后端进度，确保后续不被本地状态覆盖

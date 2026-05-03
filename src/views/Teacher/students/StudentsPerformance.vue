@@ -714,7 +714,6 @@ export default {
 
       // 发送提醒
       async sendReminder(studentId) {
-        console.log('API调用: sendReminder', studentId)
         await new Promise(resolve => setTimeout(resolve, 500))
         return { success: true, message: '提醒发送成功' }
       }

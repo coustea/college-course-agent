@@ -567,7 +567,6 @@ const submitCheck = async () => {
           await api.put(`/submission/${submissionId}/comment`, {
             groupComment: gradingForm.groupComment.trim()
           })
-          console.log('小组评语已保存')
         } catch (error) {
           console.error('保存小组评语失败:', error)
           ElMessage.warning('评分成功，但小组评语保存失败')
@@ -603,8 +602,6 @@ const tryPrefillExistingGrades = async () => {
   try {
     const submissionId = selectedGroup.value && (selectedGroup.value.submissionId || selectedGroup.value.submission_id)
 
-    console.log('[加载历史评分] selectedGroup:', selectedGroup.value)
-    console.log('[加载历史评分] submissionId:', submissionId)
 
     if (!submissionId) {
       console.warn('[加载历史评分] submissionId 为空，无法加载历史评分')
@@ -612,20 +609,15 @@ const tryPrefillExistingGrades = async () => {
     }
 
     const resp = await api.get(`/grading/group/${submissionId}`)
-    console.log('[加载历史评分] 完整响应:', resp)
 
     const raw = resp?.data
     const data = raw?.data || raw
 
-    console.log('[加载历史评分] data对象:', data)
-    console.log('[加载历史评分] memberScores:', data?.memberScores)
-    console.log('[加载历史评分] groupComment:', data?.groupComment)
 
     // 处理成员评分（新版本返回格式：{ memberScores: [...], groupComment: "..." }）
     const list = Array.isArray(data?.memberScores) ? data.memberScores : (Array.isArray(data) ? data : [])
 
     if (Array.isArray(list) && list.length > 0) {
-      console.log('[加载历史评分] 找到', list.length, '个成员评分')
       const map = new Map()
       list.forEach(it => map.set(Number(it.studentId || it.student_id), {
         score: it.score != null ? Number(it.score) : null,
@@ -637,7 +629,6 @@ const tryPrefillExistingGrades = async () => {
         const got = map.get(Number(m.studentId))
         const result = got ? { ...m, ...got } : m
         if (got) {
-          console.log('[加载历史评分] 成员', m.studentName, '的评分:', got)
         }
         return result
       })
@@ -647,18 +638,14 @@ const tryPrefillExistingGrades = async () => {
       if (anyScored && selectedGroup.value) {
         const group = groups.value.find(g => g.id === selectedGroup.value.id)
         if (group) group.hasGrades = true
-        console.log('[加载历史评分] 标记小组为已评分')
       }
     } else {
-      console.log('[加载历史评分] 未找到历史评分记录')
     }
 
     // 处理小组评语（新版本已包含在同一个响应中）
     if (data && data.groupComment) {
       gradingForm.groupComment = data.groupComment
-      console.log('[加载历史评分] 已加载小组评语:', data.groupComment)
     } else {
-      console.log('[加载历史评分] 未找到小组评语')
     }
   } catch (error) {
     console.error('[加载历史评分] 加载评分和评语失败:', error)

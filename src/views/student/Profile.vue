@@ -214,15 +214,12 @@ async function saveEdit() {
     const email = String(editEmail.value || '').trim()
     if (phone && !/^\d{6,20}$/.test(phone)) { alert('手机号格式不正确'); return }
     if (email && !/^\S+@\S+\.\S+$/.test(email)) { alert('邮箱格式不正确'); return }
-    console.log("修改信息:", phone, email)
     // 优先调用后端保存；若没有后端则落地到本地存储
-    console.log(BASE_URL)
     const token = localStorage.getItem('token')
     const userId = localStorage.getItem('userId')
     try {
         const res = await axios.put(`${BASE_URL}/teacher/update/student?id=${userId}`, { phone, email }, {
           headers: { Authorization: `Bearer ${token}` } })
-        console.log("修改信息的响应:", res?.data)
         const ok = (res?.data?.code === 200)
         if (ok) {
           // 更新前端展示与本地持久化，确保立即可见

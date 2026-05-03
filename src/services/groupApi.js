@@ -11,17 +11,14 @@ function toUrl(u) {
 }
 
 export async function getStudentsByClassName(className, signal) {
-  console.log('className', className)
   const url = toUrl(`/student/class/${className}`)
   const resp = await http.get(url, { params: { className }, signal })
-  console.log('学生列表', resp.data)
   return Array.isArray(resp.data) ? resp.data : resp.data.data
 }
 
 export async function createStudentGroup(payload, signal) {
   const url = toUrl('student-group')
   const resp = await http.post(url, payload, { signal })
-  console.log('创建的学生分组', resp.data)
   return resp?.data
 }
 
@@ -29,6 +26,5 @@ export async function createStudentGroup(payload, signal) {
 export async function updateStudentGroup(payload, signal) {
   const url = toUrl('student-group/update')
   const resp = await http.post(url, payload, { signal })
-  console.log('重新申请学生分组', resp.data)
   return resp?.data
 }

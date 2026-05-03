@@ -19,8 +19,8 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/ccut?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${SPRING_DATASOURCE_USERNAME:coustea}
-    password: ${SPRING_DATASOURCE_PASSWORD:Aa123456}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
     hikari:
       maximum-pool-size: 30 # 最大连接数
       minimum-idle: 10 # 最小空闲连接数
@@ -68,7 +68,7 @@ logging:
     com.ccut.mapper: debug # 打印SQL语句
 
 file:
-  upload-dir: ${UPLOAD_DIR:./uploads}
+  upload-dir: ${UPLOAD_DIR:${user.home}/ccut-uploads}
 
 # JWT认证开关（开发环境设为false，生产环境设为true）
 jwt:

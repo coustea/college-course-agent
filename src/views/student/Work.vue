@@ -304,12 +304,8 @@ async function getGroupInfo() {
       }
     )
 
-    console.log("再次获取小组信息用来判断组长:",res.data)
-    console.log("res.data.data:", res.data.data)
     if (res.data.code === 200 && res.data.data) {
       groupId.value = res.data.data.groupId;
-      console.log("groupId:", groupId.value)
-      console.log("res.data.data.groupId:", res.data.data.groupId)
       // 继续获取小组详情，基于角色判断出组长
       if (groupId.value) {
         const headers = {
@@ -319,7 +315,6 @@ async function getGroupInfo() {
         const fd = new FormData();
         fd.append('groupId', groupId.value)
         const detail = await axios.post(`${BASE_URL}/student-group/getByGroupId`, fd, {headers})
-        console.log('通过组长找到group', detail.data)
         if (detail?.data?.code === 200 && detail?.data?.data) {
           const group = detail.data.data
           const st = String(group?.approvalStatus || '').toLowerCase()
@@ -391,7 +386,6 @@ function loadSubmissionState() {
 async function syncSubmissionStateFromServer() {
   try {
     if (!groupInfo.value?.groupId && !groupId.value) {
-      console.log('⚠️ 没有小组信息，清空 LocalStorage 中的提交状态')
       // 学生没有加入小组，清空所有提交状态
       writeJson(SUBMIT_STATE_KEY, {})
       submissionState.value = {}
@@ -400,24 +394,20 @@ async function syncSubmissionStateFromServer() {
     
     const currentGroupId = groupInfo.value?.groupId || groupId.value
     if (!currentGroupId) {
-      console.log('⚠️ groupId 为空，清空提交状态')
       writeJson(SUBMIT_STATE_KEY, {})
       submissionState.value = {}
       return
     }
     
     const token = localStorage.getItem('token')
-    console.log('🔍 准备查询小组提交记录, groupId:', currentGroupId)
     const res = await axios.get(`${BASE_URL}/submission/my-group`, {
       params: { groupId: currentGroupId },
       headers: { Authorization: `Bearer ${token}` }
     })
     
-    console.log('✅ 同步小组提交状态 - 接口响应:', res.data)
     
     if (res.data.code === 200 && Array.isArray(res.data.data)) {
       const submissions = res.data.data
-      console.log('从服务器同步到的小组提交记录:', submissions)
       
       // 清空旧数据，重新构建（只包含该小组的提交记录）
       const state = {}
@@ -433,13 +423,11 @@ async function syncSubmissionStateFromServer() {
       })
       writeJson(SUBMIT_STATE_KEY, state)
       submissionState.value = state
-      console.log('提交状态已同步到 LocalStorage (已清空旧数据):', state)
       
       // 🔥 同步完提交状态后，立即同步成绩状态
       await syncGradesStateFromServer(submissions)
     } else {
       // 如果后端返回空数组，说明该小组没有任何提交记录，清空 LocalStorage
-      console.log('该小组没有任何提交记录，清空 LocalStorage')
       writeJson(SUBMIT_STATE_KEY, {})
       submissionState.value = {}
       writeJson(GRADES_STATE_KEY, {})
@@ -456,7 +444,6 @@ async function syncGradesStateFromServer(submissions) {
     const token = localStorage.getItem('token')
     const gradesMap = {}
     
-    console.log('🔍 开始批量查询成绩状态...')
     
     // 为每个已提交的作业查询成绩
     for (const sub of submissions) {
@@ -493,21 +480,18 @@ async function syncGradesStateFromServer(submissions) {
               
               if (scoreValue != null) {
                 gradesMap[assignmentId] = { score: Number(scoreValue), at: Date.now() }
-                console.log(`✅ 作业 ${assignmentId} 有成绩: ${scoreValue}`)
               }
             }
           }
         }
       } catch (err) {
         // 单个作业查询失败不影响其他作业
-        console.log(`⚠️ 查询作业 ${assignmentId} 的成绩失败:`, err.message)
       }
     }
     
     // 更新 gradesState
     writeJson(GRADES_STATE_KEY, gradesMap)
     gradesState.value = gradesMap
-    console.log('✅ 成绩状态已同步:', gradesMap)
   } catch (e) {
     console.error('同步成绩状态失败:', e)
   }
@@ -538,14 +522,10 @@ const accept = computed(() => {
 onMounted(async () => {
   try {
     await getGroupInfo()
-    console.log('✅ 获取小组提交作业记录完成, groupInfo:', groupInfo.value)
-    console.log('✅ groupId:', groupId.value)
 
     await syncSubmissionStateFromServer()
-    console.log('✅ 同步提交状态完成, submissionState:', submissionState.value)
 
     const data = await getTeachAssignments()
-    console.log("获取教师分配的作品:",data)
     if (data?.code === 200 && Array.isArray(data?.data) && data.data.length > 0) {
       const first = data.data[0]
       const dl = first.dueDate
@@ -591,14 +571,12 @@ onMounted(async () => {
 const getTeachAssignments = async () =>{
   try{
     const className = localStorage.getItem('className')
-    console.log(className)
     const res = await axios.post(`${BASE_URL}/teacherAssignments/byClassName`, { className },{
       headers: {
         'Content-Type': 'multipart/form-data',
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     })
-    console.log("获取作品列表:",res.data)
     if (res.data.code === 200) {
       return res.data
     }
@@ -846,63 +824,42 @@ async function fetchGrades(row) {
     const resp = await axios.get(`${BASE_URL}/grading/group/${submissionId}`,
      { headers: { Authorization: `Bearer ${token}` } })
     const data = resp.data.data || resp.data
-    console.log("========== 获取成绩详细信息 ==========")
-    console.log("完整响应:", resp.data)
-    console.log("data对象:", data)
-    console.log("data的所有键:", Object.keys(data))
     
     // 提取小组评价
     groupComment.value = data?.groupComment || data?.comment || data?.evaluation || data?.feedback || ''
-    console.log("小组评价:", groupComment.value)
     
     // 兼容多种数据结构：优先级 memberScores > members > studentScores > 直接数组
     let list = []
     if (Array.isArray(data?.memberScores)) {
-      console.log("使用 memberScores 数组")
       list = data.memberScores
     } else if (Array.isArray(data?.members)) {
-      console.log("使用 members 数组")
       list = data.members
     } else if (Array.isArray(data?.studentScores)) {
-      console.log("使用 studentScores 数组")
       list = data.studentScores
     } else if (Array.isArray(data)) {
-      console.log("使用直接数组")
       list = data
     }
     
-    console.log("原始成员列表:", list)
-    console.log("成员数量:", list.length)
     if (list.length > 0) {
-      console.log("第一个成员对象:", list[0])
-      console.log("第一个成员的所有字段:", Object.keys(list[0]))
     }
     
     gradeMembers.value = list.map((m, index) => {
-      console.log(`解析第 ${index + 1} 个成员:`, m)
       
       // 尝试多种可能的分数字段名
       let scoreValue = null
       if (m.score != null) {
         scoreValue = Number(m.score)
-        console.log(`  -> 使用 score 字段: ${scoreValue}`)
       } else if (m.grade != null) {
         scoreValue = Number(m.grade)
-        console.log(`  -> 使用 grade 字段: ${scoreValue}`)
       } else if (m.totalScore != null) {
         scoreValue = Number(m.totalScore)
-        console.log(`  -> 使用 totalScore 字段: ${scoreValue}`)
       } else if (m.finalScore != null) {
         scoreValue = Number(m.finalScore)
-        console.log(`  -> 使用 finalScore 字段: ${scoreValue}`)
       } else if (m.memberScore != null) {
         scoreValue = Number(m.memberScore)
-        console.log(`  -> 使用 memberScore 字段: ${scoreValue}`)
       } else if (m.points != null) {
         scoreValue = Number(m.points)
-        console.log(`  -> 使用 points 字段: ${scoreValue}`)
       } else {
-        console.log(`  -> 未找到分数字段`)
       }
       
       const result = {
@@ -910,11 +867,9 @@ async function fetchGrades(row) {
         level: (m.level || m.performanceLevel || m.gradeLevel || m.levelName || ''),
         score: scoreValue
       }
-      console.log(`  -> 解析结果:`, result)
       return result
     })
     
-    console.log("最终的 gradeMembers:", gradeMembers.value)
     
     // 🔥 关键：更新 gradesState，记录该作业已有成绩
     if (key && list.length > 0) {
@@ -932,11 +887,9 @@ async function fetchGrades(row) {
         state[key] = { score: Number(scoreValue), at: Date.now() }
         writeJson(GRADES_STATE_KEY, state)
         gradesState.value = state
-        console.log(`✅ 已更新成绩状态: 作业ID=${key}, 成绩=${scoreValue}`)
       }
     }
     
-    console.log("========================================")
   } catch (e) {
     console.error('获取成绩失败', e)
     gradeMembers.value = []
@@ -972,7 +925,6 @@ async function submitWork() {
 
     // 添加必要参数
     formData.append('assignmentId', currentAssignment.value?.id)
-    console.log('assignmentId:', currentAssignment.value?.id)
     formData.append('groupId', groupId.value)
     formData.append('studentId', localStorage.getItem('userId'))
     // 已移除标题字段
@@ -988,17 +940,14 @@ async function submitWork() {
         formData.append('files', file.raw || file)
       })
     }
-    console.log('提交上传的参数', formData)
     // 已移除标题参数日志
     // 调用后端上传接口
-    console.log('开始上传到:', `${BASE_URL}/submission/upload`)
     const response = await axios.post(`${BASE_URL}/submission/upload`, formData, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}` ,
         'Content-Type': 'multipart/form-data'
       }
     })
-    console.log("提交作业响应",response.data)
     if (response.data.code === 200) {
       ElMessage.success('提交成功')
       const id = currentAssignment.value?.id || currentAssignment.value?.assignmentId
@@ -1048,8 +997,6 @@ async function openEdit(row) {
   const assignmentId = row?.id || row?.assignmentId
   const currentGroupId = groupInfo.value?.groupId || groupId.value
 
-  console.log('========== 点击修改，获取已提交作业详情 ==========')
-  console.log('assignmentId:', assignmentId, 'groupId:', currentGroupId)
 
   if (currentGroupId) {
     try {
@@ -1059,41 +1006,32 @@ async function openEdit(row) {
         headers: { Authorization: `Bearer ${token}` }
       })
 
-      console.log('小组提交记录接口响应:', res.data)
 
       if (res.data.code === 200 && Array.isArray(res.data.data)) {
         const submissions = res.data.data
-        console.log('所有提交记录:', submissions)
-        console.log('提交记录数量:', submissions.length)
 
         // 查找当前作业的提交记录
         const submittedWork = submissions.find(sub =>
           String(sub.assignmentId) === String(assignmentId)
         )
 
-        console.log('找到的提交记录:', submittedWork)
 
         if (submittedWork) {
-          console.log('🔍 解析提交记录数据:', submittedWork)
 
           // 填充表单数据
           // 标题已不必填，不再回填
           submissionForm.value.description = submittedWork.submissionContent || submittedWork.content || submittedWork.description || ''
 
-          console.log('标题:', submissionForm.value.title)
-          console.log('描述:', submissionForm.value.description)
 
           // 处理已上传的文件 - submissionFiles 是 JSON 字符串
           let filesList = []
           try {
             // 尝试解析 submissionFiles
             const filesStr = submittedWork.submissionFiles || submittedWork.files || submittedWork.fileUrl
-            console.log('文件字段原始值:', filesStr)
 
             if (typeof filesStr === 'string' && filesStr.trim().startsWith('[')) {
               // 是 JSON 字符串数组
               filesList = JSON.parse(filesStr)
-              console.log('解析后的文件数组:', filesList)
             } else if (typeof filesStr === 'string' && filesStr) {
               // 是单个文件URL字符串
               filesList = [{
@@ -1113,25 +1051,15 @@ async function openEdit(row) {
                 uid: Date.now() + index,
                 status: 'success'
               }))
-              console.log('✅ 已填充文件列表:', submissionForm.value.files)
             } else {
               submissionForm.value.files = []
-              console.log('⚠️ 没有文件')
             }
           } catch (e) {
             console.error('解析文件失败:', e)
             submissionForm.value.files = []
           }
-
-          console.log('✅ 成功填充表单数据:', {
-            title: submissionForm.value.title,
-            description: submissionForm.value.description,
-            files: submissionForm.value.files
-          })
-          console.log('==================================================')
           return // 成功获取，直接返回
         } else {
-          console.log('❌ 未找到该作业的提交记录')
         }
       }
     } catch (error) {
@@ -1140,7 +1068,6 @@ async function openEdit(row) {
   }
 
   // 如果从服务器获取失败，尝试从本地缓存读取
-  console.log('⚠️ 尝试从本地缓存读取')
   try {
     const state = readJson(SUBMIT_STATE_KEY, {})
     const id = String(assignmentId ?? '')
@@ -1149,9 +1076,7 @@ async function openEdit(row) {
       submissionForm.value.title = last.title || ''
       submissionForm.value.description = last.description || ''
       submissionForm.value.files = Array.isArray(last.files) ? last.files : []
-      console.log('✅ 从本地缓存读取成功:', last)
     } else {
-      console.log('❌ 本地缓存中没有数据')
     }
   } catch (err) {
     console.error('读取本地缓存失败:', err)
@@ -1181,7 +1106,6 @@ async function submitWorkUpdate() {
 
     // 添加必要参数
     formData.append('assignmentId', currentAssignment.value?.id)
-    console.log('assignmentId:', currentAssignment.value?.id)
     formData.append('groupId', groupId.value)
     formData.append('studentId', localStorage.getItem('userId'))
     // 已移除标题字段
@@ -1197,21 +1121,17 @@ async function submitWorkUpdate() {
         formData.append('files', file.raw || file)
       })
     }
-    console.log('修改提交的参数', formData)
     // 调用后端上传接口
     const assignId = currentAssignment.value?.id
     const key = assignId != null ? String(assignId) : ''
     const saved = key ? readJson(SUBMIT_STATE_KEY, {})[key] : null
     const submissionId = saved?.submissionId || assignId
-    console.log('用于修改的提交ID:', submissionId)
-    console.log('开始上传到:', `${BASE_URL}/submission/${submissionId}`)
     const response = await axios.put(`${BASE_URL}/submission/${submissionId}`, formData, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}` ,
         'Content-Type': 'multipart/form-data'
       }
     })
-    console.log("提交修改",response.data)
     if (response.data.code === 200) {
       ElMessage.success('修改已提交')
       if (key) {

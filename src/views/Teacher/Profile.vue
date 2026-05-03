@@ -332,7 +332,6 @@ const saveProfile = async () => {
       ElMessage.error('未找到有效的教师ID')
       return
     }
-    console.log('保存个人信息:', editForm)
     // 发送更新请求，修复了多余的空对象参数
     const res = await axios.put(`${BASE_URL}/teacher/update/teacher/${id}`, editForm
         ,{
@@ -340,7 +339,6 @@ const saveProfile = async () => {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
     })
-    console.log("一调用后端接口更新教师信息:", res)
     // 更新教师信息
     teacherInfo.value = { ...teacherInfo.value, ...editForm }
 

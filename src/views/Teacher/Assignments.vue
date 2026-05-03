@@ -8,7 +8,6 @@
 import { onMounted } from 'vue'
 
 onMounted(() => {
-  console.log('作品管理页面加载完成')
 })
 </script>
 
