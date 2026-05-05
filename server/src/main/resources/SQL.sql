@@ -782,7 +782,8 @@ CREATE TABLE wrong_question (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '错题本表';
 
 -- ================================================
--- 更多测试数据
+-- ================================================
+-- 测试账号数据
 -- ================================================
 
 -- 默认账号（项目说明中使用的基础账号）
@@ -791,10 +792,8 @@ INSERT INTO users (username, password, role) VALUES
 ('teacher', '123456', 'teacher');
 
 INSERT INTO students (id, student_number, name, class_name, email, phone, major, grade, enrollment_year, status, group_status) VALUES
-((SELECT id FROM users WHERE username = 'student'), '2024001', '王小明', '计算机24-1班', 'wangxiaoming@student.ccut.edu.cn', '13812345678', '计算机科学与技术', '2024级', 2024, 'IN_SCHOOL', 'pending');
+((SELECT id FROM users WHERE username = 'student'), '2024001', '王小明', '思政24-1班', 'wangxiaoming@student.ccut.edu.cn', '13812345678', '思想政治教育', '2024级', 2024, 'IN_SCHOOL', 'pending');
 
 INSERT INTO teachers (id, employee_number, name, email, phone, department, title, position, bio) VALUES
-((SELECT id FROM users WHERE username = 'teacher'), 'T2024001', '张教授', 'zhang@teacher.ccut.edu.cn', '13987654321', '马克思主义学院', '教授', '课程负责人', '主要研究方向：马克思主义理论、思想政治教育。'),
-((SELECT id FROM users WHERE username = 'teacher2'), 'T2024002', '李副教授', 'li@teacher.ccut.edu.cn', '13987654322', '马克思主义学院', '副教授', '教研室主任', '主要研究方向：思想道德与法治、中国近现代史。'),
-((SELECT id FROM users WHERE username = 'teacher3'), 'T2024003', '王讲师', 'wang@teacher.ccut.edu.cn', '13987654323', '马克思主义学院', '讲师', NULL, '主要研究方向：毛泽东思想、中国特色社会主义理论。');
+((SELECT id FROM users WHERE username = 'teacher'), 'T2024001', '张教授', 'zhang@teacher.ccut.edu.cn', '13987654321', '马克思主义学院', '教授', '课程负责人', '主要研究方向：马克思主义理论、思想政治教育。');
 
