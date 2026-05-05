@@ -43,7 +43,7 @@ public class CourseRecommendationPlugin implements ToolPlugin {
         Long userId = UserContext.get().userId();
 
         // 模拟推荐逻辑或调用现有的 recommendationService
-        List<Course> recommendations = courseService.searchByName(req.interest() != null ? req.interest() : "Java");
+        List<Course> recommendations = courseService.searchByName(req.interest() != null ? req.interest() : "思政");
 
         if (recommendations.isEmpty()) {
             return "目前没有找到与 '" + req.interest() + "' 相关的推荐课程。";

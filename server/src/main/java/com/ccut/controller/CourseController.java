@@ -35,7 +35,7 @@ public class CourseController {
             @RequestParam(value = "courseName", required = false) String courseName,
             @RequestParam(value = "description", required = false) String description,
             @RequestParam(value = "teacherId", required = false) Long teacherId,
-            @RequestPart(value = "image", required = false) MultipartFile image) {
+            @RequestParam(value = "image", required = false) MultipartFile image) {
         Course course = parseCourseFromRequest(courseJson, courseCode, courseName, description, teacherId);
         Course result = courseService.insertWithImage(course, image);
         return Result.success(result);
@@ -49,7 +49,7 @@ public class CourseController {
             @RequestParam(value = "courseName", required = false) String courseName,
             @RequestParam(value = "description", required = false) String description,
             @RequestParam(value = "teacherId", required = false) Long teacherId,
-            @RequestPart(value = "image", required = false) MultipartFile image) {
+            @RequestParam(value = "image", required = false) MultipartFile image) {
         Course course = parseCourseFromRequest(courseJson, courseCode, courseName, description, teacherId);
         course.setCourseId(courseId);
         String result = courseService.updateWithImage(course, image);

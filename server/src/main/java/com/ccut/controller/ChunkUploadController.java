@@ -23,6 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @RestController
 @RequestMapping("/api/chunk")
 public class ChunkUploadController {
+    private static final long MAX_FILE_SIZE = 1024L * 1024L * 1024L;
+    private static final int DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024;
+    private static final int MAX_CHUNKS = 2000;
 
     @Autowired
     private CourseVideoMapper courseVideoMapper;
@@ -42,6 +45,16 @@ public class ChunkUploadController {
             @RequestParam("fileSize") Long fileSize,
             @RequestParam("totalChunks") Integer totalChunks
     ) {
+        if (fileName == null || fileName.isBlank()) {
+            throw new IllegalArgumentException("文件名不能为空");
+        }
+        if (fileSize == null || fileSize <= 0 || fileSize > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException("文件大小超出允许范围");
+        }
+        if (totalChunks == null || totalChunks <= 0 || totalChunks > MAX_CHUNKS) {
+            throw new IllegalArgumentException("分片数量超出允许范围");
+        }
+
         String uploadId = UUID.randomUUID().toString().replace("-", "");
         ChunkInfo info = new ChunkInfo();
         info.setUploadId(uploadId);
@@ -55,7 +68,7 @@ public class ChunkUploadController {
 
         Map<String, Object> result = new HashMap<>();
         result.put("uploadId", uploadId);
-        result.put("chunkSize", 2 * 1024 * 1024); // 2MB per chunk
+        result.put("chunkSize", DEFAULT_CHUNK_SIZE);
 
         return Result.success(result);
     }
@@ -72,6 +85,12 @@ public class ChunkUploadController {
         ChunkInfo info = chunkInfoMap.get(uploadId);
         if (info == null) {
             throw new IllegalArgumentException("无效的 uploadId 或上传已过期");
+        }
+        if (chunkIndex == null || chunkIndex < 0 || chunkIndex >= info.getTotalChunks()) {
+            throw new IllegalArgumentException("无效的分片索引");
+        }
+        if (chunk == null || chunk.isEmpty()) {
+            throw new IllegalArgumentException("分片内容不能为空");
         }
 
         try {
@@ -138,10 +157,18 @@ public class ChunkUploadController {
             try (FileOutputStream fos = new FileOutputStream(finalPath.toFile())) {
                 for (int i = 0; i < info.getTotalChunks(); i++) {
                     Path chunkPath = Paths.get(tempDir, String.format("chunk_%d", i));
+                    if (!Files.exists(chunkPath)) {
+                        throw new IllegalArgumentException("缺少分片：" + i);
+                    }
                     Files.copy(chunkPath, fos);
                 }
             }
         } catch (IOException e) {
+            try {
+                Files.deleteIfExists(finalPath);
+            } catch (IOException ignored) {
+                log.warn("清理合并失败的目标文件失败：path={}", finalPath);
+            }
             throw new RuntimeException("分片合并失败：" + e.getMessage(), e);
         }
 

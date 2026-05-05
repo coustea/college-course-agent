@@ -306,9 +306,24 @@
                          <i class="fas fa-cloud-upload-alt upload-icon"></i>
                          <div class="el-upload__text">拖拽视频文件到此处，或 <em>点击上传</em></div>
                        </el-upload>
+                       <div v-if="videoForm.file" class="upload-meta">
+                          <div class="meta-row">文件大小：{{ formatFileSize(videoForm.file.size) }}</div>
+                          <div class="meta-row">上传方式：分片上传（默认 8MB/片）</div>
+                       </div>
+                       <el-progress
+                         v-if="videoUploadState.uploading || videoUploadState.progress > 0"
+                         :percentage="videoUploadState.progress"
+                         :stroke-width="10"
+                         status="success"
+                       />
+                       <div v-if="videoUploadState.uploading" class="upload-meta">
+                          <div class="meta-row">
+                            正在上传第 {{ videoUploadState.uploadedChunks }} / {{ videoUploadState.totalChunks }} 片
+                          </div>
+                       </div>
                        <div class="action-btn-row">
                           <el-button type="primary" @click="saveAllChanges" :loading="saving">开始上传并保存</el-button>
-                          <el-button @click="uploadType = null">取消</el-button>
+                          <el-button @click="uploadType = null; videoForm.videoTitle = ''; videoForm.file = null; resetVideoUploadState()">取消</el-button>
                        </div>
                     </div>
 
@@ -360,6 +375,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Plus } from '@element-plus/icons-vue'
 import request from '@/utils/request'
+import { initChunkUpload, uploadChunkPart, mergeChunkUpload, cancelChunkUpload } from '@/services/chunkUploadApi'
 
 const route = useRoute()
 const router = useRouter()
@@ -403,6 +419,14 @@ const imageFile = ref(null)
 const uploadType = ref(null) // 'video' | 'doc' | null
 const videoForm = ref({ videoTitle: '', file: null })
 const documentForm = ref({ docTitle: '', file: null })
+const videoUploadState = ref({
+  progress: 0,
+  uploadId: '',
+  chunkSize: 8 * 1024 * 1024,
+  totalChunks: 0,
+  uploadedChunks: 0,
+  uploading: false
+})
 
 // 编辑状态
 const editDialogVisible = ref(false)
@@ -484,7 +508,46 @@ const handleNodeClick = (data) => {
   uploadType.value = null // 重置上传面板
   videoForm.value = { videoTitle: '', file: null }
   documentForm.value = { docTitle: '', file: null }
+  resetVideoUploadState()
 }
+
+const resetVideoUploadState = () => {
+  videoUploadState.value = {
+    progress: 0,
+    uploadId: '',
+    chunkSize: 8 * 1024 * 1024,
+    totalChunks: 0,
+    uploadedChunks: 0,
+    uploading: false
+  }
+}
+
+const formatFileSize = (size) => {
+  if (!size) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = size
+  let index = 0
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024
+    index += 1
+  }
+  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+}
+
+const getVideoDuration = (file) => new Promise((resolve) => {
+  const video = document.createElement('video')
+  const objectUrl = URL.createObjectURL(file)
+  video.preload = 'metadata'
+  video.onloadedmetadata = () => {
+    URL.revokeObjectURL(objectUrl)
+    resolve(Number.isFinite(video.duration) ? Math.round(video.duration) : 0)
+  }
+  video.onerror = () => {
+    URL.revokeObjectURL(objectUrl)
+    resolve(0)
+  }
+  video.src = objectUrl
+})
 
 // 添加章
 const addChapter = async () => {
@@ -585,6 +648,7 @@ const handleNodeDrop = () => {
 const handleVideoChange = (file) => {
   videoForm.value.file = file.raw
   if (!videoForm.value.videoTitle) videoForm.value.videoTitle = file.name.replace(/\.[^/.]+$/, '')
+  resetVideoUploadState()
 }
 
 const handleDocumentChange = (file) => {
@@ -648,21 +712,83 @@ const updateCourseInfo = async (showMsg = true) => {
 
 const uploadVideo = async () => {
   if (!videoForm.value.file) return ElMessage.warning('请选择视频文件')
-  
-  const formData = new FormData()
-  formData.append('courseId', courseId.value)
-  formData.append('videoTitle', videoForm.value.videoTitle)
-  formData.append('file', videoForm.value.file)
 
-  const uploadRes = await request.post(`/api/course/video/insert`, formData)
-  if (uploadRes.data.code === 200) {
-    const attachRes = await request.post(`/api/chapter/attach/video`, null, {
-      params: { chapterId: selectedChapter.value.chapterId, videoId: uploadRes.data.data.videoId }
+  const file = videoForm.value.file
+  const fileName = file.name || `video-${Date.now()}.mp4`
+  const duration = await getVideoDuration(file)
+
+  videoUploadState.value.uploading = true
+
+  try {
+    const initialChunkSize = videoUploadState.value.chunkSize
+    const totalChunks = Math.max(1, Math.ceil(file.size / initialChunkSize))
+    const initRes = await initChunkUpload({
+      fileName,
+      fileSize: file.size,
+      totalChunks
     })
-    if (attachRes.data.code === 200) {
-      ElMessage.success('视频上传成功')
-      uploadType.value = null
+
+    if (initRes.data.code !== 200 || !initRes.data.data?.uploadId) {
+      throw new Error(initRes.data.message || '初始化视频上传失败')
     }
+
+    const { uploadId, chunkSize } = initRes.data.data
+    const effectiveChunkSize = chunkSize || initialChunkSize
+    const effectiveTotalChunks = Math.max(1, Math.ceil(file.size / effectiveChunkSize))
+
+    videoUploadState.value.uploadId = uploadId
+    videoUploadState.value.chunkSize = effectiveChunkSize
+    videoUploadState.value.totalChunks = effectiveTotalChunks
+
+    for (let chunkIndex = 0; chunkIndex < effectiveTotalChunks; chunkIndex += 1) {
+      const start = chunkIndex * effectiveChunkSize
+      const end = Math.min(file.size, start + effectiveChunkSize)
+      const chunk = file.slice(start, end)
+
+      const uploadRes = await uploadChunkPart({ uploadId, chunkIndex, chunk })
+      if (uploadRes.data.code !== 200) {
+        throw new Error(uploadRes.data.message || `第 ${chunkIndex + 1} 片上传失败`)
+      }
+
+      videoUploadState.value.uploadedChunks = chunkIndex + 1
+      videoUploadState.value.progress = Math.round(((chunkIndex + 1) / effectiveTotalChunks) * 100)
+    }
+
+    const mergeRes = await mergeChunkUpload({
+      uploadId,
+      courseId: courseId.value,
+      videoTitle: videoForm.value.videoTitle,
+      duration
+    })
+
+    if (mergeRes.data.code !== 200 || !mergeRes.data.data?.videoId) {
+      throw new Error(mergeRes.data.message || '视频合并失败')
+    }
+
+    const attachRes = await request.post('/api/chapter/attach/video', null, {
+      params: { chapterId: selectedChapter.value.chapterId, videoId: mergeRes.data.data.videoId }
+    })
+
+    if (attachRes.data.code !== 200) {
+      throw new Error(attachRes.data.message || '视频挂载章节失败')
+    }
+
+    ElMessage.success('视频上传成功')
+    uploadType.value = null
+    videoForm.value = { videoTitle: '', file: null }
+    resetVideoUploadState()
+  } catch (error) {
+    if (videoUploadState.value.uploadId) {
+      try {
+        await cancelChunkUpload(videoUploadState.value.uploadId)
+      } catch (cancelError) {
+        console.error('取消分片上传失败', cancelError)
+      }
+    }
+    ElMessage.error(error.message || '视频上传失败')
+    throw error
+  } finally {
+    videoUploadState.value.uploading = false
   }
 }
 
@@ -738,6 +864,16 @@ onMounted(() => {
   padding: 0 24px;
   box-shadow: 0 1px 4px rgba(0,21,41,0.08);
   z-index: 10;
+}
+
+.upload-meta {
+  margin-top: 12px;
+  color: #606266;
+  font-size: 13px;
+}
+
+.meta-row + .meta-row {
+  margin-top: 4px;
 }
 
 .header-left {

@@ -125,6 +125,7 @@ const loadPublishedCourses = async () => {
       const courses = response.data.data || []
       allCourses.value = courses.map(course => ({
         ...course,
+        coverImage: course.resourceUrl, // 后端返回 resourceUrl，映射为 coverImage
         type: detectCourseType(course)
       }))
     }
@@ -152,7 +153,8 @@ const loadMyEnrollments = async () => {
     const response = await getStudentEnrollments(userId)
     if (response.data.code === 200) {
       const enrollments = response.data.data || []
-      enrolledCourseIds.value = new Set(enrollments.map(e => e.courseId))
+      // Enrollment 结构: { enrollmentId, course: { courseId, ... }, ... }
+      enrolledCourseIds.value = new Set(enrollments.map(e => e.course?.courseId).filter(Boolean))
     }
   } catch (error) {
     console.error('加载已选课程失败:', error)

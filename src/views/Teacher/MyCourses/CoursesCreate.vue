@@ -457,7 +457,8 @@ const saveCourse = async (status) => {
       semester: form.semester || '',
       startDate: form.startDate || null,
       endDate: form.endDate || null,
-      vindex: 1
+      vindex: 1,
+      publishStatus: status  // 'published' 或 'draft'
     }
 
     // 将课程对象作为 JSON 字符串传递（后端优先处理）
@@ -474,7 +475,7 @@ const saveCourse = async (status) => {
       formData.append('image', imageFile.value)
     }
 
-    const response = await fetch(`${base}/api/course/insert`, {
+    const response = await fetch(`${base}/course/insert`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token.value}`

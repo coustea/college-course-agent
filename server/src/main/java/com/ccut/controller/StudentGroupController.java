@@ -59,10 +59,11 @@ public class StudentGroupController {
 
     @PostMapping
     @Transactional
-    public Result<StudentGroup> create(@RequestParam String groupName,
-                                       @RequestParam Long groupLeaderId,
-                                       @RequestParam String groupDescription,
-                                       @RequestParam List<Long> memberIds) {
+    public Result<StudentGroup> create(@RequestBody CreateGroupRequest req) {
+        String groupName = req.getGroupName();
+        Long groupLeaderId = req.getGroupLeaderId();
+        String groupDescription = req.getGroupDescription();
+        List<Long> memberIds = req.getMemberIds();
         // === 参数校验 ===
         if (groupName == null || groupName.isEmpty()) {
             throw new IllegalArgumentException("参数错误：groupName 不能为空");
@@ -254,6 +255,14 @@ public class StudentGroupController {
         private StudentGroup.GroupApprovalStatus approvalStatus;
         private java.util.List<Long> addMemberIds;
         private java.util.List<Long> removeMemberIds;
+    }
+
+    @Data
+    public static class CreateGroupRequest {
+        private String groupName;
+        private Long groupLeaderId;
+        private String groupDescription;
+        private List<Long> memberIds;
     }
 
     @PostMapping("/approvalStatus")

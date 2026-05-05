@@ -320,8 +320,8 @@ const loadCourses = async () => {
 const loadTodos = () => {
   const saved = localStorage.getItem('studentTodos')
   todos.value = saved ? JSON.parse(saved) : [
-    { id: 1, title: '完成 Vue 基础课程', completed: false },
-    { id: 2, title: '复习 Java 笔记', completed: true }
+    { id: 1, title: '完成马克思主义基本原理课程', completed: false },
+    { id: 2, title: '复习思想道德与法治笔记', completed: true }
   ]
 }
 
